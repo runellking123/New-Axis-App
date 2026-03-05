@@ -6,9 +6,34 @@ struct AppView: View {
 
     var body: some View {
         ZStack {
+            if store.showOnboarding {
+                OnboardingView {
+                    store.send(.completeOnboarding)
+                }
+                .transition(.opacity)
+            } else {
+                mainContent
+            }
+        }
+        .animation(.easeInOut(duration: 0.5), value: store.showOnboarding)
+        .onAppear { store.send(.onAppear) }
+        .preferredColorScheme(colorScheme(for: store.settings.darkModeOverride))
+    }
+
+    private func colorScheme(for option: SettingsReducer.State.DarkModeOption) -> ColorScheme? {
+        switch option {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    private var mainContent: some View {
+        ZStack {
             TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
                 CommandCenterView(
-                    store: store.scope(state: \.commandCenter, action: \.commandCenter)
+                    store: store.scope(state: \.commandCenter, action: \.commandCenter),
+                    onSettingsTapped: { store.send(.toggleSettings) }
                 )
                 .tabItem {
                     Label(AppReducer.State.Tab.commandCenter.title,
@@ -16,40 +41,50 @@ struct AppView: View {
                 }
                 .tag(AppReducer.State.Tab.commandCenter)
 
-                WorkSuitePlaceholderView()
-                    .tabItem {
-                        Label(AppReducer.State.Tab.workSuite.title,
-                              systemImage: AppReducer.State.Tab.workSuite.icon)
-                    }
-                    .tag(AppReducer.State.Tab.workSuite)
+                WorkSuiteView(
+                    store: store.scope(state: \.workSuite, action: \.workSuite)
+                )
+                .tabItem {
+                    Label(AppReducer.State.Tab.workSuite.title,
+                          systemImage: AppReducer.State.Tab.workSuite.icon)
+                }
+                .tag(AppReducer.State.Tab.workSuite)
 
-                FamilyHQPlaceholderView()
-                    .tabItem {
-                        Label(AppReducer.State.Tab.familyHQ.title,
-                              systemImage: AppReducer.State.Tab.familyHQ.icon)
-                    }
-                    .tag(AppReducer.State.Tab.familyHQ)
+                FamilyHQView(
+                    store: store.scope(state: \.familyHQ, action: \.familyHQ)
+                )
+                .tabItem {
+                    Label(AppReducer.State.Tab.familyHQ.title,
+                          systemImage: AppReducer.State.Tab.familyHQ.icon)
+                }
+                .tag(AppReducer.State.Tab.familyHQ)
 
-                SocialCirclePlaceholderView()
-                    .tabItem {
-                        Label(AppReducer.State.Tab.socialCircle.title,
-                              systemImage: AppReducer.State.Tab.socialCircle.icon)
-                    }
-                    .tag(AppReducer.State.Tab.socialCircle)
+                SocialCircleView(
+                    store: store.scope(state: \.socialCircle, action: \.socialCircle)
+                )
+                .tabItem {
+                    Label(AppReducer.State.Tab.socialCircle.title,
+                          systemImage: AppReducer.State.Tab.socialCircle.icon)
+                }
+                .tag(AppReducer.State.Tab.socialCircle)
 
-                ExplorePlaceholderView()
-                    .tabItem {
-                        Label(AppReducer.State.Tab.explore.title,
-                              systemImage: AppReducer.State.Tab.explore.icon)
-                    }
-                    .tag(AppReducer.State.Tab.explore)
+                ExploreView(
+                    store: store.scope(state: \.explore, action: \.explore)
+                )
+                .tabItem {
+                    Label(AppReducer.State.Tab.explore.title,
+                          systemImage: AppReducer.State.Tab.explore.icon)
+                }
+                .tag(AppReducer.State.Tab.explore)
 
-                BalancePlaceholderView()
-                    .tabItem {
-                        Label(AppReducer.State.Tab.balance.title,
-                              systemImage: AppReducer.State.Tab.balance.icon)
-                    }
-                    .tag(AppReducer.State.Tab.balance)
+                BalanceView(
+                    store: store.scope(state: \.balance, action: \.balance)
+                )
+                .tabItem {
+                    Label(AppReducer.State.Tab.balance.title,
+                          systemImage: AppReducer.State.Tab.balance.icon)
+                }
+                .tag(AppReducer.State.Tab.balance)
             }
             .tint(Color.axisGold)
 
@@ -63,5 +98,13 @@ struct AppView: View {
             }
         }
         .animation(.spring(duration: 0.3), value: store.showQuickCapture)
+        .sheet(isPresented: Binding(
+            get: { store.showSettings },
+            set: { _ in store.send(.toggleSettings) }
+        )) {
+            SettingsView(
+                store: store.scope(state: \.settings, action: \.settings)
+            )
+        }
     }
 }

@@ -130,6 +130,26 @@ struct QuickCaptureView: View {
             onDismiss()
             return
         }
+        let persistence = PersistenceService.shared
+
+        // Save as captured note
+        let note = CapturedNote(
+            content: captureText,
+            transcribedFromVoice: isRecordingVoice,
+            classifiedModule: classifiedModule
+        )
+        persistence.saveCapturedNote(note)
+
+        // Also create a priority item so it shows on Command Center
+        let existingCount = persistence.fetchPriorityItems().count
+        let item = PriorityItem(
+            title: captureText.trimmingCharacters(in: .whitespacesAndNewlines),
+            sourceModule: classifiedModule,
+            timeEstimateMinutes: 30,
+            sortOrder: existingCount
+        )
+        persistence.savePriorityItem(item)
+
         HapticService.notification(.success)
         onDismiss()
     }

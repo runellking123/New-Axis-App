@@ -56,6 +56,101 @@ final class AIService {
         return Double(sentiment?.rawValue ?? "0") ?? 0.0
     }
 
+    // MARK: - Weekly Report Generation
+
+    struct WeeklyReport: Equatable {
+        var completedPriorities: Int
+        var totalPriorities: Int
+        var dadWinsCount: Int
+        var averageEnergy: Double
+        var topMood: String
+        var contactsReachedOut: Int
+        var placesExplored: Int
+        var summary: String
+        var highlights: [String]
+        var improvementAreas: [String]
+    }
+
+    func generateWeeklyReport() -> WeeklyReport {
+        let persistence = PersistenceService.shared
+        let oneWeekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+
+        // Priorities
+        let allPriorities = persistence.fetchPriorityItems()
+        let recentPriorities = allPriorities.filter { $0.createdAt >= oneWeekAgo }
+        let completedCount = recentPriorities.filter(\.isCompleted).count
+
+        // Dad Wins
+        let allWins = persistence.fetchDadWins()
+        let recentWins = allWins.filter { $0.date >= oneWeekAgo }
+
+        // Contacts
+        let contacts = persistence.fetchContacts()
+        let recentContacts = contacts.filter { ($0.lastContacted ?? .distantPast) >= oneWeekAgo }
+
+        // Places
+        let places = persistence.fetchSavedPlaces()
+        let recentVisited = places.filter { $0.isVisited && $0.createdAt >= oneWeekAgo }
+
+        // Determine top mood from dad wins
+        let moodCounts = Dictionary(grouping: recentWins, by: \.mood).mapValues(\.count)
+        let topMood = moodCounts.max(by: { $0.value < $1.value })?.key ?? "proud"
+
+        // Highlights
+        var highlights: [String] = []
+        if completedCount > 0 {
+            highlights.append("Crushed \(completedCount) priorities this week")
+        }
+        if recentWins.count > 0 {
+            highlights.append("Logged \(recentWins.count) dad win\(recentWins.count == 1 ? "" : "s")")
+        }
+        if recentContacts.count > 0 {
+            highlights.append("Connected with \(recentContacts.count) people")
+        }
+        if recentVisited.count > 0 {
+            highlights.append("Explored \(recentVisited.count) new place\(recentVisited.count == 1 ? "" : "s")")
+        }
+        if highlights.isEmpty {
+            highlights.append("Fresh week — time to make it count")
+        }
+
+        // Improvement areas
+        var improvements: [String] = []
+        let completionRate = recentPriorities.isEmpty ? 1.0 : Double(completedCount) / Double(recentPriorities.count)
+        if completionRate < 0.7 {
+            improvements.append("Try breaking priorities into smaller tasks")
+        }
+        if recentWins.isEmpty {
+            improvements.append("Capture a dad win — even small moments matter")
+        }
+        if recentContacts.count < 2 {
+            improvements.append("Reach out to a friend this week")
+        }
+        if improvements.isEmpty {
+            improvements.append("You're on track — keep the momentum going")
+        }
+
+        // Summary
+        let summaryParts = [
+            "This week: \(completedCount)/\(recentPriorities.count) priorities done.",
+            recentWins.count > 0 ? "\(recentWins.count) dad wins recorded." : "No dad wins yet.",
+            "Feeling mostly \(topMood).",
+        ]
+
+        return WeeklyReport(
+            completedPriorities: completedCount,
+            totalPriorities: recentPriorities.count,
+            dadWinsCount: recentWins.count,
+            averageEnergy: 7.0,
+            topMood: topMood,
+            contactsReachedOut: recentContacts.count,
+            placesExplored: recentVisited.count,
+            summary: summaryParts.joined(separator: " "),
+            highlights: highlights,
+            improvementAreas: improvements
+        )
+    }
+
     // MARK: - Day Brief Generation
 
     func generateDayBriefSummary(

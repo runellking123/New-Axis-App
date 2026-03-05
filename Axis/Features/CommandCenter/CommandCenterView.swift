@@ -3,6 +3,7 @@ import SwiftUI
 
 struct CommandCenterView: View {
     @Bindable var store: StoreOf<CommandCenterReducer>
+    var onSettingsTapped: (() -> Void)?
 
     var body: some View {
         NavigationStack {
@@ -31,14 +32,36 @@ struct CommandCenterView: View {
                         .font(.system(size: 18, weight: .bold, design: .serif))
                         .foregroundStyle(Color.axisGold)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        store.send(.refreshTapped)
+                        onSettingsTapped?()
                     } label: {
-                        Image(systemName: "arrow.clockwise")
+                        Image(systemName: "gearshape.fill")
                             .foregroundStyle(Color.axisGold)
                     }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: 12) {
+                        Button {
+                            store.send(.toggleAddPriority)
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(Color.axisGold)
+                        }
+                        Button {
+                            store.send(.refreshTapped)
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .foregroundStyle(Color.axisGold)
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showAddPriority },
+                set: { _ in store.send(.toggleAddPriority) }
+            )) {
+                addPrioritySheet
             }
             .onAppear {
                 store.send(.onAppear)
@@ -172,7 +195,7 @@ struct CommandCenterView: View {
                     HStack {
                         Image(systemName: "tray")
                             .foregroundStyle(.secondary)
-                        Text("No priorities yet. Use Quick Capture to add items.")
+                        Text("No priorities yet. Tap + to add one.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -183,11 +206,54 @@ struct CommandCenterView: View {
                 ForEach(store.priorities) { priority in
                     PriorityCardView(
                         priority: priority,
-                        onToggle: { store.send(.togglePriority(priority.id)) }
+                        onToggle: { store.send(.togglePriority(priority.id)) },
+                        onDelete: { store.send(.deletePriority(priority.id)) }
                     )
                 }
             }
         }
+    }
+
+    // MARK: - Add Priority Sheet
+
+    private var addPrioritySheet: some View {
+        NavigationStack {
+            Form {
+                Section("Priority Details") {
+                    TextField("What needs to get done?", text: $store.newPriorityTitle.sending(\.newPriorityTitleChanged))
+
+                    Picker("Category", selection: $store.newPriorityModule.sending(\.newPriorityModuleChanged)) {
+                        Label("Command Center", systemImage: "bolt.fill").tag("commandCenter")
+                        Label("Work", systemImage: "building.columns.fill").tag("workSuite")
+                        Label("Family", systemImage: "house.fill").tag("familyHQ")
+                        Label("Social", systemImage: "person.2.fill").tag("socialCircle")
+                        Label("Explore", systemImage: "safari.fill").tag("explore")
+                        Label("Balance", systemImage: "heart.fill").tag("balance")
+                    }
+
+                    Picker("Time Estimate", selection: $store.newPriorityTimeEstimate.sending(\.newPriorityTimeEstimateChanged)) {
+                        Text("15 min").tag(15)
+                        Text("30 min").tag(30)
+                        Text("45 min").tag(45)
+                        Text("1 hour").tag(60)
+                        Text("2 hours").tag(120)
+                    }
+                }
+            }
+            .navigationTitle("New Priority")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { store.send(.toggleAddPriority) }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") { store.send(.addPriority) }
+                        .fontWeight(.semibold)
+                        .disabled(store.newPriorityTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 
@@ -196,6 +262,7 @@ struct CommandCenterView: View {
 struct PriorityCardView: View {
     let priority: CommandCenterReducer.State.PriorityState
     let onToggle: () -> Void
+    var onDelete: (() -> Void)?
 
     var body: some View {
         GlassCard {
@@ -223,6 +290,14 @@ struct PriorityCardView: View {
                 }
 
                 Spacer()
+
+                if let onDelete {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }

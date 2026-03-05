@@ -16,6 +16,10 @@ struct CommandCenterReducer {
         var nextEventTime: String = ""
         var energyScore: Int = 7
         var currentGreeting: String = "Good morning"
+        var showAddPriority = false
+        var newPriorityTitle = ""
+        var newPriorityModule = "commandCenter"
+        var newPriorityTimeEstimate = 30
 
         struct PriorityState: Equatable, Identifiable {
             let id: UUID
@@ -35,8 +39,14 @@ struct CommandCenterReducer {
         case nextEventLoaded(title: String, time: String)
         case prioritiesLoaded([State.PriorityState])
         case togglePriority(UUID)
+        case deletePriority(UUID)
         case refreshTapped
         case priorityReordered(fromOffsets: IndexSet, toOffset: Int)
+        case toggleAddPriority
+        case newPriorityTitleChanged(String)
+        case newPriorityModuleChanged(String)
+        case newPriorityTimeEstimateChanged(Int)
+        case addPriority
     }
 
     var body: some ReducerOf<Self> {
@@ -45,6 +55,44 @@ struct CommandCenterReducer {
             case .onAppear:
                 state.isLoadingBrief = true
                 state.currentGreeting = Self.greetingForTimeOfDay()
+
+                // Load persisted priorities
+                let persistence = PersistenceService.shared
+                let stored = persistence.fetchPriorityItems()
+                if stored.isEmpty {
+                    // Seed sample priorities
+                    let samples = Self.samplePriorities()
+                    for (index, s) in samples.enumerated() {
+                        let item = PriorityItem(
+                            title: s.title,
+                            sourceModule: s.sourceModule,
+                            timeEstimateMinutes: 30,
+                            sortOrder: index,
+                            contextMode: "work"
+                        )
+                        persistence.savePriorityItem(item)
+                        state.priorities.append(State.PriorityState(
+                            id: item.uuid,
+                            title: item.title,
+                            sourceModule: item.sourceModule,
+                            sourceIcon: item.sourceIcon,
+                            timeEstimate: item.formattedTimeEstimate,
+                            isCompleted: item.isCompleted
+                        ))
+                    }
+                } else {
+                    state.priorities = stored.map { item in
+                        State.PriorityState(
+                            id: item.uuid,
+                            title: item.title,
+                            sourceModule: item.sourceModule,
+                            sourceIcon: item.sourceIcon,
+                            timeEstimate: item.formattedTimeEstimate,
+                            isCompleted: item.isCompleted
+                        )
+                    }
+                }
+
                 return .run { send in
                     // Load weather
                     let weather = WeatherService.shared
@@ -107,8 +155,17 @@ struct CommandCenterReducer {
             case let .togglePriority(id):
                 if let index = state.priorities.firstIndex(where: { $0.id == id }) {
                     state.priorities[index].isCompleted.toggle()
+
+                    // Persist
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchPriorityItems()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.isCompleted = state.priorities[index].isCompleted
+                        match.completedAt = state.priorities[index].isCompleted ? Date() : nil
+                        persistence.updatePriorityItems()
+                    }
+
                     if state.priorities[index].isCompleted {
-                        // Check if all done — celebration!
                         let allDone = state.priorities.allSatisfy(\.isCompleted)
                         if allDone {
                             HapticService.celebration()
@@ -119,12 +176,74 @@ struct CommandCenterReducer {
                 }
                 return .none
 
+            case let .deletePriority(id):
+                state.priorities.removeAll { $0.id == id }
+                let persistence = PersistenceService.shared
+                let stored = persistence.fetchPriorityItems()
+                if let match = stored.first(where: { $0.uuid == id }) {
+                    persistence.deletePriorityItem(match)
+                }
+                return .none
+
             case .refreshTapped:
                 state.isLoadingBrief = true
                 return .send(.onAppear)
 
             case let .priorityReordered(from, to):
                 state.priorities.move(fromOffsets: from, toOffset: to)
+                // Persist new sort order
+                let persistence = PersistenceService.shared
+                let stored = persistence.fetchPriorityItems()
+                for (index, priority) in state.priorities.enumerated() {
+                    if let match = stored.first(where: { $0.uuid == priority.id }) {
+                        match.sortOrder = index
+                    }
+                }
+                persistence.updatePriorityItems()
+                return .none
+
+            case .toggleAddPriority:
+                state.showAddPriority.toggle()
+                if state.showAddPriority {
+                    state.newPriorityTitle = ""
+                    state.newPriorityModule = "commandCenter"
+                    state.newPriorityTimeEstimate = 30
+                }
+                return .none
+
+            case let .newPriorityTitleChanged(title):
+                state.newPriorityTitle = title
+                return .none
+
+            case let .newPriorityModuleChanged(module):
+                state.newPriorityModule = module
+                return .none
+
+            case let .newPriorityTimeEstimateChanged(mins):
+                state.newPriorityTimeEstimate = mins
+                return .none
+
+            case .addPriority:
+                guard !state.newPriorityTitle.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    return .none
+                }
+                let item = PriorityItem(
+                    title: state.newPriorityTitle,
+                    sourceModule: state.newPriorityModule,
+                    timeEstimateMinutes: state.newPriorityTimeEstimate,
+                    sortOrder: state.priorities.count
+                )
+                PersistenceService.shared.savePriorityItem(item)
+                state.priorities.append(State.PriorityState(
+                    id: item.uuid,
+                    title: item.title,
+                    sourceModule: item.sourceModule,
+                    sourceIcon: item.sourceIcon,
+                    timeEstimate: item.formattedTimeEstimate,
+                    isCompleted: false
+                ))
+                state.showAddPriority = false
+                HapticService.notification(.success)
                 return .none
             }
         }
@@ -137,5 +256,13 @@ struct CommandCenterReducer {
         case 12..<17: return "Good afternoon"
         default: return "Good evening"
         }
+    }
+
+    private static func samplePriorities() -> [(title: String, sourceModule: String)] {
+        [
+            ("Review sprint tasks", "workSuite"),
+            ("Pick up groceries", "familyHQ"),
+            ("Call Mom", "socialCircle"),
+        ]
     }
 }

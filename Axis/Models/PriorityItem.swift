@@ -3,6 +3,7 @@ import SwiftData
 
 @Model
 final class PriorityItem {
+    var uuid: UUID
     var title: String
     var sourceModule: String
     var timeEstimateMinutes: Int
@@ -24,6 +25,7 @@ final class PriorityItem {
         dueDate: Date? = nil,
         notes: String = ""
     ) {
+        self.uuid = UUID()
         self.title = title
         self.sourceModule = sourceModule
         self.timeEstimateMinutes = timeEstimateMinutes

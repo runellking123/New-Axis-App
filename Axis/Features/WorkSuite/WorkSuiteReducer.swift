@@ -1,0 +1,251 @@
+import ComposableArchitecture
+import Foundation
+
+@Reducer
+struct WorkSuiteReducer {
+    @ObservableState
+    struct State: Equatable {
+        var selectedWorkspace: Workspace = .wiley
+        var projects: [ProjectState] = []
+        var showAddProject = false
+        var newProjectTitle = ""
+        var newProjectPriority = "medium"
+        var newProjectDueDate: Date?
+        var focusTimerActive = false
+        var focusTimerSeconds: Int = 0
+        var focusSessionMinutes: Int = 25
+        var selectedSegment: Segment = .projects
+
+        enum Workspace: String, CaseIterable, Equatable {
+            case wiley = "Wiley"
+            case consulting = "Consulting"
+
+            var icon: String {
+                switch self {
+                case .wiley: return "building.columns.fill"
+                case .consulting: return "briefcase.fill"
+                }
+            }
+
+            var key: String {
+                switch self {
+                case .wiley: return "wiley"
+                case .consulting: return "consulting"
+                }
+            }
+        }
+
+        enum Segment: String, CaseIterable, Equatable {
+            case projects = "Projects"
+            case focus = "Focus"
+        }
+
+        struct ProjectState: Equatable, Identifiable {
+            let id: UUID
+            var title: String
+            var workspace: String
+            var status: String
+            var priority: String
+            var notes: String
+            var dueDate: Date?
+
+            var priorityColor: String {
+                switch priority {
+                case "high": return "red"
+                case "medium": return "orange"
+                case "low": return "green"
+                default: return "gray"
+                }
+            }
+        }
+
+        var filteredProjects: [ProjectState] {
+            projects.filter { $0.workspace == selectedWorkspace.key }
+        }
+
+        var activeProjectCount: Int {
+            filteredProjects.filter { $0.status == "active" }.count
+        }
+
+        var completedProjectCount: Int {
+            filteredProjects.filter { $0.status == "completed" }.count
+        }
+
+        var focusTimerDisplay: String {
+            let mins = focusTimerSeconds / 60
+            let secs = focusTimerSeconds % 60
+            return String(format: "%02d:%02d", mins, secs)
+        }
+
+        var focusProgress: Double {
+            guard focusSessionMinutes > 0 else { return 0 }
+            let total = focusSessionMinutes * 60
+            let elapsed = total - focusTimerSeconds
+            return Double(elapsed) / Double(total)
+        }
+    }
+
+    enum Action: Equatable {
+        case onAppear
+        case workspaceChanged(State.Workspace)
+        case segmentChanged(State.Segment)
+        case toggleAddProject
+        case newProjectTitleChanged(String)
+        case newProjectPriorityChanged(String)
+        case newProjectDueDateChanged(Date?)
+        case addProject
+        case toggleProjectStatus(UUID)
+        case deleteProject(UUID)
+        case startFocusTimer
+        case stopFocusTimer
+        case focusTimerTick
+        case focusSessionLengthChanged(Int)
+    }
+
+    @Dependency(\.continuousClock) var clock
+
+    private enum FocusTimerID { case timer }
+
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case .onAppear:
+                let persistence = PersistenceService.shared
+                let stored = persistence.fetchWorkProjects()
+                if stored.isEmpty {
+                    // Seed sample data
+                    let samples = Self.sampleProjects()
+                    for s in samples {
+                        let project = WorkProject(title: s.title, workspace: s.workspace, status: s.status, priority: s.priority, notes: s.notes, dueDate: s.dueDate)
+                        persistence.saveWorkProject(project)
+                        state.projects.append(State.ProjectState(id: project.uuid, title: project.title, workspace: project.workspace, status: project.status, priority: project.priority, notes: project.notes, dueDate: project.dueDate))
+                    }
+                } else {
+                    state.projects = stored.map { p in
+                        State.ProjectState(id: p.uuid, title: p.title, workspace: p.workspace, status: p.status, priority: p.priority, notes: p.notes, dueDate: p.dueDate)
+                    }
+                }
+                return .none
+
+            case let .workspaceChanged(workspace):
+                state.selectedWorkspace = workspace
+                HapticService.selection()
+                return .none
+
+            case let .segmentChanged(segment):
+                state.selectedSegment = segment
+                return .none
+
+            case .toggleAddProject:
+                state.showAddProject.toggle()
+                if state.showAddProject {
+                    state.newProjectTitle = ""
+                    state.newProjectPriority = "medium"
+                    state.newProjectDueDate = nil
+                }
+                return .none
+
+            case let .newProjectTitleChanged(title):
+                state.newProjectTitle = title
+                return .none
+
+            case let .newProjectPriorityChanged(priority):
+                state.newProjectPriority = priority
+                return .none
+
+            case let .newProjectDueDateChanged(date):
+                state.newProjectDueDate = date
+                return .none
+
+            case .addProject:
+                guard !state.newProjectTitle.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    return .none
+                }
+                let project = WorkProject(
+                    title: state.newProjectTitle,
+                    workspace: state.selectedWorkspace.key,
+                    status: "active",
+                    priority: state.newProjectPriority,
+                    dueDate: state.newProjectDueDate
+                )
+                PersistenceService.shared.saveWorkProject(project)
+                state.projects.append(State.ProjectState(
+                    id: project.uuid,
+                    title: project.title,
+                    workspace: project.workspace,
+                    status: project.status,
+                    priority: project.priority,
+                    notes: project.notes,
+                    dueDate: project.dueDate
+                ))
+                state.showAddProject = false
+                state.newProjectTitle = ""
+                HapticService.notification(.success)
+                return .none
+
+            case let .toggleProjectStatus(id):
+                if let index = state.projects.firstIndex(where: { $0.id == id }) {
+                    state.projects[index].status = state.projects[index].status == "completed" ? "active" : "completed"
+                    // Persist
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchWorkProjects()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.status = state.projects[index].status
+                        persistence.updateWorkProjects()
+                    }
+                    HapticService.impact(.light)
+                }
+                return .none
+
+            case let .deleteProject(id):
+                state.projects.removeAll { $0.id == id }
+                let persistence = PersistenceService.shared
+                let stored = persistence.fetchWorkProjects()
+                if let match = stored.first(where: { $0.uuid == id }) {
+                    persistence.deleteWorkProject(match)
+                }
+                return .none
+
+            case .startFocusTimer:
+                state.focusTimerActive = true
+                state.focusTimerSeconds = state.focusSessionMinutes * 60
+                HapticService.impact(.heavy)
+                return .run { send in
+                    for await _ in self.clock.timer(interval: .seconds(1)) {
+                        await send(.focusTimerTick)
+                    }
+                }
+                .cancellable(id: FocusTimerID.timer)
+
+            case .stopFocusTimer:
+                state.focusTimerActive = false
+                state.focusTimerSeconds = 0
+                return .cancel(id: FocusTimerID.timer)
+
+            case .focusTimerTick:
+                if state.focusTimerSeconds > 0 {
+                    state.focusTimerSeconds -= 1
+                } else {
+                    state.focusTimerActive = false
+                    HapticService.celebration()
+                    return .cancel(id: FocusTimerID.timer)
+                }
+                return .none
+
+            case let .focusSessionLengthChanged(minutes):
+                state.focusSessionMinutes = minutes
+                return .none
+            }
+        }
+    }
+
+    private static func sampleProjects() -> [State.ProjectState] {
+        [
+            .init(id: UUID(), title: "IPEDS Fall Enrollment Report", workspace: "wiley", status: "active", priority: "high", notes: "", dueDate: nil),
+            .init(id: UUID(), title: "Dashboard KPI Refresh", workspace: "wiley", status: "active", priority: "medium", notes: "", dueDate: nil),
+            .init(id: UUID(), title: "SACSCOC Data Review", workspace: "wiley", status: "active", priority: "high", notes: "", dueDate: nil),
+            .init(id: UUID(), title: "HTAnalytics API Updates", workspace: "consulting", status: "active", priority: "medium", notes: "", dueDate: nil),
+            .init(id: UUID(), title: "Blackbaud Integration", workspace: "consulting", status: "active", priority: "high", notes: "", dueDate: nil),
+        ]
+    }
+}
