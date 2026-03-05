@@ -151,6 +151,10 @@ struct BalanceReducer {
         case weeklyReportLoaded(AIService.WeeklyReport)
     }
 
+    @Dependency(\.axisHealth) var health
+    @Dependency(\.axisHaptics) var haptics
+    @Dependency(\.axisAI) var ai
+
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
@@ -160,22 +164,15 @@ struct BalanceReducer {
                 }
                 // Try to load HealthKit data via async effect
                 return .run { send in
-                    let data = await MainActor.run { () -> (isAuth: Bool, isAvail: Bool) in
-                        let hk = HealthKitService.shared
-                        return (hk.isAuthorized, hk.isAvailable)
-                    }
+                    let data = (isAuth: await health.isAuthorized(), isAvail: await health.isAvailable())
 
                     if data.isAuth || data.isAvail {
-                        let healthKit = await MainActor.run { HealthKitService.shared }
                         if !data.isAuth {
-                            let authorized = await healthKit.requestAuthorization()
+                            let authorized = await health.requestAuthorization()
                             guard authorized else { return }
                         }
-                        await healthKit.fetchAllData()
-                        let sleep = await MainActor.run { healthKit.sleepHours }
-                        let steps = await MainActor.run { healthKit.stepsToday }
-                        let energy = await MainActor.run { healthKit.energyScore }
-                        await send(.healthDataLoaded(sleep: sleep, steps: steps, energy: energy))
+                        let snapshot = await health.fetchAllData()
+                        await send(.healthDataLoaded(sleep: snapshot.sleep, steps: snapshot.steps, energy: snapshot.energy))
                     }
                 }
 
@@ -211,7 +208,7 @@ struct BalanceReducer {
                 } else {
                     state.stressLevel = .critical
                 }
-                HapticService.selection()
+                haptics.selection()
                 return .none
 
             case .toggleLogEntry:
@@ -240,7 +237,7 @@ struct BalanceReducer {
                 )
                 state.weeklyLog.insert(entry, at: 0)
                 state.showLogEntry = false
-                HapticService.notification(.success)
+                haptics.notificationSuccess()
                 return .none
 
             case let .deleteLogEntry(id):
@@ -248,7 +245,7 @@ struct BalanceReducer {
                 return .none
 
             case .loadWeeklyReport:
-                let report = AIService.shared.generateWeeklyReport()
+                let report = ai.generateWeeklyReport()
                 state.weeklyReport = report
                 return .none
 

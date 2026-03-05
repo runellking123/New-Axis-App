@@ -11,6 +11,44 @@ final class PersistenceService: @unchecked Sendable {
 
     private init() {}
 
+    private func log(_ message: String) {
+        #if DEBUG
+        print("[PersistenceService] \(message)")
+        #endif
+    }
+
+    @discardableResult
+    private func saveContext(_ operation: String) -> Bool {
+        guard let context = modelContext else {
+            log("Skipped save (\(operation)): ModelContext not configured.")
+            return false
+        }
+        do {
+            try context.save()
+            return true
+        } catch {
+            log("Save failed (\(operation)): \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func fetchAll<T: PersistentModel>(
+        _ type: T.Type,
+        descriptor: FetchDescriptor<T>,
+        operation: String
+    ) -> [T] {
+        guard let context = modelContext else {
+            log("Fetch skipped (\(operation)): ModelContext not configured.")
+            return []
+        }
+        do {
+            return try context.fetch(descriptor)
+        } catch {
+            log("Fetch failed (\(operation)): \(error.localizedDescription)")
+            return []
+        }
+    }
+
     @MainActor
     func configure(container: ModelContainer) {
         self._context = container.mainContext
@@ -19,198 +57,189 @@ final class PersistenceService: @unchecked Sendable {
     // MARK: - Work Projects
 
     func fetchWorkProjects() -> [WorkProject] {
-        guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<WorkProject>(sortBy: [SortDescriptor(\.sortOrder)])
-        return (try? context.fetch(descriptor)) ?? []
+        return fetchAll(WorkProject.self, descriptor: descriptor, operation: "fetchWorkProjects")
     }
 
     func saveWorkProject(_ project: WorkProject) {
         guard let context = modelContext else { return }
         context.insert(project)
-        try? context.save()
+        _ = saveContext("saveWorkProject")
     }
 
     func deleteWorkProject(_ project: WorkProject) {
         guard let context = modelContext else { return }
         context.delete(project)
-        try? context.save()
+        _ = saveContext("deleteWorkProject")
     }
 
     func updateWorkProjects() {
-        try? modelContext?.save()
+        _ = saveContext("updateWorkProjects")
     }
 
     // MARK: - Family Events
 
     func fetchFamilyEvents() -> [FamilyEvent] {
-        guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<FamilyEvent>(sortBy: [SortDescriptor(\.date)])
-        return (try? context.fetch(descriptor)) ?? []
+        return fetchAll(FamilyEvent.self, descriptor: descriptor, operation: "fetchFamilyEvents")
     }
 
     func saveFamilyEvent(_ event: FamilyEvent) {
         guard let context = modelContext else { return }
         context.insert(event)
-        try? context.save()
+        _ = saveContext("saveFamilyEvent")
     }
 
     func deleteFamilyEvent(_ event: FamilyEvent) {
         guard let context = modelContext else { return }
         context.delete(event)
-        try? context.save()
+        _ = saveContext("deleteFamilyEvent")
     }
 
     func updateFamilyEvents() {
-        try? modelContext?.save()
+        _ = saveContext("updateFamilyEvents")
     }
 
     // MARK: - Meal Plans
 
     func fetchMealPlans() -> [MealPlan] {
-        guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<MealPlan>(sortBy: [SortDescriptor(\.dayOfWeek)])
-        return (try? context.fetch(descriptor)) ?? []
+        return fetchAll(MealPlan.self, descriptor: descriptor, operation: "fetchMealPlans")
     }
 
     func saveMealPlan(_ plan: MealPlan) {
         guard let context = modelContext else { return }
         context.insert(plan)
-        try? context.save()
+        _ = saveContext("saveMealPlan")
     }
 
     func updateMealPlans() {
-        try? modelContext?.save()
+        _ = saveContext("updateMealPlans")
     }
 
     func deleteAllMealPlans() {
         guard let context = modelContext else { return }
         let plans = fetchMealPlans()
         for plan in plans { context.delete(plan) }
-        try? context.save()
+        _ = saveContext("deleteAllMealPlans")
     }
 
     // MARK: - Dad Wins
 
     func fetchDadWins() -> [DadWin] {
-        guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<DadWin>(sortBy: [SortDescriptor(\.date, order: .reverse)])
-        return (try? context.fetch(descriptor)) ?? []
+        return fetchAll(DadWin.self, descriptor: descriptor, operation: "fetchDadWins")
     }
 
     func saveDadWin(_ win: DadWin) {
         guard let context = modelContext else { return }
         context.insert(win)
-        try? context.save()
+        _ = saveContext("saveDadWin")
     }
 
     func deleteDadWin(_ win: DadWin) {
         guard let context = modelContext else { return }
         context.delete(win)
-        try? context.save()
+        _ = saveContext("deleteDadWin")
     }
 
     // MARK: - Contacts
 
     func fetchContacts() -> [Contact] {
-        guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<Contact>(sortBy: [SortDescriptor(\.name)])
-        return (try? context.fetch(descriptor)) ?? []
+        return fetchAll(Contact.self, descriptor: descriptor, operation: "fetchContacts")
     }
 
     func saveContact(_ contact: Contact) {
         guard let context = modelContext else { return }
         context.insert(contact)
-        try? context.save()
+        _ = saveContext("saveContact")
     }
 
     func deleteContact(_ contact: Contact) {
         guard let context = modelContext else { return }
         context.delete(contact)
-        try? context.save()
+        _ = saveContext("deleteContact")
     }
 
     func updateContacts() {
-        try? modelContext?.save()
+        _ = saveContext("updateContacts")
     }
 
     // MARK: - Saved Places
 
     func fetchSavedPlaces() -> [SavedPlace] {
-        guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<SavedPlace>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
-        return (try? context.fetch(descriptor)) ?? []
+        return fetchAll(SavedPlace.self, descriptor: descriptor, operation: "fetchSavedPlaces")
     }
 
     func saveSavedPlace(_ place: SavedPlace) {
         guard let context = modelContext else { return }
         context.insert(place)
-        try? context.save()
+        _ = saveContext("saveSavedPlace")
     }
 
     func deleteSavedPlace(_ place: SavedPlace) {
         guard let context = modelContext else { return }
         context.delete(place)
-        try? context.save()
+        _ = saveContext("deleteSavedPlace")
     }
 
     func updateSavedPlaces() {
-        try? modelContext?.save()
+        _ = saveContext("updateSavedPlaces")
     }
 
     // MARK: - Captured Notes
 
     func fetchCapturedNotes() -> [CapturedNote] {
-        guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<CapturedNote>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
-        return (try? context.fetch(descriptor)) ?? []
+        return fetchAll(CapturedNote.self, descriptor: descriptor, operation: "fetchCapturedNotes")
     }
 
     func saveCapturedNote(_ note: CapturedNote) {
         guard let context = modelContext else { return }
         context.insert(note)
-        try? context.save()
+        _ = saveContext("saveCapturedNote")
     }
 
     // MARK: - Priority Items
 
     func fetchPriorityItems() -> [PriorityItem] {
-        guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<PriorityItem>(sortBy: [SortDescriptor(\.sortOrder)])
-        return (try? context.fetch(descriptor)) ?? []
+        return fetchAll(PriorityItem.self, descriptor: descriptor, operation: "fetchPriorityItems")
     }
 
     func savePriorityItem(_ item: PriorityItem) {
         guard let context = modelContext else { return }
         context.insert(item)
-        try? context.save()
+        _ = saveContext("savePriorityItem")
     }
 
     func deletePriorityItem(_ item: PriorityItem) {
         guard let context = modelContext else { return }
         context.delete(item)
-        try? context.save()
+        _ = saveContext("deletePriorityItem")
     }
 
     func updatePriorityItems() {
-        try? modelContext?.save()
+        _ = saveContext("updatePriorityItems")
     }
 
     // MARK: - User Profile
 
     func fetchUserProfile() -> UserProfile? {
-        guard let context = modelContext else { return nil }
         let descriptor = FetchDescriptor<UserProfile>()
-        return (try? context.fetch(descriptor))?.first
+        return fetchAll(UserProfile.self, descriptor: descriptor, operation: "fetchUserProfile").first
     }
 
     func saveUserProfile(_ profile: UserProfile) {
         guard let context = modelContext else { return }
         context.insert(profile)
-        try? context.save()
+        _ = saveContext("saveUserProfile")
     }
 
     func updateUserProfile() {
-        try? modelContext?.save()
+        _ = saveContext("updateUserProfile")
     }
 
     func getOrCreateProfile() -> UserProfile {
@@ -220,5 +249,31 @@ final class PersistenceService: @unchecked Sendable {
         let profile = UserProfile()
         saveUserProfile(profile)
         return profile
+    }
+
+    // MARK: - QA Utilities
+
+    /// Debug utility for local QA resets. Removes all persisted records.
+    /// Returns `true` when save succeeds after deletes.
+    @discardableResult
+    func resetAllData() -> Bool {
+        guard let context = modelContext else {
+            log("Reset skipped: ModelContext not configured.")
+            return false
+        }
+
+        fetchWorkProjects().forEach { context.delete($0) }
+        fetchFamilyEvents().forEach { context.delete($0) }
+        fetchMealPlans().forEach { context.delete($0) }
+        fetchDadWins().forEach { context.delete($0) }
+        fetchContacts().forEach { context.delete($0) }
+        fetchSavedPlaces().forEach { context.delete($0) }
+        fetchCapturedNotes().forEach { context.delete($0) }
+        fetchPriorityItems().forEach { context.delete($0) }
+        if let profile = fetchUserProfile() {
+            context.delete(profile)
+        }
+
+        return saveContext("resetAllData")
     }
 }

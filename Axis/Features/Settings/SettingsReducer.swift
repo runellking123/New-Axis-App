@@ -44,11 +44,14 @@ struct SettingsReducer {
         case saveProfile
     }
 
+    @Dependency(\.axisPersistence) var persistence
+    @Dependency(\.axisHealth) var health
+    @Dependency(\.axisNotifications) var notifications
+
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
             case .onAppear:
-                let persistence = PersistenceService.shared
                 let profile = persistence.getOrCreateProfile()
                 state.userName = profile.name
                 state.wakeTime = profile.wakeTime
@@ -56,7 +59,7 @@ struct SettingsReducer {
                 state.workEndTime = profile.workEndTime
                 state.preferredContextMode = ContextMode(rawValue: profile.preferredContextMode.capitalized) ?? .work
                 return .run { send in
-                    let isAuth = await MainActor.run { HealthKitService.shared.isAuthorized }
+                    let isAuth = await health.isAuthorized()
                     if isAuth {
                         await send(.healthKitAuthResult(true))
                     }
@@ -94,7 +97,7 @@ struct SettingsReducer {
                 state.notificationsEnabled = enabled
                 if enabled {
                     return .run { _ in
-                        _ = await NotificationService.shared.requestAuthorization()
+                        _ = await notifications.requestAuthorization()
                     }
                 }
                 return .none
@@ -107,7 +110,7 @@ struct SettingsReducer {
                 state.healthKitEnabled = enabled
                 if enabled {
                     return .run { send in
-                        let result = await HealthKitService.shared.requestAuthorization()
+                        let result = await health.requestAuthorization()
                         await send(.healthKitAuthResult(result))
                     }
                 }
@@ -125,7 +128,6 @@ struct SettingsReducer {
                 return .none
 
             case .saveProfile:
-                let persistence = PersistenceService.shared
                 let profile = persistence.getOrCreateProfile()
                 profile.name = state.userName
                 profile.wakeTime = state.wakeTime

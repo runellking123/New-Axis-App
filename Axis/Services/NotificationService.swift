@@ -6,6 +6,12 @@ final class NotificationService {
 
     private init() {}
 
+    private func log(_ message: String) {
+        #if DEBUG
+        print("[NotificationService] \(message)")
+        #endif
+    }
+
     func requestAuthorization() async -> Bool {
         do {
             let granted = try await UNUserNotificationCenter.current()
@@ -33,7 +39,11 @@ final class NotificationService {
             trigger: trigger
         )
 
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error {
+                self?.log("Failed to schedule day brief notification: \(error.localizedDescription)")
+            }
+        }
     }
 
     func scheduleDeadlineEscalation(title: String, dueDate: Date, identifier: String) {
@@ -84,7 +94,11 @@ final class NotificationService {
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
 
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error {
+                self?.log("Failed to schedule alert \(identifier): \(error.localizedDescription)")
+            }
+        }
     }
 
     func cancelAll(withPrefix prefix: String) {

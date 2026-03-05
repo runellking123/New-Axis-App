@@ -1,6 +1,160 @@
 import ComposableArchitecture
 import Foundation
 
+// MARK: - Dependency Clients
+
+struct AxisPersistenceClient {
+    var getOrCreateProfile: @Sendable () -> UserProfile
+    var fetchPriorityItems: @Sendable () -> [PriorityItem]
+    var savePriorityItem: @Sendable (PriorityItem) -> Void
+    var updatePriorityItems: @Sendable () -> Void
+    var deletePriorityItem: @Sendable (PriorityItem) -> Void
+    var updateUserProfile: @Sendable () -> Void
+}
+
+struct AxisHapticsClient {
+    var modeSwitch: @Sendable () -> Void
+    var celebration: @Sendable () -> Void
+    var notificationSuccess: @Sendable () -> Void
+    var selection: @Sendable () -> Void
+}
+
+struct AxisWeatherClient {
+    var fetchWeather: @Sendable () async -> WeatherService.WeatherData?
+}
+
+struct AxisCalendarClient {
+    var requestAccess: @Sendable () async -> Bool
+    var fetchTodayEvents: @Sendable () async -> [CalendarService.CalendarEvent]
+    var upcomingEvent: @Sendable () -> CalendarService.CalendarEvent?
+}
+
+struct AxisAIClient {
+    var generateDayBriefSummary: @Sendable ([CalendarService.CalendarEvent], [PriorityItem], WeatherService.WeatherData?) -> String
+    var generateWeeklyReport: @Sendable () -> AIService.WeeklyReport
+}
+
+struct AxisHealthClient {
+    var isAuthorized: @Sendable () async -> Bool
+    var isAvailable: @Sendable () async -> Bool
+    var requestAuthorization: @Sendable () async -> Bool
+    var fetchAllData: @Sendable () async -> (sleep: Double, steps: Int, energy: Int)
+}
+
+struct AxisNotificationsClient {
+    var requestAuthorization: @Sendable () async -> Bool
+}
+
+private enum AxisPersistenceKey: DependencyKey {
+    static let liveValue = AxisPersistenceClient(
+        getOrCreateProfile: { PersistenceService.shared.getOrCreateProfile() },
+        fetchPriorityItems: { PersistenceService.shared.fetchPriorityItems() },
+        savePriorityItem: { PersistenceService.shared.savePriorityItem($0) },
+        updatePriorityItems: { PersistenceService.shared.updatePriorityItems() },
+        deletePriorityItem: { PersistenceService.shared.deletePriorityItem($0) },
+        updateUserProfile: { PersistenceService.shared.updateUserProfile() }
+    )
+}
+
+private enum AxisHapticsKey: DependencyKey {
+    static let liveValue = AxisHapticsClient(
+        modeSwitch: { HapticService.modeSwitch() },
+        celebration: { HapticService.celebration() },
+        notificationSuccess: { HapticService.notification(.success) },
+        selection: { HapticService.selection() }
+    )
+}
+
+private enum AxisWeatherKey: DependencyKey {
+    static let liveValue = AxisWeatherClient(
+        fetchWeather: {
+            let weather = WeatherService.shared
+            await weather.fetchWeather()
+            return weather.currentWeather
+        }
+    )
+}
+
+private enum AxisCalendarKey: DependencyKey {
+    static let liveValue = AxisCalendarClient(
+        requestAccess: { await CalendarService.shared.requestAccess() },
+        fetchTodayEvents: {
+            let calendar = CalendarService.shared
+            await calendar.fetchTodayEvents()
+            return calendar.todayEvents
+        },
+        upcomingEvent: { CalendarService.shared.upcomingEvent() }
+    )
+}
+
+private enum AxisAIKey: DependencyKey {
+    static let liveValue = AxisAIClient(
+        generateDayBriefSummary: { events, priorities, weather in
+            AIService.shared.generateDayBriefSummary(events: events, priorities: priorities, weather: weather)
+        },
+        generateWeeklyReport: { AIService.shared.generateWeeklyReport() }
+    )
+}
+
+private enum AxisHealthKey: DependencyKey {
+    static let liveValue = AxisHealthClient(
+        isAuthorized: { await MainActor.run { HealthKitService.shared.isAuthorized } },
+        isAvailable: { await MainActor.run { HealthKitService.shared.isAvailable } },
+        requestAuthorization: {
+            let hk = await MainActor.run { HealthKitService.shared }
+            return await hk.requestAuthorization()
+        },
+        fetchAllData: {
+            let hk = await MainActor.run { HealthKitService.shared }
+            await hk.fetchAllData()
+            return await MainActor.run { (hk.sleepHours, hk.stepsToday, hk.energyScore) }
+        }
+    )
+}
+
+private enum AxisNotificationsKey: DependencyKey {
+    static let liveValue = AxisNotificationsClient(
+        requestAuthorization: { await NotificationService.shared.requestAuthorization() }
+    )
+}
+
+extension DependencyValues {
+    var axisPersistence: AxisPersistenceClient {
+        get { self[AxisPersistenceKey.self] }
+        set { self[AxisPersistenceKey.self] = newValue }
+    }
+
+    var axisHaptics: AxisHapticsClient {
+        get { self[AxisHapticsKey.self] }
+        set { self[AxisHapticsKey.self] = newValue }
+    }
+
+    var axisWeather: AxisWeatherClient {
+        get { self[AxisWeatherKey.self] }
+        set { self[AxisWeatherKey.self] = newValue }
+    }
+
+    var axisCalendar: AxisCalendarClient {
+        get { self[AxisCalendarKey.self] }
+        set { self[AxisCalendarKey.self] = newValue }
+    }
+
+    var axisAI: AxisAIClient {
+        get { self[AxisAIKey.self] }
+        set { self[AxisAIKey.self] = newValue }
+    }
+
+    var axisHealth: AxisHealthClient {
+        get { self[AxisHealthKey.self] }
+        set { self[AxisHealthKey.self] = newValue }
+    }
+
+    var axisNotifications: AxisNotificationsClient {
+        get { self[AxisNotificationsKey.self] }
+        set { self[AxisNotificationsKey.self] = newValue }
+    }
+}
+
 @Reducer
 struct AppReducer {
     @ObservableState
@@ -69,6 +223,8 @@ struct AppReducer {
         case completeOnboarding
     }
 
+    @Dependency(\.axisPersistence) var persistence
+
     var body: some ReducerOf<Self> {
         Scope(state: \.commandCenter, action: \.commandCenter) {
             CommandCenterReducer()
@@ -94,7 +250,6 @@ struct AppReducer {
         Reduce { state, action in
             switch action {
             case .onAppear:
-                let persistence = PersistenceService.shared
                 let profile = persistence.getOrCreateProfile()
                 state.userName = profile.name
                 state.showOnboarding = !profile.onboardingComplete
@@ -134,7 +289,6 @@ struct AppReducer {
 
             case .completeOnboarding:
                 state.showOnboarding = false
-                let persistence = PersistenceService.shared
                 state.userName = persistence.getOrCreateProfile().name
                 return .none
 
