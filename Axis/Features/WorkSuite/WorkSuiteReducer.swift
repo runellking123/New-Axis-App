@@ -12,9 +12,17 @@ struct WorkSuiteReducer {
         var newProjectPriority = "medium"
         var newProjectDueDate: Date?
         var focusTimerActive = false
+        var focusTimerPaused = false
         var focusTimerSeconds: Int = 0
         var focusSessionMinutes: Int = 25
+        var completedFocusSessions: [FocusSession] = []
         var selectedSegment: Segment = .projects
+
+        struct FocusSession: Equatable, Identifiable {
+            let id: UUID
+            let completedAt: Date
+            let durationMinutes: Int
+        }
 
         enum Workspace: String, CaseIterable, Equatable {
             case wiley = "Wiley"
@@ -97,9 +105,11 @@ struct WorkSuiteReducer {
         case toggleProjectStatus(UUID)
         case deleteProject(UUID)
         case startFocusTimer
+        case pauseResumeFocusTimer
         case stopFocusTimer
         case focusTimerTick
         case focusSessionLengthChanged(Int)
+        case clearFocusHistory
     }
 
     @Dependency(\.continuousClock) var clock
@@ -207,8 +217,13 @@ struct WorkSuiteReducer {
                 return .none
 
             case .startFocusTimer:
-                state.focusTimerActive = true
-                state.focusTimerSeconds = state.focusSessionMinutes * 60
+                if state.focusTimerPaused && state.focusTimerSeconds > 0 {
+                    state.focusTimerPaused = false
+                } else {
+                    state.focusTimerActive = true
+                    state.focusTimerPaused = false
+                    state.focusTimerSeconds = state.focusSessionMinutes * 60
+                }
                 HapticService.impact(.heavy)
                 return .run { send in
                     for await _ in self.clock.timer(interval: .seconds(1)) {
@@ -217,16 +232,39 @@ struct WorkSuiteReducer {
                 }
                 .cancellable(id: FocusTimerID.timer)
 
+            case .pauseResumeFocusTimer:
+                if state.focusTimerActive {
+                    state.focusTimerPaused = true
+                    return .cancel(id: FocusTimerID.timer)
+                } else if state.focusTimerPaused && state.focusTimerSeconds > 0 {
+                    state.focusTimerPaused = false
+                    state.focusTimerActive = true
+                    return .run { send in
+                        for await _ in self.clock.timer(interval: .seconds(1)) {
+                            await send(.focusTimerTick)
+                        }
+                    }
+                    .cancellable(id: FocusTimerID.timer)
+                }
+                return .none
+
             case .stopFocusTimer:
                 state.focusTimerActive = false
+                state.focusTimerPaused = false
                 state.focusTimerSeconds = 0
                 return .cancel(id: FocusTimerID.timer)
 
             case .focusTimerTick:
+                guard state.focusTimerActive else { return .none }
                 if state.focusTimerSeconds > 0 {
                     state.focusTimerSeconds -= 1
                 } else {
                     state.focusTimerActive = false
+                    state.focusTimerPaused = false
+                    state.completedFocusSessions.insert(
+                        .init(id: UUID(), completedAt: Date(), durationMinutes: state.focusSessionMinutes),
+                        at: 0
+                    )
                     HapticService.celebration()
                     return .cancel(id: FocusTimerID.timer)
                 }
@@ -234,6 +272,10 @@ struct WorkSuiteReducer {
 
             case let .focusSessionLengthChanged(minutes):
                 state.focusSessionMinutes = minutes
+                return .none
+
+            case .clearFocusHistory:
+                state.completedFocusSessions = []
                 return .none
             }
         }

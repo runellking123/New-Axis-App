@@ -261,23 +261,23 @@ struct WorkSuiteView: View {
                             .frame(width: 180, height: 180)
 
                         Circle()
-                            .trim(from: 0, to: store.focusTimerActive ? store.focusProgress : 0)
+                            .trim(from: 0, to: (store.focusTimerActive || store.focusTimerPaused) ? store.focusProgress : 0)
                             .stroke(Color.axisGold, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                             .frame(width: 180, height: 180)
                             .rotationEffect(.degrees(-90))
                             .animation(.linear(duration: 1), value: store.focusProgress)
 
                         VStack(spacing: 4) {
-                            Text(store.focusTimerActive ? store.focusTimerDisplay : "\(store.focusSessionMinutes):00")
+                            Text((store.focusTimerActive || store.focusTimerPaused) ? store.focusTimerDisplay : "\(store.focusSessionMinutes):00")
                                 .font(.system(size: 42, weight: .bold, design: .monospaced))
                                 .foregroundStyle(Color.axisGold)
-                            Text(store.focusTimerActive ? "Stay focused" : "Ready")
+                            Text(store.focusTimerActive ? "Stay focused" : (store.focusTimerPaused ? "Paused" : "Ready"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
 
-                    if !store.focusTimerActive {
+                    if !store.focusTimerActive && !store.focusTimerPaused {
                         // Session length picker
                         HStack(spacing: 12) {
                             ForEach([15, 25, 45, 60], id: \.self) { mins in
@@ -305,23 +305,70 @@ struct WorkSuiteView: View {
                         }
                     }
 
-                    Button {
-                        if store.focusTimerActive {
-                            store.send(.stopFocusTimer)
-                        } else {
-                            store.send(.startFocusTimer)
+                    HStack(spacing: 10) {
+                        Button {
+                            if store.focusTimerActive || store.focusTimerPaused {
+                                store.send(.stopFocusTimer)
+                            } else {
+                                store.send(.startFocusTimer)
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: (store.focusTimerActive || store.focusTimerPaused) ? "stop.fill" : "play.fill")
+                                Text((store.focusTimerActive || store.focusTimerPaused) ? "Stop" : "Start Focus")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background((store.focusTimerActive || store.focusTimerPaused) ? Color.red.opacity(0.15) : Color.axisGold.opacity(0.15))
+                            .foregroundStyle((store.focusTimerActive || store.focusTimerPaused) ? .red : Color.axisGold)
+                            .clipShape(RoundedRectangle(cornerRadius: AxisTheme.buttonRadius))
                         }
-                    } label: {
+
+                        if store.focusTimerActive || store.focusTimerPaused {
+                            Button {
+                                store.send(.pauseResumeFocusTimer)
+                            } label: {
+                                HStack {
+                                    Image(systemName: store.focusTimerActive ? "pause.fill" : "play.fill")
+                                    Text(store.focusTimerActive ? "Pause" : "Resume")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(.ultraThinMaterial)
+                                .foregroundStyle(.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: AxisTheme.buttonRadius))
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !store.completedFocusSessions.isEmpty {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Image(systemName: store.focusTimerActive ? "stop.fill" : "play.fill")
-                            Text(store.focusTimerActive ? "Stop" : "Start Focus")
-                                .fontWeight(.semibold)
+                            Text("Recent Focus Sessions")
+                                .font(.headline)
+                            Spacer()
+                            Button("Clear") {
+                                store.send(.clearFocusHistory)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(store.focusTimerActive ? Color.red.opacity(0.15) : Color.axisGold.opacity(0.15))
-                        .foregroundStyle(store.focusTimerActive ? .red : Color.axisGold)
-                        .clipShape(RoundedRectangle(cornerRadius: AxisTheme.buttonRadius))
+
+                        ForEach(store.completedFocusSessions.prefix(5)) { session in
+                            HStack {
+                                Text("\(session.durationMinutes) min")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(session.completedAt.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
             }
