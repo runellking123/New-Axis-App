@@ -1,0 +1,49 @@
+# Xcode
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+build/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+*.hmap
+
+# SPM
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods (if ever used)
+Pods/
+
+# Secrets
+.env
+*.secret
+Credentials.md
+
+# macOS
+.DS_Store
+*.swp
+*~
+._*
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Archives
+*.ipa
+*.dSYM.zip
+*.dSYM

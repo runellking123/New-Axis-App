@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>AXIS</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <key>NSCalendarsUsageDescription</key>
+    <string>AXIS needs calendar access to show your schedule in the Day Brief and sync events across modules.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>AXIS uses your contacts to power the Social Circle and meeting intelligence features.</string>
+    <key>NSHealthShareUsageDescription</key>
+    <string>AXIS reads sleep and activity data to calculate your Energy Score and suggest optimal work windows.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>AXIS uses your location for contextual weather, nearby restaurant suggestions, and automatic mode switching.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>AXIS uses your microphone for Quick Capture voice-to-text and meeting transcription.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>AXIS uses speech recognition to transcribe your Quick Capture voice notes into text.</string>
+    <key>UILaunchScreen</key>
+    <dict/>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
+</dict>
+</plist>
