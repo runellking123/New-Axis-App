@@ -8,7 +8,7 @@ struct WorkSuitePlaceholderView: View {
 
                 Image(systemName: "building.columns.fill")
                     .font(.system(size: 60))
-                    .foregroundStyle(.axisGold.opacity(0.5))
+                    .foregroundStyle(Color.axisGold.opacity(0.5))
 
                 VStack(spacing: 8) {
                     Text("Work Suite")
@@ -43,7 +43,7 @@ struct WorkSuitePlaceholderView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Work Suite")
                         .font(.system(size: 18, weight: .bold, design: .serif))
-                        .foregroundStyle(.axisGold)
+                        .foregroundStyle(Color.axisGold)
                 }
             }
         }
@@ -53,7 +53,7 @@ struct WorkSuitePlaceholderView: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.body)
-                .foregroundStyle(.axisGold)
+                .foregroundStyle(Color.axisGold)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.subheadline).fontWeight(.medium)

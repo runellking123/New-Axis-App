@@ -4,7 +4,7 @@ struct ConfettiView: View {
     @State private var particles: [ConfettiParticle] = []
     @State private var isAnimating = false
 
-    let colors: [Color] = [.axisGold, .blue, .green, .orange, .purple, .pink]
+    let colors: [Color] = [Color.axisGold, .blue, .green, .orange, .purple, .pink]
 
     struct ConfettiParticle: Identifiable {
         let id = UUID()
@@ -39,7 +39,7 @@ struct ConfettiView: View {
             let particle = ConfettiParticle(
                 x: screenWidth / 2 + CGFloat.random(in: -50...50),
                 y: -20,
-                color: colors.randomElement() ?? .axisGold,
+                color: colors.randomElement() ?? Color.axisGold,
                 size: CGFloat.random(in: 6...12),
                 rotation: Double.random(in: 0...360),
                 velocity: CGFloat.random(in: 2...6)

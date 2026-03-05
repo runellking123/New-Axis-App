@@ -18,7 +18,7 @@ enum ContextMode: String, CaseIterable, Codable, Identifiable {
 
     var accentColor: Color {
         switch self {
-        case .work: return .axisGold
+        case .work: return Color.axisGold
         case .dad: return .blue
         case .me: return .green
         }

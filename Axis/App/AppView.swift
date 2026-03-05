@@ -51,7 +51,7 @@ struct AppView: View {
                     }
                     .tag(AppReducer.State.Tab.balance)
             }
-            .tint(.axisGold)
+            .tint(Color.axisGold)
 
             // Quick Capture overlay
             if store.showQuickCapture {

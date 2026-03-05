@@ -29,14 +29,14 @@ struct CommandCenterView: View {
                 ToolbarItem(placement: .principal) {
                     Text("AXIS")
                         .font(.system(size: 18, weight: .bold, design: .serif))
-                        .foregroundStyle(.axisGold)
+                        .foregroundStyle(Color.axisGold)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         store.send(.refreshTapped)
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(.axisGold)
+                            .foregroundStyle(Color.axisGold)
                     }
                 }
             }
@@ -58,7 +58,7 @@ struct CommandCenterView: View {
                     Text("Runell")
                         .font(.largeTitle)
                         .fontWeight(.bold)
-                        .foregroundStyle(.axisGold)
+                        .foregroundStyle(Color.axisGold)
                 }
                 Spacer()
 
@@ -84,14 +84,14 @@ struct CommandCenterView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Image(systemName: "sparkles")
-                        .foregroundStyle(.axisGold)
+                        .foregroundStyle(Color.axisGold)
                     Text("Day Brief")
                         .font(.headline)
-                        .foregroundStyle(.axisGold)
+                        .foregroundStyle(Color.axisGold)
                     Spacer()
                     if store.isLoadingBrief {
                         ProgressView()
-                            .tint(.axisGold)
+                            .tint(Color.axisGold)
                     }
                 }
 
@@ -208,7 +208,7 @@ struct PriorityCardView: View {
 
                 Image(systemName: priority.sourceIcon)
                     .font(.caption)
-                    .foregroundStyle(.axisGold)
+                    .foregroundStyle(Color.axisGold)
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {

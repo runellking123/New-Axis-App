@@ -29,7 +29,7 @@ struct QuickCaptureView: View {
                     Spacer()
                     Button("Done", action: saveAndDismiss)
                         .fontWeight(.semibold)
-                        .foregroundStyle(.axisGold)
+                        .foregroundStyle(Color.axisGold)
                 }
                 .padding(.horizontal)
 
@@ -58,7 +58,7 @@ struct QuickCaptureView: View {
                             Text(isRecordingVoice ? "Stop" : "Voice")
                                 .font(.subheadline)
                         }
-                        .foregroundStyle(isRecordingVoice ? .red : .axisGold)
+                        .foregroundStyle(isRecordingVoice ? .red : Color.axisGold)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
                         .background(.ultraThinMaterial)
@@ -76,8 +76,8 @@ struct QuickCaptureView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(.axisGold.opacity(0.15))
-                        .foregroundStyle(.axisGold)
+                        .background(Color.axisGold.opacity(0.15))
+                        .foregroundStyle(Color.axisGold)
                         .clipShape(Capsule())
                         .transition(.scale.combined(with: .opacity))
                     }
