@@ -6,6 +6,7 @@ struct FamilyHQReducer {
     @ObservableState
     struct State: Equatable {
         var selectedSection: Section = .calendar
+        var eventFilter: EventFilter = .all
         var events: [EventState] = []
         var mealPlan: [MealState] = []
         var dadWins: [DadWinState] = []
@@ -24,6 +25,13 @@ struct FamilyHQReducer {
             case calendar = "Calendar"
             case meals = "Meals"
             case dadWins = "Dad Wins"
+        }
+
+        enum EventFilter: String, CaseIterable, Equatable {
+            case all = "All"
+            case today = "Today"
+            case upcoming = "Upcoming"
+            case completed = "Done"
         }
 
         struct EventState: Equatable, Identifiable {
@@ -105,11 +113,33 @@ struct FamilyHQReducer {
             events.filter { !Calendar.current.isDateInToday($0.date) && $0.date > Date() }
                 .sorted { $0.date < $1.date }
         }
+
+        var completedEvents: [EventState] {
+            events.filter(\.isCompleted).sorted { $0.date > $1.date }
+        }
+
+        var filteredCalendarEvents: [EventState] {
+            switch eventFilter {
+            case .all:
+                return events.sorted { $0.date < $1.date }
+            case .today:
+                return todayEvents
+            case .upcoming:
+                return upcomingEvents
+            case .completed:
+                return completedEvents
+            }
+        }
+
+        var completedEventCount: Int {
+            events.filter(\.isCompleted).count
+        }
     }
 
     enum Action: Equatable {
         case onAppear
         case sectionChanged(State.Section)
+        case eventFilterChanged(State.EventFilter)
         case toggleAddEvent
         case toggleAddDadWin
         case newEventTitleChanged(String)
@@ -182,6 +212,10 @@ struct FamilyHQReducer {
 
             case let .sectionChanged(section):
                 state.selectedSection = section
+                return .none
+
+            case let .eventFilterChanged(filter):
+                state.eventFilter = filter
                 return .none
 
             case .toggleAddEvent:

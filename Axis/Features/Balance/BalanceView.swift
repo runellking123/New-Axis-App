@@ -389,6 +389,21 @@ struct BalanceView: View {
     private var weeklyReportSection: some View {
         VStack(spacing: 16) {
             if let report = store.weeklyReport {
+                HStack {
+                    if let generatedAt = store.weeklyReportGeneratedAt {
+                        Text("Updated \(generatedAt.relativeString)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        store.send(.loadWeeklyReport)
+                    } label: {
+                        Label("Regenerate", systemImage: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                }
+
                 // Summary card
                 GlassCard {
                     VStack(alignment: .leading, spacing: 10) {

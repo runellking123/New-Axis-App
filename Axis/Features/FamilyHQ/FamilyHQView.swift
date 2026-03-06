@@ -93,38 +93,35 @@ struct FamilyHQView: View {
 
     private var calendarSection: some View {
         VStack(spacing: 16) {
-            // Today's events
-            if !store.todayEvents.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+            GlassCard {
+                VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("Today")
+                        Text("Family Calendar")
                             .font(.headline)
                         Spacer()
-                        Text(Date().shortDateString)
+                        Text("\(store.completedEventCount)/\(store.events.count) done")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
-                    ForEach(store.todayEvents) { event in
-                        eventCard(event)
+                    Picker("Filter", selection: $store.eventFilter.sending(\.eventFilterChanged)) {
+                        ForEach(FamilyHQReducer.State.EventFilter.allCases, id: \.self) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
                     }
+                    .pickerStyle(.segmented)
                 }
             }
 
-            // Upcoming
-            if !store.upcomingEvents.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Upcoming")
-                        .font(.headline)
-
-                    ForEach(store.upcomingEvents) { event in
-                        eventCard(event)
-                    }
+            if !store.filteredCalendarEvents.isEmpty {
+                ForEach(store.filteredCalendarEvents) { event in
+                    eventCard(event)
                 }
             }
 
             if store.events.isEmpty {
                 emptyState(icon: "calendar", message: "No family events yet. Tap + to add one.")
+            } else if store.filteredCalendarEvents.isEmpty {
+                emptyState(icon: "line.3.horizontal.decrease.circle", message: "No events match this filter yet.")
             }
         }
     }

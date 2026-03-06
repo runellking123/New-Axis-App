@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import SwiftUI
+import UIKit
 
 struct ExploreView: View {
     @Bindable var store: StoreOf<ExploreReducer>
@@ -266,6 +267,23 @@ struct ExploreView: View {
                 // Action buttons
                 HStack(spacing: 8) {
                     Button {
+                        openInMaps(address: place.address, name: place.name)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "map.fill")
+                                .font(.caption2)
+                            Text("Directions")
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(Color(.systemGray5))
+                        .foregroundStyle(place.address.isEmpty ? Color.secondary.opacity(0.5) : Color.blue)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .disabled(place.address.isEmpty)
+
+                    Button {
                         store.send(.toggleFavorite(place.id))
                     } label: {
                         HStack(spacing: 4) {
@@ -311,6 +329,14 @@ struct ExploreView: View {
                 }
             }
         }
+    }
+
+    private func openInMaps(address: String, name: String) {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let query = "\(name) \(trimmed)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
+        guard let url = URL(string: "http://maps.apple.com/?q=\(query)") else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - Add Place Sheet

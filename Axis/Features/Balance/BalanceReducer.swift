@@ -18,6 +18,7 @@ struct BalanceReducer {
         var selectedSection: Section = .dashboard
         var healthKitConnected = false
         var weeklyReport: AIService.WeeklyReport?
+        var weeklyReportGeneratedAt: Date?
 
         enum Section: String, CaseIterable, Equatable {
             case dashboard = "Dashboard"
@@ -198,6 +199,11 @@ struct BalanceReducer {
 
             case let .sectionChanged(section):
                 state.selectedSection = section
+                if section == .report, state.weeklyReport == nil {
+                    let report = ai.generateWeeklyReport()
+                    state.weeklyReport = report
+                    state.weeklyReportGeneratedAt = Date()
+                }
                 return .none
 
             case let .energyScoreChanged(score):
@@ -250,10 +256,12 @@ struct BalanceReducer {
             case .loadWeeklyReport:
                 let report = ai.generateWeeklyReport()
                 state.weeklyReport = report
+                state.weeklyReportGeneratedAt = Date()
                 return .none
 
             case let .weeklyReportLoaded(report):
                 state.weeklyReport = report
+                state.weeklyReportGeneratedAt = Date()
                 return .none
             }
         }
