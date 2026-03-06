@@ -31,7 +31,7 @@ struct AxisCalendarClient {
 
 struct AxisAIClient {
     var generateDayBriefSummary: @Sendable ([CalendarService.CalendarEvent], [PriorityItem], WeatherService.WeatherData?) -> String
-    var generateWeeklyReport: @Sendable () -> AIService.WeeklyReport
+    var generateWeeklyReport: @Sendable (Int) -> AIService.WeeklyReport
 }
 
 struct AxisHealthClient {
@@ -43,6 +43,8 @@ struct AxisHealthClient {
 
 struct AxisNotificationsClient {
     var requestAuthorization: @Sendable () async -> Bool
+    var scheduleDayBrief: @Sendable (Date) -> Void
+    var cancelDayBrief: @Sendable () -> Void
 }
 
 private enum AxisPersistenceKey: DependencyKey {
@@ -92,7 +94,7 @@ private enum AxisAIKey: DependencyKey {
         generateDayBriefSummary: { events, priorities, weather in
             AIService.shared.generateDayBriefSummary(events: events, priorities: priorities, weather: weather)
         },
-        generateWeeklyReport: { AIService.shared.generateWeeklyReport() }
+        generateWeeklyReport: { days in AIService.shared.generateWeeklyReport(days: days) }
     )
 }
 
@@ -114,7 +116,9 @@ private enum AxisHealthKey: DependencyKey {
 
 private enum AxisNotificationsKey: DependencyKey {
     static let liveValue = AxisNotificationsClient(
-        requestAuthorization: { await NotificationService.shared.requestAuthorization() }
+        requestAuthorization: { await NotificationService.shared.requestAuthorization() },
+        scheduleDayBrief: { wakeTime in NotificationService.shared.scheduleDayBrief(at: wakeTime) },
+        cancelDayBrief: { NotificationService.shared.cancelAll(withPrefix: "day-brief") }
     )
 }
 

@@ -76,6 +76,9 @@ struct SettingsReducer {
 
             case let .wakeTimeChanged(time):
                 state.wakeTime = time
+                if state.notificationsEnabled {
+                    notifications.scheduleDayBrief(time)
+                }
                 return .send(.saveProfile)
 
             case let .workStartTimeChanged(time):
@@ -101,10 +104,16 @@ struct SettingsReducer {
             case let .notificationsToggled(enabled):
                 state.notificationsEnabled = enabled
                 if enabled {
-                    return .run { _ in
-                        _ = await notifications.requestAuthorization()
+                    let wakeTime = state.wakeTime
+                    return .run { send in
+                        let granted = await notifications.requestAuthorization()
+                        if granted {
+                            notifications.scheduleDayBrief(wakeTime)
+                        }
+                        await send(.saveProfile)
                     }
                 }
+                notifications.cancelDayBrief()
                 return .send(.saveProfile)
 
             case let .hapticFeedbackToggled(enabled):

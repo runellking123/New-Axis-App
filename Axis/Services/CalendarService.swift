@@ -30,9 +30,16 @@ final class CalendarService {
         }
     }
 
-    private init() {}
+    private init() {
+        authorizationStatus = EKEventStore.authorizationStatus(for: .event)
+    }
 
     func requestAccess() async -> Bool {
+        let current = EKEventStore.authorizationStatus(for: .event)
+        if current == .fullAccess {
+            await MainActor.run { self.authorizationStatus = current }
+            return true
+        }
         do {
             let granted = try await store.requestFullAccessToEvents()
             await MainActor.run {
@@ -40,12 +47,18 @@ final class CalendarService {
             }
             return granted
         } catch {
+            await MainActor.run { self.authorizationStatus = .denied }
             return false
         }
     }
 
     func fetchTodayEvents() async {
-        guard authorizationStatus == .fullAccess else { return }
+        let current = EKEventStore.authorizationStatus(for: .event)
+        await MainActor.run { self.authorizationStatus = current }
+        guard current == .fullAccess else {
+            await MainActor.run { self.todayEvents = [] }
+            return
+        }
 
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: Date())

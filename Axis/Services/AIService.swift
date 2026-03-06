@@ -71,26 +71,27 @@ final class AIService {
         var improvementAreas: [String]
     }
 
-    func generateWeeklyReport() -> WeeklyReport {
+    func generateWeeklyReport(days: Int = 7) -> WeeklyReport {
         let persistence = PersistenceService.shared
-        let oneWeekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        let windowDays = max(days, 1)
+        let cutoffDate = Calendar.current.date(byAdding: .day, value: -windowDays, to: Date()) ?? Date()
 
         // Priorities
         let allPriorities = persistence.fetchPriorityItems()
-        let recentPriorities = allPriorities.filter { $0.createdAt >= oneWeekAgo }
+        let recentPriorities = allPriorities.filter { $0.createdAt >= cutoffDate }
         let completedCount = recentPriorities.filter(\.isCompleted).count
 
         // Dad Wins
         let allWins = persistence.fetchDadWins()
-        let recentWins = allWins.filter { $0.date >= oneWeekAgo }
+        let recentWins = allWins.filter { $0.date >= cutoffDate }
 
         // Contacts
         let contacts = persistence.fetchContacts()
-        let recentContacts = contacts.filter { ($0.lastContacted ?? .distantPast) >= oneWeekAgo }
+        let recentContacts = contacts.filter { ($0.lastContacted ?? .distantPast) >= cutoffDate }
 
         // Places
         let places = persistence.fetchSavedPlaces()
-        let recentVisited = places.filter { $0.isVisited && $0.createdAt >= oneWeekAgo }
+        let recentVisited = places.filter { $0.isVisited && $0.createdAt >= cutoffDate }
 
         // Determine top mood from dad wins
         let moodCounts = Dictionary(grouping: recentWins, by: \.mood).mapValues(\.count)
@@ -99,19 +100,19 @@ final class AIService {
         // Highlights
         var highlights: [String] = []
         if completedCount > 0 {
-            highlights.append("Crushed \(completedCount) priorities this week")
+            highlights.append("Crushed \(completedCount) priorities in the last \(windowDays) days")
         }
         if recentWins.count > 0 {
             highlights.append("Logged \(recentWins.count) dad win\(recentWins.count == 1 ? "" : "s")")
         }
         if recentContacts.count > 0 {
-            highlights.append("Connected with \(recentContacts.count) people")
+            highlights.append("Connected with \(recentContacts.count) people in \(windowDays) days")
         }
         if recentVisited.count > 0 {
             highlights.append("Explored \(recentVisited.count) new place\(recentVisited.count == 1 ? "" : "s")")
         }
         if highlights.isEmpty {
-            highlights.append("Fresh week — time to make it count")
+            highlights.append("Fresh window — time to make it count")
         }
 
         // Improvement areas
@@ -124,7 +125,7 @@ final class AIService {
             improvements.append("Capture a dad win — even small moments matter")
         }
         if recentContacts.count < 2 {
-            improvements.append("Reach out to a friend this week")
+            improvements.append("Reach out to a friend in the next few days")
         }
         if improvements.isEmpty {
             improvements.append("You're on track — keep the momentum going")
@@ -132,7 +133,7 @@ final class AIService {
 
         // Summary
         let summaryParts = [
-            "This week: \(completedCount)/\(recentPriorities.count) priorities done.",
+            "Last \(windowDays) days: \(completedCount)/\(recentPriorities.count) priorities done.",
             recentWins.count > 0 ? "\(recentWins.count) dad wins recorded." : "No dad wins yet.",
             "Feeling mostly \(topMood).",
         ]

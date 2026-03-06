@@ -19,6 +19,7 @@ struct BalanceReducer {
         var healthKitConnected = false
         var weeklyReport: AIService.WeeklyReport?
         var weeklyReportGeneratedAt: Date?
+        var reportRangeDays: Int = 7
 
         enum Section: String, CaseIterable, Equatable {
             case dashboard = "Dashboard"
@@ -149,6 +150,7 @@ struct BalanceReducer {
         case deleteLogEntry(UUID)
         case healthDataLoaded(sleep: Double, steps: Int, energy: Int)
         case loadWeeklyReport
+        case reportRangeChanged(Int)
         case weeklyReportLoaded(AIService.WeeklyReport)
     }
 
@@ -200,7 +202,7 @@ struct BalanceReducer {
             case let .sectionChanged(section):
                 state.selectedSection = section
                 if section == .report, state.weeklyReport == nil {
-                    let report = ai.generateWeeklyReport()
+                    let report = ai.generateWeeklyReport(state.reportRangeDays)
                     state.weeklyReport = report
                     state.weeklyReportGeneratedAt = Date()
                 }
@@ -253,8 +255,15 @@ struct BalanceReducer {
                 state.weeklyLog.removeAll { $0.id == id }
                 return .none
 
+            case let .reportRangeChanged(days):
+                state.reportRangeDays = days
+                let report = ai.generateWeeklyReport(days)
+                state.weeklyReport = report
+                state.weeklyReportGeneratedAt = Date()
+                return .none
+
             case .loadWeeklyReport:
-                let report = ai.generateWeeklyReport()
+                let report = ai.generateWeeklyReport(state.reportRangeDays)
                 state.weeklyReport = report
                 state.weeklyReportGeneratedAt = Date()
                 return .none

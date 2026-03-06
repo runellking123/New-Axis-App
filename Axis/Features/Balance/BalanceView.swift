@@ -388,6 +388,13 @@ struct BalanceView: View {
 
     private var weeklyReportSection: some View {
         VStack(spacing: 16) {
+            Picker("Window", selection: $store.reportRangeDays.sending(\.reportRangeChanged)) {
+                Text("7D").tag(7)
+                Text("14D").tag(14)
+                Text("30D").tag(30)
+            }
+            .pickerStyle(.segmented)
+
             if let report = store.weeklyReport {
                 HStack {
                     if let generatedAt = store.weeklyReportGeneratedAt {
