@@ -39,6 +39,7 @@ struct AppView: View {
                     Label(AppReducer.State.Tab.commandCenter.title,
                           systemImage: AppReducer.State.Tab.commandCenter.icon)
                 }
+                .accessibilityLabel("Command tab")
                 .tag(AppReducer.State.Tab.commandCenter)
 
                 WorkSuiteView(
@@ -48,6 +49,7 @@ struct AppView: View {
                     Label(AppReducer.State.Tab.workSuite.title,
                           systemImage: AppReducer.State.Tab.workSuite.icon)
                 }
+                .accessibilityLabel("Work tab")
                 .tag(AppReducer.State.Tab.workSuite)
 
                 FamilyHQView(
@@ -57,6 +59,7 @@ struct AppView: View {
                     Label(AppReducer.State.Tab.familyHQ.title,
                           systemImage: AppReducer.State.Tab.familyHQ.icon)
                 }
+                .accessibilityLabel("Family tab")
                 .tag(AppReducer.State.Tab.familyHQ)
 
                 SocialCircleView(
@@ -66,6 +69,7 @@ struct AppView: View {
                     Label(AppReducer.State.Tab.socialCircle.title,
                           systemImage: AppReducer.State.Tab.socialCircle.icon)
                 }
+                .accessibilityLabel("Social tab")
                 .tag(AppReducer.State.Tab.socialCircle)
 
                 ExploreView(
@@ -75,6 +79,7 @@ struct AppView: View {
                     Label(AppReducer.State.Tab.explore.title,
                           systemImage: AppReducer.State.Tab.explore.icon)
                 }
+                .accessibilityLabel("Explore tab")
                 .tag(AppReducer.State.Tab.explore)
 
                 BalanceView(
@@ -84,6 +89,7 @@ struct AppView: View {
                     Label(AppReducer.State.Tab.balance.title,
                           systemImage: AppReducer.State.Tab.balance.icon)
                 }
+                .accessibilityLabel("Balance tab")
                 .tag(AppReducer.State.Tab.balance)
             }
             .tint(Color.axisGold)

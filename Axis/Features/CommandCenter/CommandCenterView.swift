@@ -39,6 +39,8 @@ struct CommandCenterView: View {
                         Image(systemName: "gearshape.fill")
                             .foregroundStyle(Color.axisGold)
                     }
+                    .accessibilityLabel("Open settings")
+                    .accessibilityHint("Opens app preferences")
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 12) {
@@ -48,12 +50,16 @@ struct CommandCenterView: View {
                             Image(systemName: "plus.circle.fill")
                                 .foregroundStyle(Color.axisGold)
                         }
+                        .accessibilityLabel("Add priority")
+                        .accessibilityHint("Creates a new priority item")
                         Button {
                             store.send(.refreshTapped)
                         } label: {
                             Image(systemName: "arrow.clockwise")
                                 .foregroundStyle(Color.axisGold)
                         }
+                        .accessibilityLabel("Refresh day brief")
+                        .accessibilityHint("Reloads weather, calendar, and summary data")
                     }
                 }
             }
@@ -272,6 +278,8 @@ struct PriorityCardView: View {
                         .font(.title3)
                         .foregroundStyle(priority.isCompleted ? .green : .secondary)
                 }
+                .accessibilityLabel(priority.isCompleted ? "Mark priority incomplete" : "Mark priority complete")
+                .accessibilityValue(priority.title)
 
                 Image(systemName: priority.sourceIcon)
                     .font(.caption)
@@ -297,6 +305,8 @@ struct PriorityCardView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .accessibilityLabel("Delete priority")
+                    .accessibilityValue(priority.title)
                 }
             }
         }
