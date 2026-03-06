@@ -78,7 +78,7 @@ struct CommandCenterView: View {
                     Text(store.currentGreeting)
                         .font(.title2)
                         .fontWeight(.semibold)
-                    Text("Runell")
+                    Text(store.userName)
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.axisGold)

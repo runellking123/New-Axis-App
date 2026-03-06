@@ -5,6 +5,7 @@ import Foundation
 struct CommandCenterReducer {
     @ObservableState
     struct State: Equatable {
+        var userName: String = "Runell"
         var contextMode: ContextMode = .work
         var dayBriefSummary: String = ""
         var priorities: [PriorityState] = []
@@ -64,6 +65,7 @@ struct CommandCenterReducer {
 
                 // Load persisted priorities
                 let stored = persistence.fetchPriorityItems()
+                state.userName = persistence.getOrCreateProfile().name
                 if stored.isEmpty {
                     // Seed sample priorities
                     let samples = Self.samplePriorities()
