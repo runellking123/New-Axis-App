@@ -162,6 +162,9 @@ struct BalanceReducer {
                 if state.weeklyLog.isEmpty {
                     state.weeklyLog = Self.sampleWeeklyLog()
                 }
+                let profile = PersistenceService.shared.getOrCreateProfile()
+                state.stepsGoal = profile.stepsGoal
+                HapticService.setEnabled(profile.hapticFeedbackEnabled)
                 // Try to load HealthKit data via async effect
                 return .run { send in
                     let data = (isAuth: await health.isAuthorized(), isAvail: await health.isAvailable())

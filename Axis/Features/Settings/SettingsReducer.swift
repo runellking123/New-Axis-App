@@ -58,6 +58,11 @@ struct SettingsReducer {
                 state.workStartTime = profile.workStartTime
                 state.workEndTime = profile.workEndTime
                 state.preferredContextMode = ContextMode(rawValue: profile.preferredContextMode.capitalized) ?? .work
+                state.stepsGoal = profile.stepsGoal
+                state.defaultFocusMinutes = profile.defaultFocusMinutes
+                state.notificationsEnabled = profile.notificationsEnabled
+                state.hapticFeedbackEnabled = profile.hapticFeedbackEnabled
+                HapticService.setEnabled(profile.hapticFeedbackEnabled)
                 return .run { send in
                     let isAuth = await health.isAuthorized()
                     if isAuth {
@@ -87,11 +92,11 @@ struct SettingsReducer {
 
             case let .stepsGoalChanged(goal):
                 state.stepsGoal = goal
-                return .none
+                return .send(.saveProfile)
 
             case let .defaultFocusMinutesChanged(mins):
                 state.defaultFocusMinutes = mins
-                return .none
+                return .send(.saveProfile)
 
             case let .notificationsToggled(enabled):
                 state.notificationsEnabled = enabled
@@ -100,11 +105,12 @@ struct SettingsReducer {
                         _ = await notifications.requestAuthorization()
                     }
                 }
-                return .none
+                return .send(.saveProfile)
 
             case let .hapticFeedbackToggled(enabled):
                 state.hapticFeedbackEnabled = enabled
-                return .none
+                HapticService.setEnabled(enabled)
+                return .send(.saveProfile)
 
             case let .healthKitToggled(enabled):
                 state.healthKitEnabled = enabled
@@ -134,6 +140,10 @@ struct SettingsReducer {
                 profile.workStartTime = state.workStartTime
                 profile.workEndTime = state.workEndTime
                 profile.preferredContextMode = state.preferredContextMode.rawValue.lowercased()
+                profile.stepsGoal = state.stepsGoal
+                profile.defaultFocusMinutes = state.defaultFocusMinutes
+                profile.notificationsEnabled = state.notificationsEnabled
+                profile.hapticFeedbackEnabled = state.hapticFeedbackEnabled
                 persistence.updateUserProfile()
                 return .none
             }

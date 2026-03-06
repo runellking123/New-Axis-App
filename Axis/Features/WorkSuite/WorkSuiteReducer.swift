@@ -121,6 +121,9 @@ struct WorkSuiteReducer {
             switch action {
             case .onAppear:
                 let persistence = PersistenceService.shared
+                let profile = persistence.getOrCreateProfile()
+                state.focusSessionMinutes = profile.defaultFocusMinutes
+                HapticService.setEnabled(profile.hapticFeedbackEnabled)
                 let stored = persistence.fetchWorkProjects()
                 if stored.isEmpty {
                     // Seed sample data
