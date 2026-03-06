@@ -17,11 +17,18 @@ struct WorkSuiteReducer {
         var focusSessionMinutes: Int = 25
         var completedFocusSessions: [FocusSession] = []
         var selectedSegment: Segment = .projects
+        var projectSort: ProjectSort = .priority
 
         struct FocusSession: Equatable, Identifiable {
             let id: UUID
             let completedAt: Date
             let durationMinutes: Int
+        }
+
+        enum ProjectSort: String, CaseIterable, Equatable {
+            case priority = "Priority"
+            case dueDate = "Due Date"
+            case newest = "Newest"
         }
 
         enum Workspace: String, CaseIterable, Equatable {
@@ -71,6 +78,31 @@ struct WorkSuiteReducer {
             projects.filter { $0.workspace == selectedWorkspace.key }
         }
 
+        var sortedFilteredProjects: [ProjectState] {
+            let scoped = filteredProjects
+            switch projectSort {
+            case .priority:
+                let rank: [String: Int] = ["high": 0, "medium": 1, "low": 2]
+                return scoped.sorted {
+                    let lhs = rank[$0.priority, default: 99]
+                    let rhs = rank[$1.priority, default: 99]
+                    if lhs != rhs { return lhs < rhs }
+                    return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                }
+            case .dueDate:
+                return scoped.sorted {
+                    switch ($0.dueDate, $1.dueDate) {
+                    case let (l?, r?): return l < r
+                    case (.some, .none): return true
+                    case (.none, .some): return false
+                    case (.none, .none): return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                    }
+                }
+            case .newest:
+                return scoped.reversed()
+            }
+        }
+
         var activeProjectCount: Int {
             filteredProjects.filter { $0.status == "active" }.count
         }
@@ -110,6 +142,7 @@ struct WorkSuiteReducer {
         case focusTimerTick
         case focusSessionLengthChanged(Int)
         case clearFocusHistory
+        case projectSortChanged(State.ProjectSort)
     }
 
     @Dependency(\.continuousClock) var clock
@@ -279,6 +312,10 @@ struct WorkSuiteReducer {
 
             case .clearFocusHistory:
                 state.completedFocusSessions = []
+                return .none
+
+            case let .projectSortChanged(sort):
+                state.projectSort = sort
                 return .none
             }
         }

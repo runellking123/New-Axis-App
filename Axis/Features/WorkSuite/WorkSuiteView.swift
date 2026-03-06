@@ -133,8 +133,15 @@ struct WorkSuiteView: View {
         VStack(spacing: 12) {
             statsBar
 
+            Picker("Sort Projects", selection: $store.projectSort.sending(\.projectSortChanged)) {
+                ForEach(WorkSuiteReducer.State.ProjectSort.allCases, id: \.self) { sort in
+                    Text(sort.rawValue).tag(sort)
+                }
+            }
+            .pickerStyle(.segmented)
+
             // Active projects
-            let active = store.filteredProjects.filter { $0.status == "active" }
+            let active = store.sortedFilteredProjects.filter { $0.status == "active" }
             if !active.isEmpty {
                 sectionHeader("Active", count: active.count)
                 ForEach(active) { project in
@@ -143,7 +150,7 @@ struct WorkSuiteView: View {
             }
 
             // Completed projects
-            let completed = store.filteredProjects.filter { $0.status == "completed" }
+            let completed = store.sortedFilteredProjects.filter { $0.status == "completed" }
             if !completed.isEmpty {
                 sectionHeader("Completed", count: completed.count)
                 ForEach(completed) { project in
