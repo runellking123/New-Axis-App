@@ -226,6 +226,11 @@ struct SocialCircleView: View {
                         Text(contact.relationship.capitalized)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if !contact.phone.isEmpty {
+                            Text(formatPhone(contact.phone))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     Spacer()
@@ -268,7 +273,27 @@ struct SocialCircleView: View {
 
                     if !contact.phone.isEmpty {
                         Button {
-                            if let url = URL(string: "sms:\(contact.phone)") {
+                            if let digits = sanitizedPhone(contact.phone),
+                               let url = URL(string: "tel://\(digits)") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "phone.fill")
+                                    .font(.caption2)
+                                Text("Call")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                            .background(Color(.systemGray5))
+                            .foregroundStyle(.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+
+                        Button {
+                            if let digits = sanitizedPhone(contact.phone),
+                               let url = URL(string: "sms:\(digits)") {
                                 UIApplication.shared.open(url)
                             }
                         } label: {
@@ -309,6 +334,18 @@ struct SocialCircleView: View {
         case "extended": return .gray
         default: return .gray
         }
+    }
+
+    private func sanitizedPhone(_ value: String) -> String? {
+        let digits = value.filter(\.isNumber)
+        if digits.count == 10 { return digits }
+        if digits.count == 11, digits.hasPrefix("1") { return String(digits.dropFirst()) }
+        return nil
+    }
+
+    private func formatPhone(_ value: String) -> String {
+        guard let digits = sanitizedPhone(value) else { return value }
+        return "\(digits.prefix(3))-\(digits.dropFirst(3).prefix(3))-\(digits.suffix(4))"
     }
 
     // MARK: - Add Contact Sheet
