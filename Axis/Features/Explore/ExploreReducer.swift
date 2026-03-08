@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import MapKit
 
 @Reducer
 struct ExploreReducer {
@@ -13,8 +14,56 @@ struct ExploreReducer {
         var newPlaceAddress = ""
         var newPlaceNotes = ""
         var searchText = ""
-        var surpriseMePlace: PlaceState?
+        var surpriseMePlaces: [PlaceState] = []
         var showSurpriseMe = false
+        var activeStatFilter: StatFilter?
+        var nearbyResults: [NearbyPlace] = []
+        var searchResults: [NearbyPlace] = []
+        var isSearchingNearby = false
+        // Location bar
+        var locationBarText = ""
+        var locationDisplayName = ""
+        var isSearchingLocation = false
+        var isUsingCustomLocation = false
+        // Surprise Me from MKLocalSearch
+        var surpriseMeResults: [SurpriseResult] = []
+        var isLoadingSurpriseMe = false
+        // Place detail
+        var selectedPlaceId: UUID?
+
+        enum StatFilter: String, Equatable {
+            case favorites
+            case visited
+            case bucketList
+        }
+
+        struct NearbyPlace: Equatable, Identifiable {
+            let id = UUID()
+            var name: String
+            var address: String
+            var category: String
+        }
+
+        struct SurpriseResult: Equatable, Identifiable {
+            let id = UUID()
+            var name: String
+            var category: String
+            var address: String
+            var latitude: Double
+            var longitude: Double
+
+            var categoryIcon: String {
+                switch category {
+                case "dining": return "fork.knife"
+                case "events": return "ticket.fill"
+                case "activities": return "figure.hiking"
+                case "travel": return "airplane"
+                case "shopping": return "bag.fill"
+                case "coffee": return "cup.and.saucer.fill"
+                default: return "mappin"
+                }
+            }
+        }
 
         enum Category: String, CaseIterable, Equatable {
             case all = "All"
@@ -64,9 +113,25 @@ struct ExploreReducer {
 
         var filteredPlaces: [PlaceState] {
             var result = places
+
+            // Apply category filter
             if let key = selectedCategory.filterKey {
                 result = result.filter { $0.category == key }
             }
+
+            // Apply stat filter
+            if let statFilter = activeStatFilter {
+                switch statFilter {
+                case .favorites:
+                    result = result.filter(\.isFavorite)
+                case .visited:
+                    result = result.filter(\.isVisited)
+                case .bucketList:
+                    result = result.filter { !$0.isVisited && !$0.isFavorite }
+                }
+            }
+
+            // Apply search
             if !searchText.isEmpty {
                 result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.notes.localizedCaseInsensitiveContains(searchText) }
             }
@@ -91,6 +156,7 @@ struct ExploreReducer {
         case categoryChanged(State.Category)
         case searchTextChanged(String)
         case toggleAddPlace
+        case dismissAddPlace
         case newPlaceNameChanged(String)
         case newPlaceCategoryChanged(String)
         case newPlaceAddressChanged(String)
@@ -101,6 +167,25 @@ struct ExploreReducer {
         case toggleVisited(UUID)
         case surpriseMeTapped
         case dismissSurpriseMe
+        case shuffleSurpriseMe
+        case statFilterTapped(State.StatFilter)
+        case searchNearby
+        case nearbyResultsLoaded([State.NearbyPlace])
+        case searchResultsLoaded([State.NearbyPlace])
+        case addNearbyPlace(State.NearbyPlace)
+        // Location bar
+        case locationBarTextChanged(String)
+        case locationSearchSubmitted
+        case locationSearchCompleted(name: String, success: Bool)
+        case useMyLocation
+        // Surprise Me from search
+        case surpriseMeResultsLoaded([State.SurpriseResult])
+        case saveSurpriseResult(State.SurpriseResult)
+        // Place detail
+        case selectPlace(UUID?)
+        case updatePlaceRating(UUID, Int)
+        case updatePlaceNotes(UUID, String)
+        case updatePlaceCategory(UUID, String)
     }
 
     var body: some ReducerOf<Self> {
@@ -109,17 +194,15 @@ struct ExploreReducer {
             case .onAppear:
                 let persistence = PersistenceService.shared
                 let stored = persistence.fetchSavedPlaces()
-                if stored.isEmpty {
-                    let samples = Self.samplePlaces()
-                    for s in samples {
-                        let place = SavedPlace(name: s.name, category: s.category, address: s.address, notes: s.notes, rating: s.rating, isVisited: s.isVisited, isFavorite: s.isFavorite)
-                        persistence.saveSavedPlace(place)
-                        state.places.append(State.PlaceState(id: place.uuid, name: place.name, category: place.category, address: place.address, notes: place.notes, rating: place.rating, isVisited: place.isVisited, isFavorite: place.isFavorite))
-                    }
-                } else {
-                    state.places = stored.map { p in
-                        State.PlaceState(id: p.uuid, name: p.name, category: p.category, address: p.address, notes: p.notes, rating: p.rating, isVisited: p.isVisited, isFavorite: p.isFavorite)
-                    }
+                state.places = stored.map { p in
+                    State.PlaceState(id: p.uuid, name: p.name, category: p.category, address: p.address, notes: p.notes, rating: p.rating, isVisited: p.isVisited, isFavorite: p.isFavorite)
+                }
+                // Request location permission from Explore tab
+                LocationService.shared.requestPermission()
+                // Set initial location display name
+                let locService = LocationService.shared
+                if !locService.currentLocationName.isEmpty {
+                    state.locationDisplayName = locService.currentLocationName
                 }
                 return .none
 
@@ -129,7 +212,34 @@ struct ExploreReducer {
 
             case let .searchTextChanged(text):
                 state.searchText = text
-                return .none
+                guard text.count >= 2 else {
+                    state.searchResults = []
+                    return .none
+                }
+                // Debounced search via MKLocalSearch
+                return .run { send in
+                    try await Task.sleep(for: .milliseconds(300))
+                    let request = MKLocalSearch.Request()
+                    request.naturalLanguageQuery = text
+                    if let location = LocationService.shared.effectiveLocation {
+                        request.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 50000, longitudinalMeters: 50000)
+                    }
+                    let search = MKLocalSearch(request: request)
+                    do {
+                        let response = try await search.start()
+                        let results = response.mapItems.prefix(5).map { item in
+                            State.NearbyPlace(
+                                name: item.name ?? "Unknown",
+                                address: item.placemark.title ?? "",
+                                category: Self.categorizeMapItem(item)
+                            )
+                        }
+                        await send(.searchResultsLoaded(Array(results)))
+                    } catch {
+                        await send(.searchResultsLoaded([]))
+                    }
+                }
+                .cancellable(id: SearchDebounceID.search)
 
             case .toggleAddPlace:
                 state.showAddPlace.toggle()
@@ -139,6 +249,10 @@ struct ExploreReducer {
                     state.newPlaceAddress = ""
                     state.newPlaceNotes = ""
                 }
+                return .none
+
+            case .dismissAddPlace:
+                state.showAddPlace = false
                 return .none
 
             case let .newPlaceNameChanged(name):
@@ -220,30 +334,256 @@ struct ExploreReducer {
                 return .none
 
             case .surpriseMeTapped:
-                let unvisited = state.places.filter { !$0.isVisited }
-                if let random = unvisited.randomElement() {
-                    state.surpriseMePlace = random
-                    state.showSurpriseMe = true
-                    HapticService.impact(.heavy)
+                state.isLoadingSurpriseMe = true
+                state.showSurpriseMe = true
+                HapticService.impact(.heavy)
+                return .run { send in
+                    let categories = ["restaurant", "coffee shop", "park", "entertainment", "shopping", "bar"]
+                    let randomCategory = categories.randomElement() ?? "restaurant"
+                    let request = MKLocalSearch.Request()
+                    request.naturalLanguageQuery = randomCategory
+                    if let location = LocationService.shared.effectiveLocation {
+                        request.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 15000, longitudinalMeters: 15000)
+                    }
+                    let search = MKLocalSearch(request: request)
+                    do {
+                        let response = try await search.start()
+                        let shuffled = response.mapItems.shuffled()
+                        let results = shuffled.prefix(3).map { item in
+                            State.SurpriseResult(
+                                name: item.name ?? "Unknown",
+                                category: Self.categorizeMapItem(item),
+                                address: item.placemark.title ?? "",
+                                latitude: item.placemark.coordinate.latitude,
+                                longitude: item.placemark.coordinate.longitude
+                            )
+                        }
+                        await send(.surpriseMeResultsLoaded(Array(results)))
+                    } catch {
+                        await send(.surpriseMeResultsLoaded([]))
+                    }
                 }
+
+            case let .surpriseMeResultsLoaded(results):
+                state.surpriseMeResults = results
+                state.isLoadingSurpriseMe = false
                 return .none
+
+            case .shuffleSurpriseMe:
+                state.isLoadingSurpriseMe = true
+                HapticService.impact(.light)
+                return .run { send in
+                    let categories = ["restaurant", "coffee shop", "park", "entertainment", "shopping", "bar", "museum", "gym", "bakery", "nightlife"]
+                    let randomCategory = categories.randomElement() ?? "restaurant"
+                    let request = MKLocalSearch.Request()
+                    request.naturalLanguageQuery = randomCategory
+                    if let location = LocationService.shared.effectiveLocation {
+                        request.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 15000, longitudinalMeters: 15000)
+                    }
+                    let search = MKLocalSearch(request: request)
+                    do {
+                        let response = try await search.start()
+                        let shuffled = response.mapItems.shuffled()
+                        let results = shuffled.prefix(3).map { item in
+                            State.SurpriseResult(
+                                name: item.name ?? "Unknown",
+                                category: Self.categorizeMapItem(item),
+                                address: item.placemark.title ?? "",
+                                latitude: item.placemark.coordinate.latitude,
+                                longitude: item.placemark.coordinate.longitude
+                            )
+                        }
+                        await send(.surpriseMeResultsLoaded(Array(results)))
+                    } catch {
+                        await send(.surpriseMeResultsLoaded([]))
+                    }
+                }
 
             case .dismissSurpriseMe:
                 state.showSurpriseMe = false
-                state.surpriseMePlace = nil
+                state.surpriseMeResults = []
+                state.surpriseMePlaces = []
+                return .none
+
+            case let .statFilterTapped(filter):
+                if state.activeStatFilter == filter {
+                    state.activeStatFilter = nil
+                } else {
+                    state.activeStatFilter = filter
+                }
+                HapticService.selection()
+                return .none
+
+            case .searchNearby:
+                state.isSearchingNearby = true
+                return .run { send in
+                    guard let location = LocationService.shared.effectiveLocation else {
+                        await send(.nearbyResultsLoaded([]))
+                        return
+                    }
+                    let request = MKLocalSearch.Request()
+                    request.naturalLanguageQuery = "restaurants, coffee, entertainment, parks"
+                    request.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 10000, longitudinalMeters: 10000)
+                    let search = MKLocalSearch(request: request)
+                    do {
+                        let response = try await search.start()
+                        let results = response.mapItems.prefix(8).map { item in
+                            State.NearbyPlace(
+                                name: item.name ?? "Unknown",
+                                address: item.placemark.title ?? "",
+                                category: Self.categorizeMapItem(item)
+                            )
+                        }
+                        await send(.nearbyResultsLoaded(Array(results)))
+                    } catch {
+                        await send(.nearbyResultsLoaded([]))
+                    }
+                }
+
+            case let .nearbyResultsLoaded(results):
+                state.nearbyResults = results
+                state.isSearchingNearby = false
+                // Update location display name
+                let locName = LocationService.shared.currentLocationName
+                if !locName.isEmpty {
+                    state.locationDisplayName = locName
+                }
+                return .none
+
+            case let .searchResultsLoaded(results):
+                state.searchResults = results
+                return .none
+
+            case let .addNearbyPlace(nearby):
+                // Pre-fill the add place form
+                state.newPlaceName = nearby.name
+                state.newPlaceAddress = nearby.address
+                state.newPlaceCategory = nearby.category
+                state.newPlaceNotes = ""
+                state.showAddPlace = true
+                return .none
+
+            // MARK: - Location Bar
+
+            case let .locationBarTextChanged(text):
+                state.locationBarText = text
+                return .none
+
+            case .locationSearchSubmitted:
+                let query = state.locationBarText.trimmingCharacters(in: .whitespaces)
+                guard !query.isEmpty else { return .none }
+                state.isSearchingLocation = true
+                return .run { send in
+                    let success = await LocationService.shared.searchCity(query)
+                    let name = LocationService.shared.currentLocationName
+                    await send(.locationSearchCompleted(name: name, success: success))
+                }
+
+            case let .locationSearchCompleted(name, success):
+                state.isSearchingLocation = false
+                if success {
+                    state.locationDisplayName = name
+                    state.isUsingCustomLocation = true
+                    state.locationBarText = ""
+                    // Refresh nearby with new location
+                    return .send(.searchNearby)
+                }
+                return .none
+
+            case .useMyLocation:
+                LocationService.shared.resetToCurrentLocation()
+                state.isUsingCustomLocation = false
+                state.locationBarText = ""
+                let locName = LocationService.shared.currentLocationName
+                if !locName.isEmpty {
+                    state.locationDisplayName = locName
+                } else {
+                    state.locationDisplayName = "Current Location"
+                }
+                return .send(.searchNearby)
+
+            case let .saveSurpriseResult(result):
+                let place = SavedPlace(
+                    name: result.name,
+                    category: result.category,
+                    address: result.address,
+                    notes: ""
+                )
+                PersistenceService.shared.saveSavedPlace(place)
+                state.places.append(State.PlaceState(
+                    id: place.uuid,
+                    name: place.name,
+                    category: place.category,
+                    address: place.address,
+                    notes: place.notes,
+                    rating: place.rating,
+                    isVisited: place.isVisited,
+                    isFavorite: place.isFavorite
+                ))
+                HapticService.notification(.success)
+                return .none
+
+            // MARK: - Place Detail
+
+            case let .selectPlace(id):
+                state.selectedPlaceId = id
+                return .none
+
+            case let .updatePlaceRating(id, rating):
+                if let index = state.places.firstIndex(where: { $0.id == id }) {
+                    state.places[index].rating = rating
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSavedPlaces()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.rating = rating
+                        persistence.updateSavedPlaces()
+                    }
+                }
+                return .none
+
+            case let .updatePlaceNotes(id, notes):
+                if let index = state.places.firstIndex(where: { $0.id == id }) {
+                    state.places[index].notes = notes
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSavedPlaces()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.notes = notes
+                        persistence.updateSavedPlaces()
+                    }
+                }
+                return .none
+
+            case let .updatePlaceCategory(id, category):
+                if let index = state.places.firstIndex(where: { $0.id == id }) {
+                    state.places[index].category = category
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSavedPlaces()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.category = category
+                        persistence.updateSavedPlaces()
+                    }
+                }
                 return .none
             }
         }
     }
 
-    private static func samplePlaces() -> [State.PlaceState] {
-        [
-            .init(id: UUID(), name: "Franklin Barbecue", category: "dining", address: "900 E 11th St, Austin", notes: "Best brisket in Texas. Go early.", rating: 5, isVisited: true, isFavorite: true),
-            .init(id: UUID(), name: "Uchi", category: "dining", address: "801 S Lamar Blvd, Austin", notes: "Upscale Japanese. Date night spot.", rating: 5, isVisited: false, isFavorite: true),
-            .init(id: UUID(), name: "ACL Music Festival", category: "events", address: "Zilker Park, Austin", notes: "October annual. Get 3-day passes.", rating: 0, isVisited: false, isFavorite: false),
-            .init(id: UUID(), name: "Barton Springs Pool", category: "activities", address: "2201 Barton Springs Rd", notes: "Natural spring-fed pool. Family friendly.", rating: 4, isVisited: true, isFavorite: false),
-            .init(id: UUID(), name: "Big Bend National Park", category: "travel", address: "Big Bend, TX", notes: "Weekend camping trip. Stars are incredible.", rating: 0, isVisited: false, isFavorite: true),
-            .init(id: UUID(), name: "Kemah Boardwalk", category: "activities", address: "Kemah, TX", notes: "Rides and seafood. Great for kids.", rating: 0, isVisited: false, isFavorite: false),
-        ]
+    private enum SearchDebounceID { case search }
+
+    private static func categorizeMapItem(_ item: MKMapItem) -> String {
+        if let category = item.pointOfInterestCategory {
+            switch category {
+            case .restaurant, .bakery, .cafe, .brewery, .winery:
+                return "dining"
+            case .nightlife, .theater, .movieTheater:
+                return "events"
+            case .park, .beach, .nationalPark, .fitnessCenter:
+                return "activities"
+            default:
+                return "activities"
+            }
+        }
+        return "dining"
     }
+
 }

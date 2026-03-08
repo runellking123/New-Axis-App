@@ -70,6 +70,8 @@ private enum AxisHapticsKey: DependencyKey {
 private enum AxisWeatherKey: DependencyKey {
     static let liveValue = AxisWeatherClient(
         fetchWeather: {
+            let location = LocationService.shared
+            location.requestPermission()
             let weather = WeatherService.shared
             await weather.fetchWeather()
             return weather.currentWeather
@@ -172,9 +174,11 @@ struct AppReducer {
         var explore = ExploreReducer.State()
         var balance = BalanceReducer.State()
         var settings = SettingsReducer.State()
+        var trends = TrendsReducer.State()
         var showQuickCapture = false
         var showSettings = false
         var showOnboarding = false
+        var showTrends = false
         var userName: String = "Runell"
 
         enum Tab: Int, CaseIterable, Identifiable {
@@ -222,8 +226,10 @@ struct AppReducer {
         case explore(ExploreReducer.Action)
         case balance(BalanceReducer.Action)
         case settings(SettingsReducer.Action)
+        case trends(TrendsReducer.Action)
         case toggleQuickCapture
         case toggleSettings
+        case toggleTrends
         case completeOnboarding
     }
 
@@ -250,6 +256,9 @@ struct AppReducer {
         }
         Scope(state: \.settings, action: \.settings) {
             SettingsReducer()
+        }
+        Scope(state: \.trends, action: \.trends) {
+            TrendsReducer()
         }
         Reduce { state, action in
             switch action {
@@ -281,6 +290,7 @@ struct AppReducer {
 
             case let .contextModeChanged(mode):
                 state.contextMode = mode
+                state.commandCenter.contextMode = mode
                 return .none
 
             case .toggleQuickCapture:
@@ -291,12 +301,16 @@ struct AppReducer {
                 state.showSettings.toggle()
                 return .none
 
+            case .toggleTrends:
+                state.showTrends.toggle()
+                return .none
+
             case .completeOnboarding:
                 state.showOnboarding = false
                 state.userName = persistence.getOrCreateProfile().name
                 return .none
 
-            case .commandCenter, .workSuite, .familyHQ, .socialCircle, .explore, .balance, .settings:
+            case .commandCenter, .workSuite, .familyHQ, .socialCircle, .explore, .balance, .settings, .trends:
                 return .none
             }
         }

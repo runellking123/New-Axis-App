@@ -33,7 +33,19 @@ struct AppView: View {
             TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
                 CommandCenterView(
                     store: store.scope(state: \.commandCenter, action: \.commandCenter),
-                    onSettingsTapped: { store.send(.toggleSettings) }
+                    onSettingsTapped: { store.send(.toggleSettings) },
+                    onQuickCapture: { store.send(.toggleQuickCapture) },
+                    onStartFocus: {
+                        store.send(.tabSelected(.workSuite))
+                        store.send(.workSuite(.segmentChanged(.focus)))
+                        store.send(.workSuite(.startFocusTimer))
+                    },
+                    onCheckIn: {
+                        store.send(.tabSelected(.socialCircle))
+                    },
+                    onTrendsTapped: {
+                        store.send(.toggleTrends)
+                    }
                 )
                 .tabItem {
                     Label(AppReducer.State.Tab.commandCenter.title,
@@ -106,11 +118,30 @@ struct AppView: View {
         .animation(.spring(duration: 0.3), value: store.showQuickCapture)
         .sheet(isPresented: Binding(
             get: { store.showSettings },
-            set: { _ in store.send(.toggleSettings) }
+            set: { newValue in
+                if !newValue { store.send(.toggleSettings) }
+            }
         )) {
             SettingsView(
                 store: store.scope(state: \.settings, action: \.settings)
             )
+        }
+        .sheet(isPresented: Binding(
+            get: { store.showTrends },
+            set: { newValue in
+                if !newValue { store.send(.toggleTrends) }
+            }
+        )) {
+            NavigationStack {
+                TrendsView(
+                    store: store.scope(state: \.trends, action: \.trends)
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { store.send(.toggleTrends) }
+                    }
+                }
+            }
         }
     }
 }

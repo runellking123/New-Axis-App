@@ -4,6 +4,10 @@ import SwiftUI
 struct CommandCenterView: View {
     @Bindable var store: StoreOf<CommandCenterReducer>
     var onSettingsTapped: (() -> Void)?
+    var onQuickCapture: (() -> Void)?
+    var onStartFocus: (() -> Void)?
+    var onCheckIn: (() -> Void)?
+    var onTrendsTapped: (() -> Void)?
 
     var body: some View {
         NavigationStack {
@@ -15,11 +19,19 @@ struct CommandCenterView: View {
                     // Day Brief card
                     dayBriefCard
 
+                    // Smart Nudges
+                    if !store.nudges.isEmpty {
+                        nudgesSection
+                    }
+
                     // Widget grid
                     widgetGrid
 
                     // Priorities list
                     prioritiesSection
+
+                    // Quick actions
+                    quickActionsBar
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 100)
@@ -65,9 +77,19 @@ struct CommandCenterView: View {
             }
             .sheet(isPresented: Binding(
                 get: { store.showAddPriority },
-                set: { _ in store.send(.toggleAddPriority) }
+                set: { newValue in
+                    if !newValue { store.send(.dismissAddPriority) }
+                }
             )) {
                 addPrioritySheet
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { store.selectedPriorityId != nil },
+                set: { if !$0 { store.send(.selectPriority(nil)) } }
+            )) {
+                if let id = store.selectedPriorityId, let priority = store.priorities.first(where: { $0.id == id }) {
+                    PriorityDetailView(store: store, priority: priority)
+                }
             }
             .onAppear {
                 store.send(.onAppear)
@@ -138,6 +160,49 @@ struct CommandCenterView: View {
         }
     }
 
+    // MARK: - Smart Nudges
+
+    private var nudgesSection: some View {
+        VStack(spacing: 8) {
+            ForEach(store.nudges) { nudge in
+                GlassCard {
+                    HStack(spacing: 10) {
+                        Image(systemName: nudge.icon)
+                            .font(.callout)
+                            .foregroundStyle(nudgeColor(nudge.color))
+                            .frame(width: 24)
+
+                        Text(nudge.message)
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+
+                        Spacer()
+
+                        Button {
+                            store.send(.dismissNudge(nudge.id))
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func nudgeColor(_ name: String) -> Color {
+        switch name {
+        case "orange": return .orange
+        case "green": return .green
+        case "purple": return .purple
+        case "pink": return .pink
+        case "blue": return .blue
+        default: return .secondary
+        }
+    }
+
     // MARK: - Widget Grid
 
     private var widgetGrid: some View {
@@ -167,7 +232,7 @@ struct CommandCenterView: View {
             WidgetCardView(
                 icon: "checklist",
                 title: "Priorities",
-                value: "\(store.priorities.filter { !$0.isCompleted }.count)",
+                value: "\(store.filteredPriorities.filter { !$0.isCompleted }.count)",
                 subtitle: "remaining today",
                 color: .orange
             )
@@ -191,17 +256,17 @@ struct CommandCenterView: View {
                 Text("Today's Priorities")
                     .font(.headline)
                 Spacer()
-                Text("\(store.priorities.filter(\.isCompleted).count)/\(store.priorities.count)")
+                Text("\(store.filteredPriorities.filter(\.isCompleted).count)/\(store.filteredPriorities.count)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if store.priorities.isEmpty {
+            if store.filteredPriorities.isEmpty {
                 GlassCard {
                     HStack {
                         Image(systemName: "tray")
                             .foregroundStyle(.secondary)
-                        Text("No priorities yet. Tap + to add one.")
+                        Text("No priorities for \(store.contextMode.rawValue) mode. Tap + to add one.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -209,14 +274,64 @@ struct CommandCenterView: View {
                     .padding(.vertical, 8)
                 }
             } else {
-                ForEach(store.priorities) { priority in
-                    PriorityCardView(
-                        priority: priority,
-                        onToggle: { store.send(.togglePriority(priority.id)) },
-                        onDelete: { store.send(.deletePriority(priority.id)) }
-                    )
+                ForEach(store.filteredPriorities) { priority in
+                    Button {
+                        store.send(.selectPriority(priority.id))
+                    } label: {
+                        PriorityCardView(
+                            priority: priority,
+                            onToggle: { store.send(.togglePriority(priority.id)) },
+                            onDelete: { store.send(.deletePriority(priority.id)) }
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
+        }
+    }
+
+    // MARK: - Quick Actions
+
+    private var quickActionsBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Quick Actions")
+                .font(.headline)
+
+            HStack(spacing: 10) {
+                quickActionButton(icon: "bolt.fill", label: "Capture", color: Color.axisGold) {
+                    onQuickCapture?()
+                }
+
+                quickActionButton(icon: "plus.circle.fill", label: "Priority", color: .orange) {
+                    store.send(.toggleAddPriority)
+                }
+
+                quickActionButton(icon: "timer", label: "Focus", color: .blue) {
+                    onStartFocus?()
+                }
+
+                quickActionButton(icon: "chart.line.uptrend.xyaxis", label: "Trends", color: .green) {
+                    onTrendsTapped?()
+                }
+            }
+        }
+    }
+
+    private func quickActionButton(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(color)
+                Text(label)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 
@@ -250,7 +365,7 @@ struct CommandCenterView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { store.send(.toggleAddPriority) }
+                    Button("Cancel") { store.send(.dismissAddPriority) }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") { store.send(.addPriority) }

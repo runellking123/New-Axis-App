@@ -101,6 +101,54 @@ final class NotificationService {
         }
     }
 
+    func scheduleCheckInReminders() {
+        // Remove old check-in reminders
+        cancelAll(withPrefix: "checkin-")
+
+        let contacts = PersistenceService.shared.fetchContacts()
+        let calendar = Calendar.current
+
+        for contact in contacts {
+            let daysSince: Int
+            if let last = contact.lastContacted {
+                daysSince = calendar.dateComponents([.day], from: last, to: Date()).day ?? 0
+            } else {
+                daysSince = contact.checkInDays // treat as already overdue
+            }
+
+            let daysUntilDue = contact.checkInDays - daysSince
+            // Schedule if due within the next 24 hours or already overdue
+            if daysUntilDue <= 1 {
+                let content = UNMutableNotificationContent()
+                content.title = "Time to check in"
+                content.body = "It's been \(daysSince) days since you talked to \(contact.name). Send a quick text?"
+                content.sound = .default
+                content.categoryIdentifier = "CHECK_IN"
+
+                // Schedule for 9 AM tomorrow if overdue, or 9 AM on due date
+                var triggerDate = calendar.startOfDay(for: Date())
+                triggerDate = calendar.date(byAdding: .hour, value: 9, to: triggerDate) ?? triggerDate
+                if triggerDate < Date() {
+                    triggerDate = calendar.date(byAdding: .day, value: 1, to: triggerDate) ?? triggerDate
+                }
+
+                let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                let request = UNNotificationRequest(
+                    identifier: "checkin-\(contact.uuid.uuidString)",
+                    content: content,
+                    trigger: trigger
+                )
+
+                UNUserNotificationCenter.current().add(request) { [weak self] error in
+                    if let error {
+                        self?.log("Failed to schedule check-in for \(contact.name): \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+
     func cancelAll(withPrefix prefix: String) {
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
             let ids = requests.filter { $0.identifier.hasPrefix(prefix) }.map(\.identifier)

@@ -15,14 +15,62 @@ struct WorkSuiteReducer {
         var focusTimerPaused = false
         var focusTimerSeconds: Int = 0
         var focusSessionMinutes: Int = 25
-        var completedFocusSessions: [FocusSession] = []
+        var completedFocusSessions: [FocusSessionState] = []
         var selectedSegment: Segment = .projects
         var projectSort: ProjectSort = .priority
+        var selectedProjectId: UUID?
 
-        struct FocusSession: Equatable, Identifiable {
+        // Phase 1: Enhanced Pomodoro
+        var pomodoroPhase: PomodoroPhase = .work
+        var completedPomodorosInCycle: Int = 0
+        var autoStartNextSession: Bool = false
+        var activeProjectForFocus: UUID?
+        var shortBreakMinutes: Int = 5
+        var longBreakMinutes: Int = 15
+        var pomodorosBeforeLongBreak: Int = 4
+
+        // Phase 1: Ambient Sounds
+        var ambientSounds: [String: Float] = [:]
+        var focusProfiles: [FocusProfileState] = []
+        var showAmbientMixer = false
+        var showSaveProfile = false
+        var newProfileName = ""
+
+        enum PomodoroPhase: String, CaseIterable, Equatable {
+            case work = "Work"
+            case shortBreak = "Short Break"
+            case longBreak = "Long Break"
+
+            var color: String {
+                switch self {
+                case .work: return "axisGold"
+                case .shortBreak: return "green"
+                case .longBreak: return "blue"
+                }
+            }
+        }
+
+        struct FocusProfileState: Equatable, Identifiable {
+            let id: UUID
+            var name: String
+            var durationMinutes: Int
+            var soundVolumes: [String: Float]
+        }
+
+        struct FocusSessionState: Equatable, Identifiable {
             let id: UUID
             let completedAt: Date
             let durationMinutes: Int
+            let projectId: UUID?
+            let sessionType: String
+
+            init(id: UUID, completedAt: Date, durationMinutes: Int, projectId: UUID? = nil, sessionType: String = "work") {
+                self.id = id
+                self.completedAt = completedAt
+                self.durationMinutes = durationMinutes
+                self.projectId = projectId
+                self.sessionType = sessionType
+            }
         }
 
         enum ProjectSort: String, CaseIterable, Equatable {
@@ -55,6 +103,13 @@ struct WorkSuiteReducer {
             case focus = "Focus"
         }
 
+        struct SubtaskState: Equatable, Identifiable {
+            let id: UUID
+            var title: String
+            var isCompleted: Bool
+            var sortOrder: Int
+        }
+
         struct ProjectState: Equatable, Identifiable {
             let id: UUID
             var title: String
@@ -63,6 +118,20 @@ struct WorkSuiteReducer {
             var priority: String
             var notes: String
             var dueDate: Date?
+            var estimatedPomodoros: Int
+            var subtasks: [SubtaskState]
+
+            init(id: UUID, title: String, workspace: String, status: String, priority: String, notes: String, dueDate: Date?, estimatedPomodoros: Int = 0, subtasks: [SubtaskState] = []) {
+                self.id = id
+                self.title = title
+                self.workspace = workspace
+                self.status = status
+                self.priority = priority
+                self.notes = notes
+                self.dueDate = dueDate
+                self.estimatedPomodoros = estimatedPomodoros
+                self.subtasks = subtasks
+            }
 
             var priorityColor: String {
                 switch priority {
@@ -71,6 +140,16 @@ struct WorkSuiteReducer {
                 case "low": return "green"
                 default: return "gray"
                 }
+            }
+
+            var subtaskProgress: Double {
+                guard !subtasks.isEmpty else { return 0 }
+                let completed = subtasks.filter(\.isCompleted).count
+                return Double(completed) / Double(subtasks.count)
+            }
+
+            var completedSubtaskCount: Int {
+                subtasks.filter(\.isCompleted).count
             }
         }
 
@@ -119,9 +198,48 @@ struct WorkSuiteReducer {
 
         var focusProgress: Double {
             guard focusSessionMinutes > 0 else { return 0 }
-            let total = focusSessionMinutes * 60
+            let total = currentPhaseDuration * 60
+            guard total > 0 else { return 0 }
             let elapsed = total - focusTimerSeconds
             return Double(elapsed) / Double(total)
+        }
+
+        var currentPhaseDuration: Int {
+            switch pomodoroPhase {
+            case .work: return focusSessionMinutes
+            case .shortBreak: return shortBreakMinutes
+            case .longBreak: return longBreakMinutes
+            }
+        }
+
+        // Time logging: total focus minutes per project (today)
+        var projectTimeSummary: [UUID: Int] {
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            var summary: [UUID: Int] = [:]
+            for session in completedFocusSessions {
+                guard session.sessionType == "work",
+                      let pid = session.projectId,
+                      session.completedAt >= today else { continue }
+                summary[pid, default: 0] += session.durationMinutes
+            }
+            return summary
+        }
+
+        var totalFocusMinutesToday: Int {
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            return completedFocusSessions
+                .filter { $0.sessionType == "work" && $0.completedAt >= today }
+                .reduce(0) { $0 + $1.durationMinutes }
+        }
+
+        var totalFocusMinutesThisWeek: Int {
+            let calendar = Calendar.current
+            let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
+            return completedFocusSessions
+                .filter { $0.sessionType == "work" && $0.completedAt >= weekStart }
+                .reduce(0) { $0 + $1.durationMinutes }
         }
     }
 
@@ -130,6 +248,7 @@ struct WorkSuiteReducer {
         case workspaceChanged(State.Workspace)
         case segmentChanged(State.Segment)
         case toggleAddProject
+        case dismissAddProject
         case newProjectTitleChanged(String)
         case newProjectPriorityChanged(String)
         case newProjectDueDateChanged(Date?)
@@ -143,6 +262,30 @@ struct WorkSuiteReducer {
         case focusSessionLengthChanged(Int)
         case clearFocusHistory
         case projectSortChanged(State.ProjectSort)
+        // Drill-down
+        case selectProject(UUID?)
+        case updateProjectTitle(UUID, String)
+        case updateProjectPriority(UUID, String)
+        case updateProjectNotes(UUID, String)
+        // Phase 1: Subtasks
+        case addSubtask(UUID, String)
+        case toggleSubtask(UUID, UUID) // projectId, subtaskId
+        case deleteSubtask(UUID, UUID)
+        case updateProjectEstimatedPomodoros(UUID, Int)
+        // Phase 1: Enhanced Pomodoro
+        case setAutoStartNextSession(Bool)
+        case setActiveProjectForFocus(UUID?)
+        case pomodoroPhaseCompleted
+        case skipBreak
+        // Phase 1: Ambient Sounds
+        case toggleAmbientMixer
+        case setAmbientVolume(String, Float)
+        case stopAllSounds
+        case loadFocusProfile(UUID)
+        case saveFocusProfile
+        case deleteFocusProfile(UUID)
+        case newProfileNameChanged(String)
+        case toggleSaveProfile
     }
 
     @Dependency(\.continuousClock) var clock
@@ -158,18 +301,25 @@ struct WorkSuiteReducer {
                 state.focusSessionMinutes = profile.defaultFocusMinutes
                 HapticService.setEnabled(profile.hapticFeedbackEnabled)
                 let stored = persistence.fetchWorkProjects()
-                if stored.isEmpty {
-                    // Seed sample data
-                    let samples = Self.sampleProjects()
-                    for s in samples {
-                        let project = WorkProject(title: s.title, workspace: s.workspace, status: s.status, priority: s.priority, notes: s.notes, dueDate: s.dueDate)
-                        persistence.saveWorkProject(project)
-                        state.projects.append(State.ProjectState(id: project.uuid, title: project.title, workspace: project.workspace, status: project.status, priority: project.priority, notes: project.notes, dueDate: project.dueDate))
+                state.projects = stored.map { p in
+                    let subtasks = persistence.fetchSubtasks(forProject: p.uuid).map { s in
+                        State.SubtaskState(id: s.uuid, title: s.title, isCompleted: s.isCompleted, sortOrder: s.sortOrder)
                     }
-                } else {
-                    state.projects = stored.map { p in
-                        State.ProjectState(id: p.uuid, title: p.title, workspace: p.workspace, status: p.status, priority: p.priority, notes: p.notes, dueDate: p.dueDate)
-                    }
+                    return State.ProjectState(
+                        id: p.uuid, title: p.title, workspace: p.workspace,
+                        status: p.status, priority: p.priority, notes: p.notes,
+                        dueDate: p.dueDate, estimatedPomodoros: p.estimatedPomodoros,
+                        subtasks: subtasks
+                    )
+                }
+                let sessions = persistence.fetchFocusSessions()
+                state.completedFocusSessions = sessions.map { s in
+                    State.FocusSessionState(id: s.uuid, completedAt: s.completedAt, durationMinutes: s.durationMinutes, projectId: s.projectId, sessionType: s.sessionType)
+                }
+                // Load focus profiles
+                let profiles = persistence.fetchFocusProfiles()
+                state.focusProfiles = profiles.map { p in
+                    State.FocusProfileState(id: p.uuid, name: p.name, durationMinutes: p.durationMinutes, soundVolumes: p.soundVolumes)
                 }
                 return .none
 
@@ -189,6 +339,10 @@ struct WorkSuiteReducer {
                     state.newProjectPriority = "medium"
                     state.newProjectDueDate = nil
                 }
+                return .none
+
+            case .dismissAddProject:
+                state.showAddProject = false
                 return .none
 
             case let .newProjectTitleChanged(title):
@@ -232,7 +386,6 @@ struct WorkSuiteReducer {
             case let .toggleProjectStatus(id):
                 if let index = state.projects.firstIndex(where: { $0.id == id }) {
                     state.projects[index].status = state.projects[index].status == "completed" ? "active" : "completed"
-                    // Persist
                     let persistence = PersistenceService.shared
                     let stored = persistence.fetchWorkProjects()
                     if let match = stored.first(where: { $0.uuid == id }) {
@@ -250,6 +403,9 @@ struct WorkSuiteReducer {
                 if let match = stored.first(where: { $0.uuid == id }) {
                     persistence.deleteWorkProject(match)
                 }
+                // Also delete subtasks for this project
+                let subtasks = persistence.fetchSubtasks(forProject: id)
+                for s in subtasks { persistence.deleteSubtask(s) }
                 return .none
 
             case .startFocusTimer:
@@ -258,7 +414,7 @@ struct WorkSuiteReducer {
                 } else {
                     state.focusTimerActive = true
                     state.focusTimerPaused = false
-                    state.focusTimerSeconds = state.focusSessionMinutes * 60
+                    state.focusTimerSeconds = state.currentPhaseDuration * 60
                 }
                 HapticService.impact(.heavy)
                 return .run { send in
@@ -271,6 +427,7 @@ struct WorkSuiteReducer {
             case .pauseResumeFocusTimer:
                 if state.focusTimerActive {
                     state.focusTimerPaused = true
+                    state.focusTimerActive = false
                     return .cancel(id: FocusTimerID.timer)
                 } else if state.focusTimerPaused && state.focusTimerSeconds > 0 {
                     state.focusTimerPaused = false
@@ -288,6 +445,9 @@ struct WorkSuiteReducer {
                 state.focusTimerActive = false
                 state.focusTimerPaused = false
                 state.focusTimerSeconds = 0
+                state.pomodoroPhase = .work
+                state.completedPomodorosInCycle = 0
+                AudioService.shared.stopAll()
                 return .cancel(id: FocusTimerID.timer)
 
             case .focusTimerTick:
@@ -295,16 +455,67 @@ struct WorkSuiteReducer {
                 if state.focusTimerSeconds > 0 {
                     state.focusTimerSeconds -= 1
                 } else {
-                    state.focusTimerActive = false
-                    state.focusTimerPaused = false
-                    state.completedFocusSessions.insert(
-                        .init(id: UUID(), completedAt: Date(), durationMinutes: state.focusSessionMinutes),
-                        at: 0
-                    )
-                    HapticService.celebration()
-                    return .cancel(id: FocusTimerID.timer)
+                    return .send(.pomodoroPhaseCompleted)
                 }
                 return .none
+
+            case .pomodoroPhaseCompleted:
+                state.focusTimerActive = false
+                state.focusTimerPaused = false
+                HapticService.celebration()
+
+                switch state.pomodoroPhase {
+                case .work:
+                    // Save completed work session
+                    let session = FocusSession(
+                        durationMinutes: state.focusSessionMinutes,
+                        projectId: state.activeProjectForFocus,
+                        sessionType: "work",
+                        completedPomodoros: 1
+                    )
+                    PersistenceService.shared.saveFocusSession(session)
+                    state.completedFocusSessions.insert(
+                        .init(id: session.uuid, completedAt: session.completedAt, durationMinutes: session.durationMinutes, projectId: session.projectId, sessionType: session.sessionType),
+                        at: 0
+                    )
+                    state.completedPomodorosInCycle += 1
+
+                    // Decide next phase
+                    if state.completedPomodorosInCycle >= state.pomodorosBeforeLongBreak {
+                        state.pomodoroPhase = .longBreak
+                        state.completedPomodorosInCycle = 0
+                    } else {
+                        state.pomodoroPhase = .shortBreak
+                    }
+
+                case .shortBreak, .longBreak:
+                    state.pomodoroPhase = .work
+                }
+
+                // Auto-start next session if enabled
+                if state.autoStartNextSession {
+                    state.focusTimerSeconds = state.currentPhaseDuration * 60
+                    state.focusTimerActive = true
+                    return .run { send in
+                        for await _ in self.clock.timer(interval: .seconds(1)) {
+                            await send(.focusTimerTick)
+                        }
+                    }
+                    .cancellable(id: FocusTimerID.timer)
+                }
+
+                return .cancel(id: FocusTimerID.timer)
+
+            case .skipBreak:
+                guard state.pomodoroPhase != .work else { return .none }
+                state.pomodoroPhase = .work
+                state.focusTimerActive = false
+                state.focusTimerPaused = false
+                state.focusTimerSeconds = 0
+                if state.autoStartNextSession {
+                    return .send(.startFocusTimer)
+                }
+                return .cancel(id: FocusTimerID.timer)
 
             case let .focusSessionLengthChanged(minutes):
                 state.focusSessionMinutes = minutes
@@ -317,17 +528,181 @@ struct WorkSuiteReducer {
             case let .projectSortChanged(sort):
                 state.projectSort = sort
                 return .none
+
+            // MARK: - Drill-down
+
+            case let .selectProject(id):
+                state.selectedProjectId = id
+                return .none
+
+            case let .updateProjectTitle(id, title):
+                if let index = state.projects.firstIndex(where: { $0.id == id }) {
+                    state.projects[index].title = title
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchWorkProjects()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.title = title
+                        persistence.updateWorkProjects()
+                    }
+                }
+                return .none
+
+            case let .updateProjectPriority(id, priority):
+                if let index = state.projects.firstIndex(where: { $0.id == id }) {
+                    state.projects[index].priority = priority
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchWorkProjects()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.priority = priority
+                        persistence.updateWorkProjects()
+                    }
+                }
+                return .none
+
+            case let .updateProjectNotes(id, notes):
+                if let index = state.projects.firstIndex(where: { $0.id == id }) {
+                    state.projects[index].notes = notes
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchWorkProjects()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.notes = notes
+                        persistence.updateWorkProjects()
+                    }
+                }
+                return .none
+
+            // MARK: - Subtasks
+
+            case let .addSubtask(projectId, title):
+                guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return .none }
+                if let index = state.projects.firstIndex(where: { $0.id == projectId }) {
+                    let sortOrder = state.projects[index].subtasks.count
+                    let subtask = Subtask(title: title, projectId: projectId, sortOrder: sortOrder)
+                    PersistenceService.shared.saveSubtask(subtask)
+                    state.projects[index].subtasks.append(
+                        State.SubtaskState(id: subtask.uuid, title: subtask.title, isCompleted: false, sortOrder: sortOrder)
+                    )
+                    HapticService.impact(.light)
+                }
+                return .none
+
+            case let .toggleSubtask(projectId, subtaskId):
+                if let pIndex = state.projects.firstIndex(where: { $0.id == projectId }),
+                   let sIndex = state.projects[pIndex].subtasks.firstIndex(where: { $0.id == subtaskId }) {
+                    state.projects[pIndex].subtasks[sIndex].isCompleted.toggle()
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSubtasks(forProject: projectId)
+                    if let match = stored.first(where: { $0.uuid == subtaskId }) {
+                        match.isCompleted = state.projects[pIndex].subtasks[sIndex].isCompleted
+                        persistence.updateSubtasks()
+                    }
+                    HapticService.impact(.light)
+                }
+                return .none
+
+            case let .deleteSubtask(projectId, subtaskId):
+                if let pIndex = state.projects.firstIndex(where: { $0.id == projectId }) {
+                    state.projects[pIndex].subtasks.removeAll { $0.id == subtaskId }
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSubtasks(forProject: projectId)
+                    if let match = stored.first(where: { $0.uuid == subtaskId }) {
+                        persistence.deleteSubtask(match)
+                    }
+                }
+                return .none
+
+            case let .updateProjectEstimatedPomodoros(id, count):
+                if let index = state.projects.firstIndex(where: { $0.id == id }) {
+                    state.projects[index].estimatedPomodoros = count
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchWorkProjects()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.estimatedPomodoros = count
+                        persistence.updateWorkProjects()
+                    }
+                }
+                return .none
+
+            // MARK: - Enhanced Pomodoro
+
+            case let .setAutoStartNextSession(enabled):
+                state.autoStartNextSession = enabled
+                return .none
+
+            case let .setActiveProjectForFocus(id):
+                state.activeProjectForFocus = id
+                return .none
+
+            // MARK: - Ambient Sounds
+
+            case .toggleAmbientMixer:
+                state.showAmbientMixer.toggle()
+                return .none
+
+            case let .setAmbientVolume(sound, volume):
+                if volume <= 0 {
+                    state.ambientSounds.removeValue(forKey: sound)
+                } else {
+                    state.ambientSounds[sound] = volume
+                }
+                AudioService.shared.setVolume(sound, volume: volume)
+                return .none
+
+            case .stopAllSounds:
+                state.ambientSounds = [:]
+                AudioService.shared.stopAll()
+                return .none
+
+            case let .loadFocusProfile(id):
+                if let profile = state.focusProfiles.first(where: { $0.id == id }) {
+                    state.focusSessionMinutes = profile.durationMinutes
+                    // Stop existing sounds
+                    AudioService.shared.stopAll()
+                    state.ambientSounds = profile.soundVolumes
+                    for (sound, volume) in profile.soundVolumes {
+                        AudioService.shared.setVolume(sound, volume: volume)
+                    }
+                    HapticService.impact(.light)
+                }
+                return .none
+
+            case .saveFocusProfile:
+                guard !state.newProfileName.trimmingCharacters(in: .whitespaces).isEmpty else { return .none }
+                let profile = FocusProfile(
+                    name: state.newProfileName,
+                    durationMinutes: state.focusSessionMinutes,
+                    soundVolumes: state.ambientSounds
+                )
+                PersistenceService.shared.saveFocusProfile(profile)
+                state.focusProfiles.append(
+                    State.FocusProfileState(id: profile.uuid, name: profile.name, durationMinutes: profile.durationMinutes, soundVolumes: profile.soundVolumes)
+                )
+                state.showSaveProfile = false
+                state.newProfileName = ""
+                HapticService.notification(.success)
+                return .none
+
+            case let .deleteFocusProfile(id):
+                state.focusProfiles.removeAll { $0.id == id }
+                let persistence = PersistenceService.shared
+                let stored = persistence.fetchFocusProfiles()
+                if let match = stored.first(where: { $0.uuid == id }) {
+                    persistence.deleteFocusProfile(match)
+                }
+                return .none
+
+            case let .newProfileNameChanged(name):
+                state.newProfileName = name
+                return .none
+
+            case .toggleSaveProfile:
+                state.showSaveProfile.toggle()
+                if state.showSaveProfile {
+                    state.newProfileName = ""
+                }
+                return .none
             }
         }
     }
 
-    private static func sampleProjects() -> [State.ProjectState] {
-        [
-            .init(id: UUID(), title: "IPEDS Fall Enrollment Report", workspace: "wiley", status: "active", priority: "high", notes: "", dueDate: nil),
-            .init(id: UUID(), title: "Dashboard KPI Refresh", workspace: "wiley", status: "active", priority: "medium", notes: "", dueDate: nil),
-            .init(id: UUID(), title: "SACSCOC Data Review", workspace: "wiley", status: "active", priority: "high", notes: "", dueDate: nil),
-            .init(id: UUID(), title: "HTAnalytics API Updates", workspace: "consulting", status: "active", priority: "medium", notes: "", dueDate: nil),
-            .init(id: UUID(), title: "Blackbaud Integration", workspace: "consulting", status: "active", priority: "high", notes: "", dueDate: nil),
-        ]
-    }
 }

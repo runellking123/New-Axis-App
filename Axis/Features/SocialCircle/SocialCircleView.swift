@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import ContactsUI
 import SwiftUI
 import UIKit
 
@@ -21,7 +22,7 @@ struct SocialCircleView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
 
-                // Tier filter chips
+                // Tier filter chips + Group filter
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(SocialCircleReducer.State.TierFilter.allCases, id: \.self) { tier in
@@ -34,16 +35,38 @@ struct SocialCircleView: View {
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 7)
                                     .background(
-                                        store.selectedTier == tier
+                                        store.selectedTier == tier && store.selectedGroupFilter == nil
                                             ? Color.purple.opacity(0.2)
                                             : Color(.systemGray5)
                                     )
                                     .foregroundStyle(
-                                        store.selectedTier == tier
+                                        store.selectedTier == tier && store.selectedGroupFilter == nil
                                             ? .purple
                                             : .secondary
                                     )
                                     .clipShape(Capsule())
+                            }
+                        }
+
+                        if !store.groups.isEmpty {
+                            Divider().frame(height: 20)
+                            ForEach(store.groups) { group in
+                                Button {
+                                    store.send(.setGroupFilter(store.selectedGroupFilter == group.id ? nil : group.id))
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text(group.emoji)
+                                            .font(.caption2)
+                                        Text(group.name)
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 7)
+                                    .background(store.selectedGroupFilter == group.id ? Color.purple.opacity(0.2) : Color(.systemGray5))
+                                    .foregroundStyle(store.selectedGroupFilter == group.id ? .purple : .secondary)
+                                    .clipShape(Capsule())
+                                }
                             }
                         }
                     }
@@ -53,6 +76,11 @@ struct SocialCircleView: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
+                        // Insights dashboard
+                        if store.showInsights {
+                            insightsSection
+                        }
+
                         // Overdue alerts
                         if store.overdueCount > 0 {
                             overdueAlert
@@ -69,6 +97,7 @@ struct SocialCircleView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 100)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
@@ -78,20 +107,97 @@ struct SocialCircleView: View {
                         .font(.system(size: 18, weight: .bold, design: .serif))
                         .foregroundStyle(.purple)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        store.send(.toggleAddContact)
+                        store.send(.toggleGroupManagement)
                     } label: {
-                        Image(systemName: "plus.circle.fill")
+                        Image(systemName: "folder.fill")
                             .foregroundStyle(.purple)
+                    }
+                    .accessibilityLabel("Manage groups")
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: 12) {
+                        Button {
+                            store.send(.toggleInsights)
+                        } label: {
+                            Image(systemName: store.showInsights ? "chart.bar.fill" : "chart.bar")
+                                .foregroundStyle(.purple)
+                        }
+                        .accessibilityLabel("Toggle insights")
+
+                        Button {
+                            store.send(.showContactPicker)
+                        } label: {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                                .foregroundStyle(.purple)
+                        }
+                        .accessibilityLabel("Import contacts")
+
+                        Button {
+                            store.send(.toggleAddContact)
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(.purple)
+                        }
+                        .accessibilityLabel("Add contact manually")
                     }
                 }
             }
             .sheet(isPresented: Binding(
                 get: { store.showAddContact },
-                set: { _ in store.send(.toggleAddContact) }
+                set: { newValue in
+                    if !newValue { store.send(.dismissAddContact) }
+                }
             )) {
                 addContactSheet
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showContactPicker },
+                set: { newValue in
+                    if !newValue { store.send(.dismissContactPicker) }
+                }
+            )) {
+                ContactPickerView { cnContacts in
+                    let imported = cnContacts.map { cn in
+                        let name = [cn.givenName, cn.familyName]
+                            .filter { !$0.isEmpty }
+                            .joined(separator: " ")
+                        let phone = cn.phoneNumbers.first?.value.stringValue ?? ""
+                        let email = (cn.emailAddresses.first?.value as String?) ?? ""
+                        var birthday: Date?
+                        if let bday = cn.birthday {
+                            birthday = Calendar.current.date(from: bday)
+                        }
+                        return SocialCircleReducer.ImportedContact(
+                            name: name,
+                            phone: phone,
+                            email: email,
+                            birthday: birthday
+                        )
+                    }
+                    store.send(.importContacts(imported))
+                }
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showGroupManagement },
+                set: { if !$0 { store.send(.toggleGroupManagement) } }
+            )) {
+                GroupManagementView(store: store)
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showInteractionLog },
+                set: { if !$0 { store.send(.dismissInteractionLog) } }
+            )) {
+                InteractionLogView(store: store)
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { store.selectedContactId != nil },
+                set: { if !$0 { store.send(.selectContact(nil)) } }
+            )) {
+                if let id = store.selectedContactId, let contact = store.contacts.first(where: { $0.id == id }) {
+                    ContactDetailView(store: store, contact: contact)
+                }
             }
             .onAppear {
                 store.send(.onAppear)
@@ -119,6 +225,114 @@ struct SocialCircleView: View {
 
                 Spacer()
             }
+        }
+    }
+
+    // MARK: - Insights
+
+    private var insightsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "chart.bar.fill")
+                    .foregroundStyle(.purple)
+                Text("Relationship Insights")
+                    .font(.headline)
+            }
+
+            // Tier distribution
+            GlassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Circle Distribution")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    if store.contacts.isEmpty {
+                        Text("Import contacts to see insights")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        let total = max(store.contacts.count, 1)
+                        tierBar(label: "Inner Circle", count: store.innerCircleCount, total: total, color: .yellow)
+                        tierBar(label: "Close Friends", count: store.closeFriendsCount, total: total, color: .purple)
+                        tierBar(label: "Extended", count: store.extendedCount, total: total, color: .gray)
+                    }
+                }
+            }
+
+            // Most connected / neglected
+            if !store.mostConnected.isEmpty {
+                HStack(spacing: 12) {
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "hand.thumbsup.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                                Text("Most Connected")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            ForEach(store.mostConnected) { c in
+                                HStack {
+                                    Text(c.name)
+                                        .font(.caption2)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text("\(c.daysSinceContact)d")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                                Text("Most Neglected")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            ForEach(store.mostNeglected) { c in
+                                HStack {
+                                    Text(c.name)
+                                        .font(.caption2)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text(c.lastContacted != nil ? "\(c.daysSinceContact)d" : "Never")
+                                        .font(.caption2)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func tierBar(label: String, count: Int, total: Int, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .frame(width: 80, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(color.opacity(0.6))
+                        .frame(width: max(geo.size.width * CGFloat(count) / CGFloat(total), 4))
+                }
+            }
+            .frame(height: 12)
+            Text("\(count)")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .frame(width: 24, alignment: .trailing)
         }
     }
 
@@ -193,7 +407,12 @@ struct SocialCircleView: View {
                 }
             } else {
                 ForEach(store.filteredContacts) { contact in
-                    contactCard(contact)
+                    Button {
+                        store.send(.selectContact(contact.id))
+                    } label: {
+                        contactCard(contact)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -235,8 +454,17 @@ struct SocialCircleView: View {
 
                     Spacer()
 
-                    // Days since contact
+                    // Health score + Days since contact
                     VStack(alignment: .trailing, spacing: 2) {
+                        // Health score badge
+                        Text("\(contact.healthScore)")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .frame(width: 28, height: 28)
+                            .background(healthColor(contact.healthColor).opacity(0.15))
+                            .foregroundStyle(healthColor(contact.healthColor))
+                            .clipShape(Circle())
+
                         if contact.lastContacted != nil {
                             Text("\(contact.daysSinceContact)d ago")
                                 .font(.caption)
@@ -247,14 +475,11 @@ struct SocialCircleView: View {
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                         }
-                        Text("every \(contact.checkInDays)d")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
                 }
 
                 // Action buttons
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Button {
                         store.send(.markContacted(contact.id))
                     } label: {
@@ -273,41 +498,57 @@ struct SocialCircleView: View {
 
                     if !contact.phone.isEmpty {
                         Button {
-                            if let digits = sanitizedPhone(contact.phone),
-                               let url = URL(string: "tel://\(digits)") {
-                                UIApplication.shared.open(url)
-                            }
+                            openURL("tel://\(sanitizedPhoneDigits(contact.phone))")
+                            store.send(.markContacted(contact.id))
                         } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "phone.fill")
-                                    .font(.caption2)
-                                Text("Call")
-                                    .font(.caption)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(Color(.systemGray5))
-                            .foregroundStyle(.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            Image(systemName: "phone.fill")
+                                .font(.caption2)
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .background(Color(.systemGray5))
+                                .foregroundStyle(.green)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
 
                         Button {
-                            if let digits = sanitizedPhone(contact.phone),
-                               let url = URL(string: "sms:\(digits)") {
-                                UIApplication.shared.open(url)
-                            }
+                            openURL("sms:\(sanitizedPhoneDigits(contact.phone))")
+                            store.send(.markContacted(contact.id))
                         } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "message.fill")
-                                    .font(.caption2)
-                                Text("Message")
-                                    .font(.caption)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(Color(.systemGray5))
-                            .foregroundStyle(.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            Image(systemName: "message.fill")
+                                .font(.caption2)
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .background(Color(.systemGray5))
+                                .foregroundStyle(.blue)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+
+                        Button {
+                            openURL("facetime://\(sanitizedPhoneDigits(contact.phone))")
+                            store.send(.markContacted(contact.id))
+                        } label: {
+                            Image(systemName: "video.fill")
+                                .font(.caption2)
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .background(Color(.systemGray5))
+                                .foregroundStyle(.green)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+
+                    if let email = contact.email, !email.isEmpty {
+                        Button {
+                            openURL("mailto:\(email)")
+                            store.send(.markContacted(contact.id))
+                        } label: {
+                            Image(systemName: "envelope.fill")
+                                .font(.caption2)
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .background(Color(.systemGray5))
+                                .foregroundStyle(.orange)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                     }
 
@@ -327,6 +568,11 @@ struct SocialCircleView: View {
         }
     }
 
+    private func openURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        UIApplication.shared.open(url)
+    }
+
     private func tierColor(_ tier: String) -> Color {
         switch tier {
         case "innerCircle": return .yellow
@@ -336,15 +582,25 @@ struct SocialCircleView: View {
         }
     }
 
-    private func sanitizedPhone(_ value: String) -> String? {
+    private func healthColor(_ color: String) -> Color {
+        switch color {
+        case "green": return .green
+        case "yellow": return .yellow
+        case "red": return .red
+        default: return .gray
+        }
+    }
+
+    private func sanitizedPhoneDigits(_ value: String) -> String {
         let digits = value.filter(\.isNumber)
         if digits.count == 10 { return digits }
         if digits.count == 11, digits.hasPrefix("1") { return String(digits.dropFirst()) }
-        return nil
+        return digits
     }
 
     private func formatPhone(_ value: String) -> String {
-        guard let digits = sanitizedPhone(value) else { return value }
+        let digits = sanitizedPhoneDigits(value)
+        guard digits.count == 10 else { return value }
         return "\(digits.prefix(3))-\(digits.dropFirst(3).prefix(3))-\(digits.suffix(4))"
     }
 
@@ -388,7 +644,7 @@ struct SocialCircleView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { store.send(.toggleAddContact) }
+                    Button("Cancel") { store.send(.dismissAddContact) }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") { store.send(.addContact) }

@@ -8,6 +8,7 @@ struct ExploreView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                locationBar
                 searchBar
                 categoryChips
                 mainScrollView
@@ -17,38 +18,159 @@ struct ExploreView: View {
             .toolbar { exploreToolbar }
             .sheet(isPresented: Binding(
                 get: { store.showAddPlace },
-                set: { _ in store.send(.toggleAddPlace) }
+                set: { newValue in
+                    if !newValue { store.send(.dismissAddPlace) }
+                }
             )) {
                 addPlaceSheet
             }
-            .alert("Surprise Pick!", isPresented: Binding(
+            .sheet(isPresented: Binding(
                 get: { store.showSurpriseMe },
-                set: { _ in store.send(.dismissSurpriseMe) }
+                set: { newValue in
+                    if !newValue { store.send(.dismissSurpriseMe) }
+                }
             )) {
-                Button("Dismiss", role: .cancel) {}
-            } message: {
-                if let place = store.surpriseMePlace {
-                    Text("How about \(place.name)?\n\(place.notes)")
+                surpriseMeSheet
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { store.selectedPlaceId != nil },
+                set: { if !$0 { store.send(.selectPlace(nil)) } }
+            )) {
+                if let id = store.selectedPlaceId, let place = store.places.first(where: { $0.id == id }) {
+                    PlaceDetailView(store: store, place: place)
                 }
             }
             .onAppear {
                 store.send(.onAppear)
+                store.send(.searchNearby)
             }
         }
     }
 
-    private var searchBar: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search places...", text: $store.searchText.sending(\.searchTextChanged))
-                .font(.subheadline)
+    // MARK: - Location Bar
+
+    private var locationBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "location.fill")
+                .font(.caption)
+                .foregroundStyle(store.isUsingCustomLocation ? .orange : .blue)
+
+            if store.locationDisplayName.isEmpty {
+                Text("Searching location...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(store.locationDisplayName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+            }
+
+            Spacer()
+
+            // City search field
+            HStack(spacing: 4) {
+                TextField("Search city...", text: $store.locationBarText.sending(\.locationBarTextChanged))
+                    .font(.caption)
+                    .frame(width: 100)
+                    .onSubmit {
+                        store.send(.locationSearchSubmitted)
+                    }
+
+                if store.isSearchingLocation {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+
+            if store.isUsingCustomLocation {
+                Button {
+                    store.send(.useMyLocation)
+                } label: {
+                    Image(systemName: "location.circle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.blue)
+                }
+                .accessibilityLabel("Use my location")
+            }
         }
-        .padding(10)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
         .padding(.horizontal)
-        .padding(.top, 8)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+    }
+
+    private var searchBar: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search places...", text: $store.searchText.sending(\.searchTextChanged))
+                    .font(.subheadline)
+                if !store.searchText.isEmpty {
+                    Button {
+                        store.send(.searchTextChanged(""))
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(10)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            // Search autocomplete results
+            if !store.searchResults.isEmpty && !store.searchText.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Discover Nearby")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal)
+                        .padding(.top, 6)
+
+                    ForEach(store.searchResults) { result in
+                        Button {
+                            store.send(.addNearbyPlace(result))
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: categoryIcon(result.category))
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                                    .frame(width: 20)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(result.name)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.primary)
+                                    Text(result.address)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                Image(systemName: "plus.circle")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal)
+                .padding(.top, 4)
+            }
+        }
     }
 
     private var categoryChips: some View {
@@ -91,11 +213,18 @@ struct ExploreView: View {
             VStack(spacing: 16) {
                 statsRow
                 surpriseMeButton
+
+                // Nearby places
+                if !store.nearbyResults.isEmpty {
+                    nearbySection
+                }
+
                 placesSection
             }
             .padding(.horizontal)
             .padding(.bottom, 100)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     @ToolbarContentBuilder
@@ -115,32 +244,64 @@ struct ExploreView: View {
         }
     }
 
-    // MARK: - Stats Row
+    // MARK: - Stats Row (Tappable)
 
     private var statsRow: some View {
         HStack(spacing: 12) {
-            WidgetCardView(
+            statCard(
                 icon: "star.fill",
                 title: "Favorites",
                 value: "\(store.favoriteCount)",
                 subtitle: "saved",
-                color: .orange
+                color: .orange,
+                filter: .favorites,
+                isActive: store.activeStatFilter == .favorites
             )
-            WidgetCardView(
+            statCard(
                 icon: "checkmark.circle.fill",
                 title: "Visited",
                 value: "\(store.visitedCount)",
                 subtitle: "explored",
-                color: .green
+                color: .green,
+                filter: .visited,
+                isActive: store.activeStatFilter == .visited
             )
-            WidgetCardView(
+            statCard(
                 icon: "list.bullet",
                 title: "Bucket List",
                 value: "\(store.bucketListCount)",
                 subtitle: "to explore",
-                color: .blue
+                color: .blue,
+                filter: .bucketList,
+                isActive: store.activeStatFilter == .bucketList
             )
         }
+    }
+
+    private func statCard(icon: String, title: String, value: String, subtitle: String, color: Color, filter: ExploreReducer.State.StatFilter, isActive: Bool) -> some View {
+        Button {
+            store.send(.statFilterTapped(filter))
+        } label: {
+            GlassCard {
+                VStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.caption)
+                        .foregroundStyle(isActive ? .white : color)
+                    Text(value)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundStyle(isActive ? .white : .primary)
+                    Text(title)
+                        .font(.caption2)
+                        .foregroundStyle(isActive ? .white.opacity(0.8) : .secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            }
+            .background(isActive ? color : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Surprise Me
@@ -159,7 +320,7 @@ struct ExploreView: View {
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundStyle(.primary)
-                        Text("Pick a random unvisited spot")
+                        Text("Discover 3 random nearby spots")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -173,6 +334,163 @@ struct ExploreView: View {
         .buttonStyle(.plain)
     }
 
+    private var surpriseMeSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    if store.isLoadingSurpriseMe {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .tint(.orange)
+                            Text("Finding spots near you...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    } else if store.surpriseMeResults.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "mappin.slash")
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary)
+                            Text("No results found. Try a different location!")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    } else {
+                        ForEach(store.surpriseMeResults) { result in
+                            GlassCard {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack {
+                                        Image(systemName: result.categoryIcon)
+                                            .foregroundStyle(.orange)
+                                        Text(result.name)
+                                            .font(.headline)
+                                        Spacer()
+                                        Text(result.category.capitalized)
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(Color.orange.opacity(0.15))
+                                            .foregroundStyle(.orange)
+                                            .clipShape(Capsule())
+                                    }
+
+                                    if !result.address.isEmpty {
+                                        Text(result.address)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    HStack(spacing: 8) {
+                                        Button {
+                                            store.send(.saveSurpriseResult(result))
+                                        } label: {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "bookmark.fill")
+                                                Text("Save")
+                                                    .fontWeight(.medium)
+                                            }
+                                            .font(.caption)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 8)
+                                            .background(Color(.systemGray5))
+                                            .foregroundStyle(.orange)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        }
+
+                                        Button {
+                                            openInMaps(address: result.address, name: result.name)
+                                        } label: {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "map.fill")
+                                                Text("Directions")
+                                                    .fontWeight(.medium)
+                                            }
+                                            .font(.caption)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 8)
+                                            .background(Color.orange.opacity(0.15))
+                                            .foregroundStyle(.orange)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Surprise Picks!")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { store.send(.dismissSurpriseMe) }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        store.send(.shuffleSurpriseMe)
+                    } label: {
+                        Image(systemName: "dice.fill")
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    // MARK: - Nearby Section
+
+    private var nearbySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "location.fill")
+                    .foregroundStyle(.blue)
+                Text("Nearby")
+                    .font(.headline)
+                Spacer()
+                if store.isSearchingNearby {
+                    ProgressView()
+                }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(store.nearbyResults) { nearby in
+                        Button {
+                            store.send(.addNearbyPlace(nearby))
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Image(systemName: categoryIcon(nearby.category))
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                                Text(nearby.name)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                Text(nearby.address)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: 140, alignment: .leading)
+                            .padding(10)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Places
 
     private var placesSection: some View {
@@ -181,6 +499,18 @@ struct ExploreView: View {
                 Text("Places")
                     .font(.headline)
                 Spacer()
+                if let filter = store.activeStatFilter {
+                    Button {
+                        store.send(.statFilterTapped(filter))
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(filter.rawValue.capitalized)
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                    }
+                }
                 Text("\(store.filteredPlaces.count)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -204,7 +534,12 @@ struct ExploreView: View {
                 }
             } else {
                 ForEach(store.filteredPlaces) { place in
-                    placeCard(place)
+                    Button {
+                        store.send(.selectPlace(place.id))
+                    } label: {
+                        placeCard(place)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -214,7 +549,6 @@ struct ExploreView: View {
         GlassCard {
             VStack(spacing: 10) {
                 HStack(spacing: 12) {
-                    // Category icon
                     ZStack {
                         RoundedRectangle(cornerRadius: 10)
                             .fill(Color.orange.opacity(0.15))
@@ -244,7 +578,11 @@ struct ExploreView: View {
 
                     Spacer()
 
-                    // Star rating
+                    // Chevron for drill-down
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     if place.rating > 0 {
                         HStack(spacing: 1) {
                             ForEach(1...5, id: \.self) { star in
@@ -255,79 +593,17 @@ struct ExploreView: View {
                         }
                     }
                 }
-
-                if !place.notes.isEmpty {
-                    Text(place.notes)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineSpacing(2)
-                }
-
-                // Action buttons
-                HStack(spacing: 8) {
-                    Button {
-                        openInMaps(address: place.address, name: place.name)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "map.fill")
-                                .font(.caption2)
-                            Text("Directions")
-                                .font(.caption)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(Color(.systemGray5))
-                        .foregroundStyle(place.address.isEmpty ? Color.secondary.opacity(0.5) : Color.blue)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .disabled(place.address.isEmpty)
-
-                    Button {
-                        store.send(.toggleFavorite(place.id))
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: place.isFavorite ? "heart.fill" : "heart")
-                                .font(.caption2)
-                            Text(place.isFavorite ? "Saved" : "Save")
-                                .font(.caption)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(place.isFavorite ? Color.orange.opacity(0.1) : Color(.systemGray5))
-                        .foregroundStyle(place.isFavorite ? .orange : .secondary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    Button {
-                        store.send(.toggleVisited(place.id))
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: place.isVisited ? "checkmark.circle.fill" : "circle")
-                                .font(.caption2)
-                            Text(place.isVisited ? "Visited" : "Mark Visited")
-                                .font(.caption)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(place.isVisited ? Color.green.opacity(0.1) : Color(.systemGray5))
-                        .foregroundStyle(place.isVisited ? .green : .secondary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    Button {
-                        store.send(.deletePlace(place.id))
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.caption)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
-                            .background(Color(.systemGray5))
-                            .foregroundStyle(.secondary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                }
             }
+        }
+    }
+
+    private func categoryIcon(_ category: String) -> String {
+        switch category {
+        case "dining": return "fork.knife"
+        case "events": return "ticket.fill"
+        case "activities": return "figure.hiking"
+        case "travel": return "airplane"
+        default: return "mappin"
         }
     }
 
@@ -365,7 +641,7 @@ struct ExploreView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { store.send(.toggleAddPlace) }
+                    Button("Cancel") { store.send(.dismissAddPlace) }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") { store.send(.addPlace) }

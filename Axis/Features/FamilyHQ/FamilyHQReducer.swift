@@ -9,22 +9,26 @@ struct FamilyHQReducer {
         var eventFilter: EventFilter = .all
         var events: [EventState] = []
         var mealPlan: [MealState] = []
-        var dadWins: [DadWinState] = []
+        var goals: [GoalState] = []
         var showAddEvent = false
-        var showAddDadWin = false
+        var showAddGoal = false
         var newEventTitle = ""
         var newEventCategory = "activity"
         var newEventDate = Date()
-        var newDadWinTitle = ""
-        var newDadWinDetails = ""
-        var newDadWinMood = "proud"
-        var newDadWinPhotoData: Data?
+        var newGoalTitle = ""
+        var newGoalCategory = "personal"
+        var newGoalTargetDate: Date?
+        var newGoalMilestones: [String] = [""]
         var showConfetti = false
+        var goalFilter: GoalFilter = .active
+        var expandedGoalId: UUID?
+        var selectedEventId: UUID?
+        var selectedGoalId: UUID?
 
         enum Section: String, CaseIterable, Equatable {
             case calendar = "Calendar"
             case meals = "Meals"
-            case dadWins = "Dad Wins"
+            case goals = "Goals"
         }
 
         enum EventFilter: String, CaseIterable, Equatable {
@@ -32,6 +36,12 @@ struct FamilyHQReducer {
             case today = "Today"
             case upcoming = "Upcoming"
             case completed = "Done"
+        }
+
+        enum GoalFilter: String, CaseIterable, Equatable {
+            case active = "Active"
+            case completed = "Completed"
+            case all = "All"
         }
 
         struct EventState: Equatable, Identifiable {
@@ -74,35 +84,56 @@ struct FamilyHQReducer {
             }
         }
 
-        struct DadWinState: Equatable, Identifiable {
+        struct GoalState: Equatable, Identifiable {
             let id: UUID
             var title: String
-            var details: String
-            var mood: String
-            var date: Date
-            var hasPhoto: Bool
+            var category: String
+            var targetDate: Date?
+            var milestones: [MilestoneState]
+            var notes: String
+            var createdAt: Date
+            var completedAt: Date?
 
-            var moodIcon: String {
-                switch mood {
-                case "proud": return "star.fill"
-                case "grateful": return "heart.fill"
-                case "joyful": return "face.smiling.inverse"
-                case "peaceful": return "leaf.fill"
-                case "accomplished": return "trophy.fill"
-                default: return "star.fill"
+            var isCompleted: Bool { completedAt != nil }
+
+            var progress: Double {
+                guard !milestones.isEmpty else { return 0 }
+                let completed = milestones.filter(\.isCompleted).count
+                return Double(completed) / Double(milestones.count)
+            }
+
+            var completedMilestoneCount: Int {
+                milestones.filter(\.isCompleted).count
+            }
+
+            var categoryIcon: String {
+                switch category {
+                case "family": return "house.fill"
+                case "career": return "briefcase.fill"
+                case "health": return "heart.fill"
+                case "personal": return "person.fill"
+                case "financial": return "dollarsign.circle.fill"
+                default: return "target"
                 }
             }
 
-            var moodColor: String {
-                switch mood {
-                case "proud": return "yellow"
-                case "grateful": return "pink"
-                case "joyful": return "orange"
-                case "peaceful": return "green"
-                case "accomplished": return "purple"
-                default: return "yellow"
+            var categoryColorName: String {
+                switch category {
+                case "family": return "blue"
+                case "career": return "orange"
+                case "health": return "green"
+                case "personal": return "purple"
+                case "financial": return "yellow"
+                default: return "gray"
                 }
             }
+        }
+
+        struct MilestoneState: Equatable, Identifiable {
+            let id: UUID
+            var title: String
+            var isCompleted: Bool
+            var sortOrder: Int
         }
 
         var todayEvents: [EventState] {
@@ -134,6 +165,17 @@ struct FamilyHQReducer {
         var completedEventCount: Int {
             events.filter(\.isCompleted).count
         }
+
+        var filteredGoals: [GoalState] {
+            switch goalFilter {
+            case .active:
+                return goals.filter { !$0.isCompleted }
+            case .completed:
+                return goals.filter(\.isCompleted)
+            case .all:
+                return goals
+            }
+        }
     }
 
     enum Action: Equatable {
@@ -141,21 +183,40 @@ struct FamilyHQReducer {
         case sectionChanged(State.Section)
         case eventFilterChanged(State.EventFilter)
         case toggleAddEvent
-        case toggleAddDadWin
+        case dismissAddEvent
         case newEventTitleChanged(String)
         case newEventCategoryChanged(String)
         case newEventDateChanged(Date)
         case addEvent
         case toggleEventCompleted(UUID)
         case deleteEvent(UUID)
-        case newDadWinTitleChanged(String)
-        case newDadWinDetailsChanged(String)
-        case newDadWinMoodChanged(String)
-        case newDadWinPhotoDataChanged(Data?)
-        case addDadWin
-        case deleteDadWin(UUID)
-        case mealNameChanged(dayOfWeek: Int, mealType: String, name: String)
+        // Goals
+        case toggleAddGoal
+        case dismissAddGoal
+        case newGoalTitleChanged(String)
+        case newGoalCategoryChanged(String)
+        case newGoalTargetDateChanged(Date?)
+        case newGoalMilestoneTextChanged(index: Int, text: String)
+        case addGoalMilestoneField
+        case removeGoalMilestoneField(Int)
+        case addGoal
+        case deleteGoal(UUID)
+        case toggleMilestone(goalId: UUID, milestoneId: UUID)
+        case goalFilterChanged(State.GoalFilter)
+        case toggleGoalExpanded(UUID)
         case hideConfetti
+        // Meals
+        case mealNameChanged(dayOfWeek: Int, mealType: String, name: String)
+        // Drill-down
+        case selectEvent(UUID?)
+        case selectGoal(UUID?)
+        case updateEventTitle(UUID, String)
+        case updateEventCategory(UUID, String)
+        case updateGoalTitle(UUID, String)
+        case updateGoalCategory(UUID, String)
+        case updateGoalNotes(UUID, String)
+        case addMilestoneToGoal(UUID)
+        case removeMilestoneFromGoal(goalId: UUID, milestoneId: UUID)
     }
 
     var body: some ReducerOf<Self> {
@@ -166,17 +227,8 @@ struct FamilyHQReducer {
 
                 // Events
                 let storedEvents = persistence.fetchFamilyEvents()
-                if storedEvents.isEmpty {
-                    let samples = Self.sampleEvents()
-                    for s in samples {
-                        let event = FamilyEvent(title: s.title, category: s.category, date: s.date, isCompleted: s.isCompleted, assignedTo: s.assignedTo)
-                        persistence.saveFamilyEvent(event)
-                        state.events.append(State.EventState(id: event.uuid, title: event.title, category: event.category, date: event.date, isCompleted: event.isCompleted, assignedTo: event.assignedTo))
-                    }
-                } else {
-                    state.events = storedEvents.map { e in
-                        State.EventState(id: e.uuid, title: e.title, category: e.category, date: e.date, isCompleted: e.isCompleted, assignedTo: e.assignedTo)
-                    }
+                state.events = storedEvents.map { e in
+                    State.EventState(id: e.uuid, title: e.title, category: e.category, date: e.date, isCompleted: e.isCompleted, assignedTo: e.assignedTo)
                 }
 
                 // Meal plans
@@ -193,19 +245,24 @@ struct FamilyHQReducer {
                     }
                 }
 
-                // Dad Wins
-                let storedWins = persistence.fetchDadWins()
-                if storedWins.isEmpty {
-                    let samples = Self.sampleDadWins()
-                    for s in samples {
-                        let win = DadWin(title: s.title, details: s.details, mood: s.mood, date: s.date)
-                        persistence.saveDadWin(win)
-                        state.dadWins.append(State.DadWinState(id: win.uuid, title: win.title, details: win.details, mood: win.mood, date: win.date, hasPhoto: false))
-                    }
-                } else {
-                    state.dadWins = storedWins.map { w in
-                        State.DadWinState(id: w.uuid, title: w.title, details: w.details, mood: w.mood, date: w.date, hasPhoto: w.photoData != nil)
-                    }
+                // Goals
+                let storedGoals = persistence.fetchGoals()
+                state.goals = storedGoals.map { g in
+                    let milestoneStates = g.milestones
+                        .sorted { $0.sortOrder < $1.sortOrder }
+                        .map { m in
+                            State.MilestoneState(id: m.uuid, title: m.title, isCompleted: m.isCompleted, sortOrder: m.sortOrder)
+                        }
+                    return State.GoalState(
+                        id: g.uuid,
+                        title: g.title,
+                        category: g.category,
+                        targetDate: g.targetDate,
+                        milestones: milestoneStates,
+                        notes: g.notes,
+                        createdAt: g.createdAt,
+                        completedAt: g.completedAt
+                    )
                 }
 
                 return .none
@@ -227,14 +284,8 @@ struct FamilyHQReducer {
                 }
                 return .none
 
-            case .toggleAddDadWin:
-                state.showAddDadWin.toggle()
-                if state.showAddDadWin {
-                    state.newDadWinTitle = ""
-                    state.newDadWinDetails = ""
-                    state.newDadWinMood = "proud"
-                    state.newDadWinPhotoData = nil
-                }
+            case .dismissAddEvent:
+                state.showAddEvent = false
                 return .none
 
             case let .newEventTitleChanged(title):
@@ -295,63 +346,135 @@ struct FamilyHQReducer {
                 }
                 return .none
 
-            case let .newDadWinTitleChanged(title):
-                state.newDadWinTitle = title
+            // MARK: - Goals
+
+            case .toggleAddGoal:
+                state.showAddGoal.toggle()
+                if state.showAddGoal {
+                    state.newGoalTitle = ""
+                    state.newGoalCategory = "personal"
+                    state.newGoalTargetDate = nil
+                    state.newGoalMilestones = [""]
+                }
                 return .none
 
-            case let .newDadWinDetailsChanged(details):
-                state.newDadWinDetails = details
+            case .dismissAddGoal:
+                state.showAddGoal = false
                 return .none
 
-            case let .newDadWinMoodChanged(mood):
-                state.newDadWinMood = mood
+            case let .newGoalTitleChanged(title):
+                state.newGoalTitle = title
                 return .none
 
-            case let .newDadWinPhotoDataChanged(data):
-                state.newDadWinPhotoData = data
+            case let .newGoalCategoryChanged(category):
+                state.newGoalCategory = category
                 return .none
 
-            case .addDadWin:
-                guard !state.newDadWinTitle.trimmingCharacters(in: .whitespaces).isEmpty else {
+            case let .newGoalTargetDateChanged(date):
+                state.newGoalTargetDate = date
+                return .none
+
+            case let .newGoalMilestoneTextChanged(index, text):
+                if index < state.newGoalMilestones.count {
+                    state.newGoalMilestones[index] = text
+                }
+                return .none
+
+            case .addGoalMilestoneField:
+                state.newGoalMilestones.append("")
+                return .none
+
+            case let .removeGoalMilestoneField(index):
+                guard state.newGoalMilestones.count > 1 else { return .none }
+                state.newGoalMilestones.remove(at: index)
+                return .none
+
+            case .addGoal:
+                guard !state.newGoalTitle.trimmingCharacters(in: .whitespaces).isEmpty else {
                     return .none
                 }
-                let win = DadWin(
-                    title: state.newDadWinTitle,
-                    details: state.newDadWinDetails,
-                    mood: state.newDadWinMood,
-                    date: Date(),
-                    photoData: state.newDadWinPhotoData
+                let goal = Goal(
+                    title: state.newGoalTitle,
+                    category: state.newGoalCategory,
+                    targetDate: state.newGoalTargetDate
                 )
-                PersistenceService.shared.saveDadWin(win)
-                state.dadWins.insert(State.DadWinState(
-                    id: win.uuid,
-                    title: win.title,
-                    details: win.details,
-                    mood: win.mood,
-                    date: win.date,
-                    hasPhoto: win.photoData != nil
-                ), at: 0)
-                state.showAddDadWin = false
-                state.showConfetti = true
-                HapticService.celebration()
-                return .run { send in
-                    try await Task.sleep(for: .seconds(3))
-                    await send(.hideConfetti)
+                let milestoneTexts = state.newGoalMilestones.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                var milestoneStates: [State.MilestoneState] = []
+                for (i, text) in milestoneTexts.enumerated() {
+                    let milestone = Milestone(title: text, sortOrder: i)
+                    goal.milestones.append(milestone)
+                    milestoneStates.append(State.MilestoneState(id: milestone.uuid, title: milestone.title, isCompleted: false, sortOrder: i))
                 }
+                PersistenceService.shared.saveGoal(goal)
+                state.goals.insert(State.GoalState(
+                    id: goal.uuid,
+                    title: goal.title,
+                    category: goal.category,
+                    targetDate: goal.targetDate,
+                    milestones: milestoneStates,
+                    notes: goal.notes,
+                    createdAt: goal.createdAt,
+                    completedAt: nil
+                ), at: 0)
+                state.showAddGoal = false
+                HapticService.notification(.success)
+                return .none
 
-            case let .deleteDadWin(id):
-                state.dadWins.removeAll { $0.id == id }
+            case let .deleteGoal(id):
+                state.goals.removeAll { $0.id == id }
                 let persistence = PersistenceService.shared
-                let stored = persistence.fetchDadWins()
+                let stored = persistence.fetchGoals()
                 if let match = stored.first(where: { $0.uuid == id }) {
-                    persistence.deleteDadWin(match)
+                    persistence.deleteGoal(match)
+                }
+                return .none
+
+            case let .toggleMilestone(goalId, milestoneId):
+                guard let goalIndex = state.goals.firstIndex(where: { $0.id == goalId }),
+                      let msIndex = state.goals[goalIndex].milestones.firstIndex(where: { $0.id == milestoneId }) else {
+                    return .none
+                }
+                state.goals[goalIndex].milestones[msIndex].isCompleted.toggle()
+
+                // Persist
+                let persistence = PersistenceService.shared
+                let stored = persistence.fetchGoals()
+                if let goalMatch = stored.first(where: { $0.uuid == goalId }),
+                   let msMatch = goalMatch.milestones.first(where: { $0.uuid == milestoneId }) {
+                    msMatch.isCompleted = state.goals[goalIndex].milestones[msIndex].isCompleted
+                    msMatch.completedAt = msMatch.isCompleted ? Date() : nil
+                    // Check if goal is fully complete
+                    if goalMatch.milestones.allSatisfy(\.isCompleted) && !goalMatch.milestones.isEmpty {
+                        goalMatch.completedAt = Date()
+                        state.goals[goalIndex].completedAt = Date()
+                        state.showConfetti = true
+                        HapticService.celebration()
+                        persistence.updateGoals()
+                        return .run { send in
+                            try await Task.sleep(for: .seconds(3))
+                            await send(.hideConfetti)
+                        }
+                    }
+                    persistence.updateGoals()
+                }
+                HapticService.impact(.light)
+                return .none
+
+            case let .goalFilterChanged(filter):
+                state.goalFilter = filter
+                return .none
+
+            case let .toggleGoalExpanded(id):
+                if state.expandedGoalId == id {
+                    state.expandedGoalId = nil
+                } else {
+                    state.expandedGoalId = id
                 }
                 return .none
 
             case let .mealNameChanged(dayOfWeek, mealType, name):
                 if let index = state.mealPlan.firstIndex(where: { $0.dayOfWeek == dayOfWeek && $0.mealType == mealType }) {
                     state.mealPlan[index].mealName = name
-                    // Persist
                     let persistence = PersistenceService.shared
                     let stored = persistence.fetchMealPlans()
                     if let match = stored.first(where: { $0.dayOfWeek == dayOfWeek && $0.mealType == mealType }) {
@@ -364,22 +487,106 @@ struct FamilyHQReducer {
             case .hideConfetti:
                 state.showConfetti = false
                 return .none
+
+            // MARK: - Drill-down
+
+            case let .selectEvent(id):
+                state.selectedEventId = id
+                return .none
+
+            case let .selectGoal(id):
+                state.selectedGoalId = id
+                return .none
+
+            case let .updateEventTitle(id, title):
+                if let index = state.events.firstIndex(where: { $0.id == id }) {
+                    state.events[index].title = title
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchFamilyEvents()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.title = title
+                        persistence.updateFamilyEvents()
+                    }
+                }
+                return .none
+
+            case let .updateEventCategory(id, category):
+                if let index = state.events.firstIndex(where: { $0.id == id }) {
+                    state.events[index].category = category
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchFamilyEvents()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.category = category
+                        persistence.updateFamilyEvents()
+                    }
+                }
+                return .none
+
+            case let .updateGoalTitle(id, title):
+                if let index = state.goals.firstIndex(where: { $0.id == id }) {
+                    state.goals[index].title = title
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchGoals()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.title = title
+                        persistence.updateGoals()
+                    }
+                }
+                return .none
+
+            case let .updateGoalCategory(id, category):
+                if let index = state.goals.firstIndex(where: { $0.id == id }) {
+                    state.goals[index].category = category
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchGoals()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.category = category
+                        persistence.updateGoals()
+                    }
+                }
+                return .none
+
+            case let .updateGoalNotes(id, notes):
+                if let index = state.goals.firstIndex(where: { $0.id == id }) {
+                    state.goals[index].notes = notes
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchGoals()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.notes = notes
+                        persistence.updateGoals()
+                    }
+                }
+                return .none
+
+            case let .addMilestoneToGoal(goalId):
+                if let index = state.goals.firstIndex(where: { $0.id == goalId }) {
+                    let newOrder = state.goals[index].milestones.count
+                    let milestone = Milestone(title: "New milestone", sortOrder: newOrder)
+                    state.goals[index].milestones.append(
+                        State.MilestoneState(id: milestone.uuid, title: milestone.title, isCompleted: false, sortOrder: newOrder)
+                    )
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchGoals()
+                    if let match = stored.first(where: { $0.uuid == goalId }) {
+                        match.milestones.append(milestone)
+                        persistence.updateGoals()
+                    }
+                }
+                return .none
+
+            case let .removeMilestoneFromGoal(goalId, milestoneId):
+                if let goalIndex = state.goals.firstIndex(where: { $0.id == goalId }) {
+                    state.goals[goalIndex].milestones.removeAll { $0.id == milestoneId }
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchGoals()
+                    if let match = stored.first(where: { $0.uuid == goalId }) {
+                        match.milestones.removeAll { $0.uuid == milestoneId }
+                        persistence.updateGoals()
+                    }
+                }
+                return .none
             }
         }
     }
 
-    private static func sampleEvents() -> [State.EventState] {
-        [
-            .init(id: UUID(), title: "Soccer Practice", category: "activity", date: Date(), isCompleted: false, assignedTo: "runell"),
-            .init(id: UUID(), title: "Family Dinner at Grandma's", category: "meal", date: Date(), isCompleted: false, assignedTo: "family"),
-            .init(id: UUID(), title: "Pediatrician Appointment", category: "appointment", date: Date().addingTimeInterval(86400), isCompleted: false, assignedTo: "morgan"),
-        ]
-    }
-
-    private static func sampleDadWins() -> [State.DadWinState] {
-        [
-            .init(id: UUID(), title: "Helped with homework", details: "Worked through long division together. The lightbulb moment was priceless.", mood: "proud", date: Date().addingTimeInterval(-86400), hasPhoto: false),
-            .init(id: UUID(), title: "Morning pancakes", details: "Made chocolate chip pancakes before school. Everyone loved them.", mood: "joyful", date: Date().addingTimeInterval(-172800), hasPhoto: false),
-        ]
-    }
 }

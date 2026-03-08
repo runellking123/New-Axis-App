@@ -1,10 +1,8 @@
 import ComposableArchitecture
-import PhotosUI
 import SwiftUI
 
 struct FamilyHQView: View {
     @Bindable var store: StoreOf<FamilyHQReducer>
-    @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
         NavigationStack {
@@ -27,8 +25,8 @@ struct FamilyHQView: View {
                                 calendarSection
                             case .meals:
                                 mealsSection
-                            case .dadWins:
-                                dadWinsSection
+                            case .goals:
+                                goalsSection
                             }
                         }
                         .padding(.horizontal)
@@ -55,15 +53,35 @@ struct FamilyHQView: View {
             }
             .sheet(isPresented: Binding(
                 get: { store.showAddEvent },
-                set: { _ in store.send(.toggleAddEvent) }
+                set: { newValue in
+                    if !newValue { store.send(.dismissAddEvent) }
+                }
             )) {
                 addEventSheet
             }
             .sheet(isPresented: Binding(
-                get: { store.showAddDadWin },
-                set: { _ in store.send(.toggleAddDadWin) }
+                get: { store.showAddGoal },
+                set: { newValue in
+                    if !newValue { store.send(.dismissAddGoal) }
+                }
             )) {
-                addDadWinSheet
+                addGoalSheet
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { store.selectedEventId != nil },
+                set: { if !$0 { store.send(.selectEvent(nil)) } }
+            )) {
+                if let id = store.selectedEventId, let event = store.events.first(where: { $0.id == id }) {
+                    EventDetailView(store: store, event: event)
+                }
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { store.selectedGoalId != nil },
+                set: { if !$0 { store.send(.selectGoal(nil)) } }
+            )) {
+                if let id = store.selectedGoalId, let goal = store.goals.first(where: { $0.id == id }) {
+                    GoalDetailView(store: store, goal: goal)
+                }
             }
             .onAppear {
                 store.send(.onAppear)
@@ -79,8 +97,8 @@ struct FamilyHQView: View {
                 Image(systemName: "plus.circle.fill")
                     .foregroundStyle(.blue)
             }
-        case .dadWins:
-            Button { store.send(.toggleAddDadWin) } label: {
+        case .goals:
+            Button { store.send(.toggleAddGoal) } label: {
                 Image(systemName: "plus.circle.fill")
                     .foregroundStyle(.blue)
             }
@@ -114,7 +132,12 @@ struct FamilyHQView: View {
 
             if !store.filteredCalendarEvents.isEmpty {
                 ForEach(store.filteredCalendarEvents) { event in
-                    eventCard(event)
+                    Button {
+                        store.send(.selectEvent(event.id))
+                    } label: {
+                        eventCard(event)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -207,103 +230,155 @@ struct FamilyHQView: View {
         }
     }
 
-    // MARK: - Dad Wins Section
+    // MARK: - Goals Section
 
-    private var dadWinsSection: some View {
+    private var goalsSection: some View {
         VStack(spacing: 12) {
-            // Streak counter
-            GlassCard {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Dad Win Streak")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("\(store.dadWins.count)")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.blue)
-                    }
-                    Spacer()
-                    Image(systemName: "trophy.fill")
-                        .font(.title)
-                        .foregroundStyle(.yellow)
+            // Filter
+            Picker("Filter", selection: $store.goalFilter.sending(\.goalFilterChanged)) {
+                ForEach(FamilyHQReducer.State.GoalFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
                 }
             }
+            .pickerStyle(.segmented)
 
-            if store.dadWins.isEmpty {
-                emptyState(icon: "heart.fill", message: "Record your dad wins — the moments that matter most.")
+            if store.filteredGoals.isEmpty {
+                emptyState(icon: "target", message: store.goalFilter == .active ? "No active goals. Tap + to set one." : "No completed goals yet.")
             } else {
-                ForEach(store.dadWins) { win in
-                    dadWinCard(win)
+                ForEach(store.filteredGoals) { goal in
+                    Button {
+                        store.send(.selectGoal(goal.id))
+                    } label: {
+                        goalCard(goal)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
     }
 
-    private func dadWinCard(_ win: FamilyHQReducer.State.DadWinState) -> some View {
+    private func goalCard(_ goal: FamilyHQReducer.State.GoalState) -> some View {
         GlassCard {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: win.moodIcon)
-                        .foregroundStyle(moodColor(win.mood))
-                    Text(win.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    Spacer()
-                    Text(win.date.relativeString)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 10) {
+                // Header
+                HStack(spacing: 8) {
+                    Image(systemName: goal.categoryIcon)
+                        .foregroundStyle(categoryColor(goal.category))
+                        .frame(width: 24)
 
-                if !win.details.isEmpty {
-                    Text(win.details)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineSpacing(3)
-                }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(goal.title)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
 
-                if win.hasPhoto {
-                    HStack(spacing: 4) {
-                        Image(systemName: "photo.fill")
-                            .font(.caption2)
-                        Text("Photo attached")
-                            .font(.caption2)
+                        HStack(spacing: 6) {
+                            Text(goal.category.capitalized)
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(categoryColor(goal.category).opacity(0.15))
+                                .foregroundStyle(categoryColor(goal.category))
+                                .clipShape(Capsule())
+
+                            if let targetDate = goal.targetDate {
+                                Text(targetDate.shortDateString)
+                                    .font(.caption2)
+                                    .foregroundStyle(targetDate < Date() && !goal.isCompleted ? .red : .secondary)
+                            }
+                        }
                     }
-                    .foregroundStyle(.blue)
-                }
-
-                HStack {
-                    Text(win.mood.capitalized)
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(moodColor(win.mood).opacity(0.15))
-                        .foregroundStyle(moodColor(win.mood))
-                        .clipShape(Capsule())
 
                     Spacer()
+
+                    if goal.isCompleted {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                    }
 
                     Button {
-                        store.send(.deleteDadWin(win.id))
+                        store.send(.deleteGoal(goal.id))
                     } label: {
                         Image(systemName: "trash")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                // Progress bar
+                if !goal.milestones.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color(.systemGray5))
+                                    .frame(height: 8)
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(goal.isCompleted ? Color.green : categoryColor(goal.category))
+                                    .frame(width: geometry.size.width * goal.progress, height: 8)
+                            }
+                        }
+                        .frame(height: 8)
+
+                        Text("\(goal.completedMilestoneCount) of \(goal.milestones.count) milestones")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Expandable milestones
+                if store.expandedGoalId == goal.id {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(goal.milestones.sorted { $0.sortOrder < $1.sortOrder }) { ms in
+                            Button {
+                                store.send(.toggleMilestone(goalId: goal.id, milestoneId: ms.id))
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: ms.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .font(.caption)
+                                        .foregroundStyle(ms.isCompleted ? .green : .secondary)
+                                    Text(ms.title)
+                                        .font(.caption)
+                                        .strikethrough(ms.isCompleted)
+                                        .foregroundStyle(ms.isCompleted ? .secondary : .primary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
+                // Expand/collapse button
+                if !goal.milestones.isEmpty {
+                    Button {
+                        store.send(.toggleGoalExpanded(goal.id))
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text(store.expandedGoalId == goal.id ? "Hide milestones" : "Show milestones")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                            Image(systemName: store.expandedGoalId == goal.id ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
     }
 
-    private func moodColor(_ mood: String) -> Color {
-        switch mood {
-        case "proud": return .yellow
-        case "grateful": return .pink
-        case "joyful": return .orange
-        case "peaceful": return .green
-        case "accomplished": return .purple
-        default: return .yellow
+    private func categoryColor(_ category: String) -> Color {
+        switch category {
+        case "family": return .blue
+        case "career": return .orange
+        case "health": return .green
+        case "personal": return .purple
+        case "financial": return .yellow
+        default: return .gray
         }
     }
 
@@ -344,7 +419,7 @@ struct FamilyHQView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { store.send(.toggleAddEvent) }
+                    Button("Cancel") { store.send(.dismissAddEvent) }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") { store.send(.addEvent) }
@@ -356,77 +431,83 @@ struct FamilyHQView: View {
         .presentationDetents([.medium])
     }
 
-    // MARK: - Add Dad Win Sheet
+    // MARK: - Add Goal Sheet
 
-    private var addDadWinSheet: some View {
+    private var addGoalSheet: some View {
         NavigationStack {
             Form {
-                Section("What happened?") {
-                    TextField("Title", text: $store.newDadWinTitle.sending(\.newDadWinTitleChanged))
-                    TextField("Details (optional)", text: $store.newDadWinDetails.sending(\.newDadWinDetailsChanged), axis: .vertical)
-                        .lineLimit(3...6)
-                }
+                Section("Goal Details") {
+                    TextField("Goal title", text: $store.newGoalTitle.sending(\.newGoalTitleChanged))
 
-                Section("How did it feel?") {
-                    Picker("Mood", selection: $store.newDadWinMood.sending(\.newDadWinMoodChanged)) {
-                        Label("Proud", systemImage: "star.fill").tag("proud")
-                        Label("Grateful", systemImage: "heart.fill").tag("grateful")
-                        Label("Joyful", systemImage: "face.smiling.inverse").tag("joyful")
-                        Label("Peaceful", systemImage: "leaf.fill").tag("peaceful")
-                        Label("Accomplished", systemImage: "trophy.fill").tag("accomplished")
+                    Picker("Category", selection: $store.newGoalCategory.sending(\.newGoalCategoryChanged)) {
+                        Label("Family", systemImage: "house.fill").tag("family")
+                        Label("Career", systemImage: "briefcase.fill").tag("career")
+                        Label("Health", systemImage: "heart.fill").tag("health")
+                        Label("Personal", systemImage: "person.fill").tag("personal")
+                        Label("Financial", systemImage: "dollarsign.circle.fill").tag("financial")
                     }
-                }
 
-                Section("Add a Photo") {
-                    PhotosPicker(
-                        selection: $selectedPhotoItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        HStack {
-                            Image(systemName: store.newDadWinPhotoData != nil ? "photo.fill" : "camera.fill")
-                                .foregroundStyle(.blue)
-                            Text(store.newDadWinPhotoData != nil ? "Photo selected" : "Choose from library")
-                                .font(.subheadline)
+                    Toggle("Set Target Date", isOn: Binding(
+                        get: { store.newGoalTargetDate != nil },
+                        set: { enabled in
+                            store.send(.newGoalTargetDateChanged(enabled ? Date().addingTimeInterval(2592000) : nil))
                         }
+                    ))
+
+                    if let targetDate = store.newGoalTargetDate {
+                        DatePicker("Target Date", selection: Binding(
+                            get: { targetDate },
+                            set: { store.send(.newGoalTargetDateChanged($0)) }
+                        ), displayedComponents: .date)
                     }
-                    .onChange(of: selectedPhotoItem) { _, newItem in
-                        Task {
-                            if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                                store.send(.newDadWinPhotoDataChanged(data))
+                }
+
+                Section("Milestones") {
+                    ForEach(store.newGoalMilestones.indices, id: \.self) { index in
+                        HStack {
+                            Image(systemName: "circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("Milestone \(index + 1)", text: Binding(
+                                get: { store.newGoalMilestones[index] },
+                                set: { store.send(.newGoalMilestoneTextChanged(index: index, text: $0)) }
+                            ))
+                            .font(.subheadline)
+
+                            if store.newGoalMilestones.count > 1 {
+                                Button {
+                                    store.send(.removeGoalMilestoneField(index))
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundStyle(.red)
+                                        .font(.caption)
+                                }
                             }
                         }
                     }
 
-                    if let photoData = store.newDadWinPhotoData,
-                       let uiImage = UIImage(data: photoData) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(height: 150)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                        Button("Remove Photo", role: .destructive) {
-                            selectedPhotoItem = nil
-                            store.send(.newDadWinPhotoDataChanged(nil))
+                    Button {
+                        store.send(.addGoalMilestoneField)
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(.blue)
+                            Text("Add Milestone")
+                                .font(.subheadline)
                         }
-                        .font(.caption)
                     }
                 }
             }
-            .navigationTitle("New Dad Win")
+            .navigationTitle("New Goal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        selectedPhotoItem = nil
-                        store.send(.toggleAddDadWin)
-                    }
+                    Button("Cancel") { store.send(.dismissAddGoal) }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { store.send(.addDadWin) }
+                    Button("Create") { store.send(.addGoal) }
                         .fontWeight(.semibold)
-                        .disabled(store.newDadWinTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(store.newGoalTitle.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }

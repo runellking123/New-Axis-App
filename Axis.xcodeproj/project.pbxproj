@@ -7,6 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0936D020D5E80572A67D9749 /* WaterEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6BE70596A528662EA250653 /* WaterEntry.swift */; };
+		2BF50B6B0D337CB261EB8466 /* JournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF0F0EABAC77488F760411E /* JournalEntry.swift */; };
+		39B8323A1B79D01398608782 /* Interaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED5F8B495758CC0C145CB39 /* Interaction.swift */; };
+		4D6100354C4884568B3CD018 /* TrendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AFE6899A8E91E4FCA33500 /* TrendService.swift */; };
+		55483D59E6B544099E778280 /* HabitCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07F7EA83630A6C9DA0A7427 /* HabitCompletion.swift */; };
+		5CF9444EB1094541F4661D3D /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CDEA4174F253C9F21AFD75 /* AudioService.swift */; };
+		614F357343A3F0CAD28D029F /* Subtask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BD786DFB311D43DF079264 /* Subtask.swift */; };
+		77BE7E5A81CFBBC444B450DD /* Trip.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11F096C6BE71B5F863F0557 /* Trip.swift */; };
+		79A8D11F73D2A9120457E379 /* PlacePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D7A4B3AD8FA0F390910256C /* PlacePhoto.swift */; };
+		7FE791F7B3AB1ED8F5DD49E2 /* BucketListGoal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150A103BEF4A9DE77EA32C12 /* BucketListGoal.swift */; };
+		80EDE13248B373205B3B9802 /* FocusProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78084D847F5FCC9D9BDD246 /* FocusProfile.swift */; };
+		8D13463E20A9D69069AEE30C /* InteractionLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB3B3A3787C03C3DFEE5229 /* InteractionLogView.swift */; };
+		90FF0AB6997829ECF4C1C488 /* Recipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F32965C016EAAE1AD4252BB /* Recipe.swift */; };
+		913A901227D7E7652FED7DF1 /* ShoppingList.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDFD71A9A2220C5A092AA71B /* ShoppingList.swift */; };
+		961C48031E49F62FC9885A90 /* MoodEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 450D2624804234DA272C5C8E /* MoodEntry.swift */; };
+		9A84717073F1B0F757EDB680 /* RoutineCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886744F58C209654AB2DB132 /* RoutineCompletion.swift */; };
 		A10000000000000000000001 /* AxisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* AxisApp.swift */; };
 		A10000000000000000000002 /* AppReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* AppReducer.swift */; };
 		A10000000000000000000003 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* AppView.swift */; };
@@ -17,22 +33,6 @@
 		A10000000000000000000008 /* EnergyScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* EnergyScoreView.swift */; };
 		A10000000000000000000009 /* QuickCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* QuickCaptureView.swift */; };
 		A1000000000000000000000A /* WidgetCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* WidgetCardView.swift */; };
-		A10000000000000000000031 /* WorkProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* WorkProject.swift */; };
-		A10000000000000000000032 /* FamilyEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* FamilyEvent.swift */; };
-		A10000000000000000000033 /* MealPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000032 /* MealPlan.swift */; };
-		A10000000000000000000034 /* DadWin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000033 /* DadWin.swift */; };
-		A10000000000000000000035 /* Contact.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* Contact.swift */; };
-		A10000000000000000000036 /* SavedPlace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000035 /* SavedPlace.swift */; };
-		A10000000000000000000037 /* WorkSuiteReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000036 /* WorkSuiteReducer.swift */; };
-		A10000000000000000000038 /* WorkSuiteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037 /* WorkSuiteView.swift */; };
-		A10000000000000000000039 /* FamilyHQReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000038 /* FamilyHQReducer.swift */; };
-		A1000000000000000000003A /* FamilyHQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000039 /* FamilyHQView.swift */; };
-		A1000000000000000000003B /* SocialCircleReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003A /* SocialCircleReducer.swift */; };
-		A1000000000000000000003C /* SocialCircleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003B /* SocialCircleView.swift */; };
-		A1000000000000000000003D /* ExploreReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* ExploreReducer.swift */; };
-		A1000000000000000000003E /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003D /* ExploreView.swift */; };
-		A1000000000000000000003F /* BalanceReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003E /* BalanceReducer.swift */; };
-		A10000000000000000000040 /* BalanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003F /* BalanceView.swift */; };
 		A1000000000000000000000E /* CapturedNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* CapturedNote.swift */; };
 		A1000000000000000000000F /* PriorityItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* PriorityItem.swift */; };
 		A10000000000000000000010 /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* UserProfile.swift */; };
@@ -52,15 +52,78 @@
 		A1000000000000000000001E /* AxisTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001E /* AxisTheme.swift */; };
 		A10000000000000000000020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* Assets.xcassets */; };
 		A10000000000000000000030 /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = E10000000000000000000002 /* ComposableArchitecture */; };
+		A10000000000000000000031 /* WorkProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* WorkProject.swift */; };
+		A10000000000000000000032 /* FamilyEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* FamilyEvent.swift */; };
+		A10000000000000000000033 /* MealPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000032 /* MealPlan.swift */; };
+		A10000000000000000000034 /* DadWin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000033 /* DadWin.swift */; };
+		A10000000000000000000035 /* Contact.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* Contact.swift */; };
+		A10000000000000000000036 /* SavedPlace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000035 /* SavedPlace.swift */; };
+		A10000000000000000000037 /* WorkSuiteReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000036 /* WorkSuiteReducer.swift */; };
+		A10000000000000000000038 /* WorkSuiteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037 /* WorkSuiteView.swift */; };
+		A10000000000000000000039 /* FamilyHQReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000038 /* FamilyHQReducer.swift */; };
+		A1000000000000000000003A /* FamilyHQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000039 /* FamilyHQView.swift */; };
+		A1000000000000000000003B /* SocialCircleReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003A /* SocialCircleReducer.swift */; };
+		A1000000000000000000003C /* SocialCircleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003B /* SocialCircleView.swift */; };
+		A1000000000000000000003D /* ExploreReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* ExploreReducer.swift */; };
+		A1000000000000000000003E /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003D /* ExploreView.swift */; };
+		A1000000000000000000003F /* BalanceReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003E /* BalanceReducer.swift */; };
+		A10000000000000000000040 /* BalanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003F /* BalanceView.swift */; };
 		A10000000000000000000041 /* PersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000041 /* PersistenceService.swift */; };
 		A10000000000000000000042 /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000042 /* HealthKitService.swift */; };
 		A10000000000000000000043 /* SettingsReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000043 /* SettingsReducer.swift */; };
 		A10000000000000000000044 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* SettingsView.swift */; };
 		A10000000000000000000045 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* OnboardingView.swift */; };
 		A10000000000000000000046 /* AxisAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000046 /* AxisAppIntents.swift */; };
+		ACDE0F3FC267E2B08B16BB0E /* FamilyMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28CC6ECC9EAA2D25AF58F5CA /* FamilyMember.swift */; };
+		B1BA28162E6F3750011CFAD4 /* TrendsReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4B9B58532F90DCB4F7C8676 /* TrendsReducer.swift */; };
+		BB0000000000000000000001 /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* Goal.swift */; };
+		BB0000000000000000000002 /* Milestone.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000002 /* Milestone.swift */; };
+		BB0000000000000000000003 /* FocusSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000003 /* FocusSession.swift */; };
+		BB0000000000000000000004 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000004 /* LocationService.swift */; };
+		BB0000000000000000000005 /* ContactPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000005 /* ContactPickerView.swift */; };
+		C16A13BE40775A6490A26F6D /* Routine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 867AF4E55F95838D665EA2AF /* Routine.swift */; };
+		CE0F979FE130A290195D974B /* GroupManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FA1A4DF730053D30D9FD92 /* GroupManagementView.swift */; };
+		CE265282CC403E8C2DCB4FB3 /* Chore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED9BBADA2D2EF2D70F6C98C6 /* Chore.swift */; };
+		D3AF835FE9F707833F19CA2D /* ItineraryDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A22AA418E63D2795750F473 /* ItineraryDay.swift */; };
+		D5503A8E533CE1D129C6BF1C /* TrendSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F650BFA260516CEA83FD58D3 /* TrendSnapshot.swift */; };
+		DD0000000000000000000001 /* PlaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000001 /* PlaceDetailView.swift */; };
+		DD0000000000000000000002 /* PriorityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000002 /* PriorityDetailView.swift */; };
+		DD0000000000000000000003 /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000003 /* ProjectDetailView.swift */; };
+		DD0000000000000000000004 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000004 /* EventDetailView.swift */; };
+		DD0000000000000000000005 /* GoalDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000005 /* GoalDetailView.swift */; };
+		DD0000000000000000000006 /* ContactDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000006 /* ContactDetailView.swift */; };
+		E0E932477F33E7176C0DC1BB /* ContactGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 104234F7E6F2ED5EF8F697D6 /* ContactGroup.swift */; };
+		E17760D5B0E084DEEECCEFBE /* AmbientSoundMixerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076D42382660E454AEE199F /* AmbientSoundMixerView.swift */; };
+		E191D770159FB4BC74353DFF /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18618A8A5F7F3B8BAC086E50 /* Habit.swift */; };
+		EAC267D0586540C3D64931CA /* RoutineStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1044935D5A4184C2BE7EFF /* RoutineStep.swift */; };
+		ED86207D61A5EF93224A26B9 /* MiniChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC964EA8E4571942AA5405C /* MiniChartView.swift */; };
+		F73E7A9900700EB1D60DE3E1 /* TrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518157A90CA40FD406467EC9 /* TrendsView.swift */; };
+		FA771897AF6AAB684568E33C /* ShoppingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F216F873325B36C3BC7BAA69 /* ShoppingItem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0F32965C016EAAE1AD4252BB /* Recipe.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Recipe.swift; sourceTree = "<group>"; };
+		104234F7E6F2ED5EF8F697D6 /* ContactGroup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/ContactGroup.swift; sourceTree = SOURCE_ROOT; };
+		150A103BEF4A9DE77EA32C12 /* BucketListGoal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BucketListGoal.swift; sourceTree = "<group>"; };
+		18618A8A5F7F3B8BAC086E50 /* Habit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Habit.swift; sourceTree = "<group>"; };
+		28CC6ECC9EAA2D25AF58F5CA /* FamilyMember.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FamilyMember.swift; sourceTree = "<group>"; };
+		2A22AA418E63D2795750F473 /* ItineraryDay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ItineraryDay.swift; sourceTree = "<group>"; };
+		3ED5F8B495758CC0C145CB39 /* Interaction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/Interaction.swift; sourceTree = SOURCE_ROOT; };
+		450D2624804234DA272C5C8E /* MoodEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MoodEntry.swift; sourceTree = "<group>"; };
+		4D7A4B3AD8FA0F390910256C /* PlacePhoto.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlacePhoto.swift; sourceTree = "<group>"; };
+		518157A90CA40FD406467EC9 /* TrendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendsView.swift; sourceTree = "<group>"; };
+		5EB3B3A3787C03C3DFEE5229 /* InteractionLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Features/SocialCircle/InteractionLogView.swift; sourceTree = SOURCE_ROOT; };
+		78AFE6899A8E91E4FCA33500 /* TrendService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendService.swift; sourceTree = "<group>"; };
+		867AF4E55F95838D665EA2AF /* Routine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Routine.swift; sourceTree = "<group>"; };
+		886744F58C209654AB2DB132 /* RoutineCompletion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineCompletion.swift; sourceTree = "<group>"; };
+		88BD786DFB311D43DF079264 /* Subtask.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/Subtask.swift; sourceTree = SOURCE_ROOT; };
+		AA0000000000000000000001 /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
+		AA0000000000000000000002 /* Milestone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Milestone.swift; sourceTree = "<group>"; };
+		AA0000000000000000000003 /* FocusSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSession.swift; sourceTree = "<group>"; };
+		AA0000000000000000000004 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		AA0000000000000000000005 /* ContactPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPickerView.swift; sourceTree = "<group>"; };
+		ACF0F0EABAC77488F760411E /* JournalEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JournalEntry.swift; sourceTree = "<group>"; };
+		AFC964EA8E4571942AA5405C /* MiniChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MiniChartView.swift; sourceTree = "<group>"; };
 		B10000000000000000000001 /* AxisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisApp.swift; sourceTree = "<group>"; };
 		B10000000000000000000002 /* AppReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReducer.swift; sourceTree = "<group>"; };
 		B10000000000000000000003 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
@@ -71,22 +134,6 @@
 		B10000000000000000000008 /* EnergyScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyScoreView.swift; sourceTree = "<group>"; };
 		B10000000000000000000009 /* QuickCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickCaptureView.swift; sourceTree = "<group>"; };
 		B1000000000000000000000A /* WidgetCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCardView.swift; sourceTree = "<group>"; };
-		B10000000000000000000030 /* WorkProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkProject.swift; sourceTree = "<group>"; };
-		B10000000000000000000031 /* FamilyEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyEvent.swift; sourceTree = "<group>"; };
-		B10000000000000000000032 /* MealPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlan.swift; sourceTree = "<group>"; };
-		B10000000000000000000033 /* DadWin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DadWin.swift; sourceTree = "<group>"; };
-		B10000000000000000000034 /* Contact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Contact.swift; sourceTree = "<group>"; };
-		B10000000000000000000035 /* SavedPlace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedPlace.swift; sourceTree = "<group>"; };
-		B10000000000000000000036 /* WorkSuiteReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkSuiteReducer.swift; sourceTree = "<group>"; };
-		B10000000000000000000037 /* WorkSuiteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkSuiteView.swift; sourceTree = "<group>"; };
-		B10000000000000000000038 /* FamilyHQReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyHQReducer.swift; sourceTree = "<group>"; };
-		B10000000000000000000039 /* FamilyHQView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyHQView.swift; sourceTree = "<group>"; };
-		B1000000000000000000003A /* SocialCircleReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialCircleReducer.swift; sourceTree = "<group>"; };
-		B1000000000000000000003B /* SocialCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialCircleView.swift; sourceTree = "<group>"; };
-		B1000000000000000000003C /* ExploreReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreReducer.swift; sourceTree = "<group>"; };
-		B1000000000000000000003D /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
-		B1000000000000000000003E /* BalanceReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceReducer.swift; sourceTree = "<group>"; };
-		B1000000000000000000003F /* BalanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceView.swift; sourceTree = "<group>"; };
 		B1000000000000000000000E /* CapturedNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturedNote.swift; sourceTree = "<group>"; };
 		B1000000000000000000000F /* PriorityItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityItem.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
@@ -106,13 +153,48 @@
 		B1000000000000000000001E /* AxisTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisTheme.swift; sourceTree = "<group>"; };
 		B10000000000000000000020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000021 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B10000000000000000000050 /* Axis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Axis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000030 /* WorkProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkProject.swift; sourceTree = "<group>"; };
+		B10000000000000000000031 /* FamilyEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyEvent.swift; sourceTree = "<group>"; };
+		B10000000000000000000032 /* MealPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlan.swift; sourceTree = "<group>"; };
+		B10000000000000000000033 /* DadWin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DadWin.swift; sourceTree = "<group>"; };
+		B10000000000000000000034 /* Contact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Contact.swift; sourceTree = "<group>"; };
+		B10000000000000000000035 /* SavedPlace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedPlace.swift; sourceTree = "<group>"; };
+		B10000000000000000000036 /* WorkSuiteReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkSuiteReducer.swift; sourceTree = "<group>"; };
+		B10000000000000000000037 /* WorkSuiteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkSuiteView.swift; sourceTree = "<group>"; };
+		B10000000000000000000038 /* FamilyHQReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyHQReducer.swift; sourceTree = "<group>"; };
+		B10000000000000000000039 /* FamilyHQView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyHQView.swift; sourceTree = "<group>"; };
+		B1000000000000000000003A /* SocialCircleReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialCircleReducer.swift; sourceTree = "<group>"; };
+		B1000000000000000000003B /* SocialCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialCircleView.swift; sourceTree = "<group>"; };
+		B1000000000000000000003C /* ExploreReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreReducer.swift; sourceTree = "<group>"; };
+		B1000000000000000000003D /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
+		B1000000000000000000003E /* BalanceReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceReducer.swift; sourceTree = "<group>"; };
+		B1000000000000000000003F /* BalanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceView.swift; sourceTree = "<group>"; };
 		B10000000000000000000041 /* PersistenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceService.swift; sourceTree = "<group>"; };
 		B10000000000000000000042 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		B10000000000000000000043 /* SettingsReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsReducer.swift; sourceTree = "<group>"; };
 		B10000000000000000000044 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B10000000000000000000045 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		B10000000000000000000046 /* AxisAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisAppIntents.swift; sourceTree = "<group>"; };
+		B10000000000000000000050 /* Axis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Axis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B78084D847F5FCC9D9BDD246 /* FocusProfile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/FocusProfile.swift; sourceTree = SOURCE_ROOT; };
+		C3FA1A4DF730053D30D9FD92 /* GroupManagementView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Features/SocialCircle/GroupManagementView.swift; sourceTree = SOURCE_ROOT; };
+		CC0000000000000000000001 /* PlaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDetailView.swift; sourceTree = "<group>"; };
+		CC0000000000000000000002 /* PriorityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityDetailView.swift; sourceTree = "<group>"; };
+		CC0000000000000000000003 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
+		CC0000000000000000000004 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
+		CC0000000000000000000005 /* GoalDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalDetailView.swift; sourceTree = "<group>"; };
+		CC0000000000000000000006 /* ContactDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactDetailView.swift; sourceTree = "<group>"; };
+		D11F096C6BE71B5F863F0557 /* Trip.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Trip.swift; sourceTree = "<group>"; };
+		D6BE70596A528662EA250653 /* WaterEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WaterEntry.swift; sourceTree = "<group>"; };
+		E076D42382660E454AEE199F /* AmbientSoundMixerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Features/WorkSuite/AmbientSoundMixerView.swift; sourceTree = SOURCE_ROOT; };
+		E07F7EA83630A6C9DA0A7427 /* HabitCompletion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitCompletion.swift; sourceTree = "<group>"; };
+		E4B9B58532F90DCB4F7C8676 /* TrendsReducer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendsReducer.swift; sourceTree = "<group>"; };
+		ED9BBADA2D2EF2D70F6C98C6 /* Chore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Chore.swift; sourceTree = "<group>"; };
+		EDFD71A9A2220C5A092AA71B /* ShoppingList.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingList.swift; sourceTree = "<group>"; };
+		EE1044935D5A4184C2BE7EFF /* RoutineStep.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineStep.swift; sourceTree = "<group>"; };
+		F216F873325B36C3BC7BAA69 /* ShoppingItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingItem.swift; sourceTree = "<group>"; };
+		F5CDEA4174F253C9F21AFD75 /* AudioService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Services/AudioService.swift; sourceTree = SOURCE_ROOT; };
+		F650BFA260516CEA83FD58D3 /* TrendSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendSnapshot.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,20 +209,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		D10000000000000000000001 /* = root group */ = {
+		7BB79E5A8AB790A2821FF14B /* Trends */ = {
+			isa = PBXGroup;
+			children = (
+				E4B9B58532F90DCB4F7C8676 /* TrendsReducer.swift */,
+				518157A90CA40FD406467EC9 /* TrendsView.swift */,
+			);
+			name = Trends;
+			path = Trends;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
 				D10000000000000000000002 /* Axis */,
 				D10000000000000000000099 /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		D10000000000000000000099 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				B10000000000000000000050 /* Axis.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 		D10000000000000000000002 /* Axis */ = {
@@ -181,6 +265,7 @@
 				D10000000000000000000018 /* Settings */,
 				D1000000000000000000000C /* SocialCircle */,
 				D10000000000000000000016 /* WorkSuite */,
+				7BB79E5A8AB790A2821FF14B /* Trends */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -199,6 +284,7 @@
 			children = (
 				B10000000000000000000005 /* CommandCenterReducer.swift */,
 				B10000000000000000000006 /* CommandCenterView.swift */,
+				CC0000000000000000000002 /* PriorityDetailView.swift */,
 				D10000000000000000000007 /* ContextModes */,
 				D10000000000000000000008 /* DayBrief */,
 				D10000000000000000000009 /* QuickCapture */,
@@ -231,19 +317,12 @@
 			path = QuickCapture;
 			sourceTree = "<group>";
 		};
-		D10000000000000000000017 /* Widgets */ = {
-			isa = PBXGroup;
-			children = (
-				B1000000000000000000000A /* WidgetCardView.swift */,
-			);
-			path = Widgets;
-			sourceTree = "<group>";
-		};
 		D1000000000000000000000A /* Explore */ = {
 			isa = PBXGroup;
 			children = (
 				B1000000000000000000003C /* ExploreReducer.swift */,
 				B1000000000000000000003D /* ExploreView.swift */,
+				CC0000000000000000000001 /* PlaceDetailView.swift */,
 			);
 			path = Explore;
 			sourceTree = "<group>";
@@ -251,8 +330,10 @@
 		D1000000000000000000000B /* FamilyHQ */ = {
 			isa = PBXGroup;
 			children = (
+				CC0000000000000000000004 /* EventDetailView.swift */,
 				B10000000000000000000038 /* FamilyHQReducer.swift */,
 				B10000000000000000000039 /* FamilyHQView.swift */,
+				CC0000000000000000000005 /* GoalDetailView.swift */,
 			);
 			path = FamilyHQ;
 			sourceTree = "<group>";
@@ -260,44 +341,13 @@
 		D1000000000000000000000C /* SocialCircle */ = {
 			isa = PBXGroup;
 			children = (
+				CC0000000000000000000006 /* ContactDetailView.swift */,
 				B1000000000000000000003A /* SocialCircleReducer.swift */,
 				B1000000000000000000003B /* SocialCircleView.swift */,
+				5EB3B3A3787C03C3DFEE5229 /* InteractionLogView.swift */,
+				C3FA1A4DF730053D30D9FD92 /* GroupManagementView.swift */,
 			);
 			path = SocialCircle;
-			sourceTree = "<group>";
-		};
-		D10000000000000000000016 /* WorkSuite */ = {
-			isa = PBXGroup;
-			children = (
-				B10000000000000000000036 /* WorkSuiteReducer.swift */,
-				B10000000000000000000037 /* WorkSuiteView.swift */,
-			);
-			path = WorkSuite;
-			sourceTree = "<group>";
-		};
-		D10000000000000000000018 /* Settings */ = {
-			isa = PBXGroup;
-			children = (
-				B10000000000000000000043 /* SettingsReducer.swift */,
-				B10000000000000000000044 /* SettingsView.swift */,
-			);
-			path = Settings;
-			sourceTree = "<group>";
-		};
-		D10000000000000000000019 /* Onboarding */ = {
-			isa = PBXGroup;
-			children = (
-				B10000000000000000000045 /* OnboardingView.swift */,
-			);
-			path = Onboarding;
-			sourceTree = "<group>";
-		};
-		D1000000000000000000001A /* Intents */ = {
-			isa = PBXGroup;
-			children = (
-				B10000000000000000000046 /* AxisAppIntents.swift */,
-			);
-			path = Intents;
 			sourceTree = "<group>";
 		};
 		D1000000000000000000000D /* Models */ = {
@@ -307,12 +357,37 @@
 				B10000000000000000000034 /* Contact.swift */,
 				B10000000000000000000033 /* DadWin.swift */,
 				B10000000000000000000031 /* FamilyEvent.swift */,
+				AA0000000000000000000003 /* FocusSession.swift */,
+				AA0000000000000000000001 /* Goal.swift */,
 				B10000000000000000000032 /* MealPlan.swift */,
+				AA0000000000000000000002 /* Milestone.swift */,
 				B1000000000000000000000F /* PriorityItem.swift */,
 				B10000000000000000000035 /* SavedPlace.swift */,
 				B10000000000000000000010 /* UserProfile.swift */,
 				B10000000000000000000011 /* WidgetLayoutConfig.swift */,
 				B10000000000000000000030 /* WorkProject.swift */,
+				88BD786DFB311D43DF079264 /* Subtask.swift */,
+				B78084D847F5FCC9D9BDD246 /* FocusProfile.swift */,
+				3ED5F8B495758CC0C145CB39 /* Interaction.swift */,
+				104234F7E6F2ED5EF8F697D6 /* ContactGroup.swift */,
+				150A103BEF4A9DE77EA32C12 /* BucketListGoal.swift */,
+				ED9BBADA2D2EF2D70F6C98C6 /* Chore.swift */,
+				28CC6ECC9EAA2D25AF58F5CA /* FamilyMember.swift */,
+				18618A8A5F7F3B8BAC086E50 /* Habit.swift */,
+				E07F7EA83630A6C9DA0A7427 /* HabitCompletion.swift */,
+				2A22AA418E63D2795750F473 /* ItineraryDay.swift */,
+				ACF0F0EABAC77488F760411E /* JournalEntry.swift */,
+				450D2624804234DA272C5C8E /* MoodEntry.swift */,
+				4D7A4B3AD8FA0F390910256C /* PlacePhoto.swift */,
+				0F32965C016EAAE1AD4252BB /* Recipe.swift */,
+				867AF4E55F95838D665EA2AF /* Routine.swift */,
+				886744F58C209654AB2DB132 /* RoutineCompletion.swift */,
+				EE1044935D5A4184C2BE7EFF /* RoutineStep.swift */,
+				F216F873325B36C3BC7BAA69 /* ShoppingItem.swift */,
+				EDFD71A9A2220C5A092AA71B /* ShoppingList.swift */,
+				D11F096C6BE71B5F863F0557 /* Trip.swift */,
+				D6BE70596A528662EA250653 /* WaterEntry.swift */,
+				F650BFA260516CEA83FD58D3 /* TrendSnapshot.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -324,10 +399,13 @@
 				B10000000000000000000013 /* CalendarService.swift */,
 				B10000000000000000000014 /* HapticService.swift */,
 				B10000000000000000000042 /* HealthKitService.swift */,
+				AA0000000000000000000004 /* LocationService.swift */,
 				B10000000000000000000015 /* NotificationService.swift */,
 				B10000000000000000000041 /* PersistenceService.swift */,
 				B10000000000000000000016 /* SpeechService.swift */,
 				B10000000000000000000017 /* WeatherService.swift */,
+				F5CDEA4174F253C9F21AFD75 /* AudioService.swift */,
+				78AFE6899A8E91E4FCA33500 /* TrendService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -346,8 +424,10 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000018 /* ConfettiView.swift */,
+				AA0000000000000000000005 /* ContactPickerView.swift */,
 				B10000000000000000000019 /* GlassCard.swift */,
 				B1000000000000000000001A /* ShimmerModifier.swift */,
+				AFC964EA8E4571942AA5405C /* MiniChartView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -375,6 +455,58 @@
 			children = (
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000016 /* WorkSuite */ = {
+			isa = PBXGroup;
+			children = (
+				CC0000000000000000000003 /* ProjectDetailView.swift */,
+				B10000000000000000000036 /* WorkSuiteReducer.swift */,
+				B10000000000000000000037 /* WorkSuiteView.swift */,
+				E076D42382660E454AEE199F /* AmbientSoundMixerView.swift */,
+			);
+			path = WorkSuite;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000017 /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000A /* WidgetCardView.swift */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000018 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000043 /* SettingsReducer.swift */,
+				B10000000000000000000044 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000019 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000045 /* OnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		D1000000000000000000001A /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000046 /* AxisAppIntents.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000099 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000050 /* Axis.app */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -501,6 +633,47 @@
 				A10000000000000000000044 /* SettingsView.swift in Sources */,
 				A10000000000000000000045 /* OnboardingView.swift in Sources */,
 				A10000000000000000000046 /* AxisAppIntents.swift in Sources */,
+				BB0000000000000000000001 /* Goal.swift in Sources */,
+				BB0000000000000000000002 /* Milestone.swift in Sources */,
+				BB0000000000000000000003 /* FocusSession.swift in Sources */,
+				BB0000000000000000000004 /* LocationService.swift in Sources */,
+				BB0000000000000000000005 /* ContactPickerView.swift in Sources */,
+				DD0000000000000000000001 /* PlaceDetailView.swift in Sources */,
+				DD0000000000000000000002 /* PriorityDetailView.swift in Sources */,
+				DD0000000000000000000003 /* ProjectDetailView.swift in Sources */,
+				DD0000000000000000000004 /* EventDetailView.swift in Sources */,
+				DD0000000000000000000005 /* GoalDetailView.swift in Sources */,
+				DD0000000000000000000006 /* ContactDetailView.swift in Sources */,
+				614F357343A3F0CAD28D029F /* Subtask.swift in Sources */,
+				80EDE13248B373205B3B9802 /* FocusProfile.swift in Sources */,
+				5CF9444EB1094541F4661D3D /* AudioService.swift in Sources */,
+				E17760D5B0E084DEEECCEFBE /* AmbientSoundMixerView.swift in Sources */,
+				39B8323A1B79D01398608782 /* Interaction.swift in Sources */,
+				E0E932477F33E7176C0DC1BB /* ContactGroup.swift in Sources */,
+				8D13463E20A9D69069AEE30C /* InteractionLogView.swift in Sources */,
+				CE0F979FE130A290195D974B /* GroupManagementView.swift in Sources */,
+				7FE791F7B3AB1ED8F5DD49E2 /* BucketListGoal.swift in Sources */,
+				CE265282CC403E8C2DCB4FB3 /* Chore.swift in Sources */,
+				ACDE0F3FC267E2B08B16BB0E /* FamilyMember.swift in Sources */,
+				E191D770159FB4BC74353DFF /* Habit.swift in Sources */,
+				55483D59E6B544099E778280 /* HabitCompletion.swift in Sources */,
+				D3AF835FE9F707833F19CA2D /* ItineraryDay.swift in Sources */,
+				2BF50B6B0D337CB261EB8466 /* JournalEntry.swift in Sources */,
+				961C48031E49F62FC9885A90 /* MoodEntry.swift in Sources */,
+				79A8D11F73D2A9120457E379 /* PlacePhoto.swift in Sources */,
+				90FF0AB6997829ECF4C1C488 /* Recipe.swift in Sources */,
+				C16A13BE40775A6490A26F6D /* Routine.swift in Sources */,
+				9A84717073F1B0F757EDB680 /* RoutineCompletion.swift in Sources */,
+				EAC267D0586540C3D64931CA /* RoutineStep.swift in Sources */,
+				FA771897AF6AAB684568E33C /* ShoppingItem.swift in Sources */,
+				913A901227D7E7652FED7DF1 /* ShoppingList.swift in Sources */,
+				77BE7E5A81CFBBC444B450DD /* Trip.swift in Sources */,
+				0936D020D5E80572A67D9749 /* WaterEntry.swift in Sources */,
+				D5503A8E533CE1D129C6BF1C /* TrendSnapshot.swift in Sources */,
+				4D6100354C4884568B3CD018 /* TrendService.swift in Sources */,
+				B1BA28162E6F3750011CFAD4 /* TrendsReducer.swift in Sources */,
+				F73E7A9900700EB1D60DE3E1 /* TrendsView.swift in Sources */,
+				ED86207D61A5EF93224A26B9 /* MiniChartView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -634,7 +807,7 @@
 				CODE_SIGN_ENTITLEMENTS = Axis/Axis.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = Q62397NX22;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Axis/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -665,7 +838,7 @@
 				CODE_SIGN_ENTITLEMENTS = Axis/Axis.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = Q62397NX22;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Axis/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -691,20 +864,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		F10000000000000000000020 /* Build configuration list for PBXProject "Axis" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F10000000000000000000003 /* Debug */,
-				F10000000000000000000004 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		F10000000000000000000010 /* Build configuration list for PBXNativeTarget "Axis" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F10000000000000000000005 /* Debug */,
 				F10000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10000000000000000000020 /* Build configuration list for PBXProject "Axis" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10000000000000000000003 /* Debug */,
+				F10000000000000000000004 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

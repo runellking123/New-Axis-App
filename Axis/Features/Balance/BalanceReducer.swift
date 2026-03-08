@@ -162,9 +162,6 @@ struct BalanceReducer {
         Reduce { state, action in
             switch action {
             case .onAppear:
-                if state.weeklyLog.isEmpty {
-                    state.weeklyLog = Self.sampleWeeklyLog()
-                }
                 let profile = PersistenceService.shared.getOrCreateProfile()
                 state.stepsGoal = profile.stepsGoal
                 HapticService.setEnabled(profile.hapticFeedbackEnabled)
@@ -276,14 +273,4 @@ struct BalanceReducer {
         }
     }
 
-    private static func sampleWeeklyLog() -> [State.DayLog] {
-        let cal = Calendar.current
-        return [
-            .init(id: UUID(), date: cal.date(byAdding: .day, value: -1, to: Date())!, mood: "good", energyScore: 7, notes: "Productive day. Hit all my meetings."),
-            .init(id: UUID(), date: cal.date(byAdding: .day, value: -2, to: Date())!, mood: "great", energyScore: 9, notes: "Great workout in the morning. Felt amazing all day."),
-            .init(id: UUID(), date: cal.date(byAdding: .day, value: -3, to: Date())!, mood: "okay", energyScore: 5, notes: "Rough sleep. Managed to push through."),
-            .init(id: UUID(), date: cal.date(byAdding: .day, value: -4, to: Date())!, mood: "good", energyScore: 7, notes: "Family dinner was great."),
-            .init(id: UUID(), date: cal.date(byAdding: .day, value: -5, to: Date())!, mood: "rough", energyScore: 3, notes: "Overloaded with deadlines. Need to recalibrate."),
-        ]
-    }
 }

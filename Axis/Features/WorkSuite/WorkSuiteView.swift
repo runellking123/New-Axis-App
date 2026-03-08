@@ -47,9 +47,25 @@ struct WorkSuiteView: View {
             }
             .sheet(isPresented: Binding(
                 get: { store.showAddProject },
-                set: { _ in store.send(.toggleAddProject) }
+                set: { newValue in
+                    if !newValue { store.send(.dismissAddProject) }
+                }
             )) {
                 addProjectSheet
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showAmbientMixer },
+                set: { if !$0 { store.send(.toggleAmbientMixer) } }
+            )) {
+                AmbientSoundMixerView(store: store)
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { store.selectedProjectId != nil },
+                set: { if !$0 { store.send(.selectProject(nil)) } }
+            )) {
+                if let id = store.selectedProjectId, let project = store.projects.first(where: { $0.id == id }) {
+                    ProjectDetailView(store: store, project: project)
+                }
             }
             .onAppear {
                 store.send(.onAppear)
@@ -145,7 +161,12 @@ struct WorkSuiteView: View {
             if !active.isEmpty {
                 sectionHeader("Active", count: active.count)
                 ForEach(active) { project in
-                    projectCard(project)
+                    Button {
+                        store.send(.selectProject(project.id))
+                    } label: {
+                        projectCard(project)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -154,7 +175,12 @@ struct WorkSuiteView: View {
             if !completed.isEmpty {
                 sectionHeader("Completed", count: completed.count)
                 ForEach(completed) { project in
-                    projectCard(project)
+                    Button {
+                        store.send(.selectProject(project.id))
+                    } label: {
+                        projectCard(project)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -192,51 +218,74 @@ struct WorkSuiteView: View {
 
     private func projectCard(_ project: WorkSuiteReducer.State.ProjectState) -> some View {
         GlassCard {
-            HStack(spacing: 12) {
-                Button {
-                    store.send(.toggleProjectStatus(project.id))
-                } label: {
-                    Image(systemName: project.status == "completed" ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(project.status == "completed" ? .green : .secondary)
-                }
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    Button {
+                        store.send(.toggleProjectStatus(project.id))
+                    } label: {
+                        Image(systemName: project.status == "completed" ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(project.status == "completed" ? .green : .secondary)
+                    }
 
-                // Priority indicator
-                Circle()
-                    .fill(priorityColor(project.priority))
-                    .frame(width: 8, height: 8)
+                    // Priority indicator
+                    Circle()
+                        .fill(priorityColor(project.priority))
+                        .frame(width: 8, height: 8)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(project.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .strikethrough(project.status == "completed")
-                        .foregroundStyle(project.status == "completed" ? .secondary : .primary)
-                    HStack(spacing: 6) {
-                        Text(project.priority.capitalized + " Priority")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(project.title)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .strikethrough(project.status == "completed")
+                            .foregroundStyle(project.status == "completed" ? .secondary : .primary)
+                        HStack(spacing: 6) {
+                            Text(project.priority.capitalized + " Priority")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let dueDate = project.dueDate {
+                                Text("Due \(dueDate.shortDateString)")
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(dueDate < Date() ? Color.red.opacity(0.15) : Color.blue.opacity(0.1))
+                                    .foregroundStyle(dueDate < Date() ? .red : .blue)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        store.send(.deleteProject(project.id))
+                    } label: {
+                        Image(systemName: "trash")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        if let dueDate = project.dueDate {
-                            Text("Due \(dueDate.shortDateString)")
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(dueDate < Date() ? Color.red.opacity(0.15) : Color.blue.opacity(0.1))
-                                .foregroundStyle(dueDate < Date() ? .red : .blue)
-                                .clipShape(Capsule())
-                        }
                     }
                 }
 
-                Spacer()
-
-                Button {
-                    store.send(.deleteProject(project.id))
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                // Subtask progress bar
+                if !project.subtasks.isEmpty {
+                    VStack(spacing: 4) {
+                        ProgressView(value: project.subtaskProgress)
+                            .tint(project.subtaskProgress >= 1.0 ? .green : Color.axisGold)
+                        HStack {
+                            Text("\(project.completedSubtaskCount)/\(project.subtasks.count) subtasks")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            if project.estimatedPomodoros > 0 {
+                                let completed = store.projectTimeSummary[project.id] ?? 0
+                                Text("\(completed / (store.focusSessionMinutes > 0 ? store.focusSessionMinutes : 25))/\(project.estimatedPomodoros) pomodoros")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.leading, 44)
                 }
             }
         }
@@ -255,30 +304,115 @@ struct WorkSuiteView: View {
 
     private var focusSection: some View {
         VStack(spacing: 16) {
+            // Time summary card
+            GlassCard {
+                HStack(spacing: 16) {
+                    VStack(spacing: 2) {
+                        Text("\(store.totalFocusMinutesToday)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.axisGold)
+                        Text("min today")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Divider().frame(height: 30)
+                    VStack(spacing: 2) {
+                        Text("\(store.totalFocusMinutesThisWeek)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.axisGold)
+                        Text("min this week")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Divider().frame(height: 30)
+                    VStack(spacing: 2) {
+                        Text("\(store.completedPomodorosInCycle)/\(store.pomodorosBeforeLongBreak)")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.axisGold)
+                        Text("cycle")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            // Project selector for focus
+            GlassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Focus on Project")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            Button {
+                                store.send(.setActiveProjectForFocus(nil))
+                            } label: {
+                                Text("None")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(store.activeProjectForFocus == nil ? Color.axisGold.opacity(0.2) : Color(.systemGray5))
+                                    .foregroundStyle(store.activeProjectForFocus == nil ? Color.axisGold : .secondary)
+                                    .clipShape(Capsule())
+                            }
+                            ForEach(store.projects.filter { $0.status == "active" }) { project in
+                                Button {
+                                    store.send(.setActiveProjectForFocus(project.id))
+                                } label: {
+                                    Text(project.title)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(store.activeProjectForFocus == project.id ? Color.axisGold.opacity(0.2) : Color(.systemGray5))
+                                        .foregroundStyle(store.activeProjectForFocus == project.id ? Color.axisGold : .secondary)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Timer display
             GlassCard {
                 VStack(spacing: 20) {
-                    Text("Focus Timer")
-                        .font(.headline)
-                        .foregroundStyle(Color.axisGold)
+                    // Phase indicator
+                    HStack(spacing: 8) {
+                        ForEach(WorkSuiteReducer.State.PomodoroPhase.allCases, id: \.self) { phase in
+                            Text(phase.rawValue)
+                                .font(.caption)
+                                .fontWeight(store.pomodoroPhase == phase ? .bold : .regular)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(store.pomodoroPhase == phase ? phaseColor(phase).opacity(0.15) : Color.clear)
+                                .foregroundStyle(store.pomodoroPhase == phase ? phaseColor(phase) : .secondary)
+                                .clipShape(Capsule())
+                        }
+                    }
 
                     ZStack {
                         Circle()
-                            .stroke(Color.axisGold.opacity(0.2), lineWidth: 8)
+                            .stroke(phaseColor(store.pomodoroPhase).opacity(0.2), lineWidth: 8)
                             .frame(width: 180, height: 180)
 
                         Circle()
                             .trim(from: 0, to: (store.focusTimerActive || store.focusTimerPaused) ? store.focusProgress : 0)
-                            .stroke(Color.axisGold, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .stroke(phaseColor(store.pomodoroPhase), style: StrokeStyle(lineWidth: 8, lineCap: .round))
                             .frame(width: 180, height: 180)
                             .rotationEffect(.degrees(-90))
                             .animation(.linear(duration: 1), value: store.focusProgress)
 
                         VStack(spacing: 4) {
-                            Text((store.focusTimerActive || store.focusTimerPaused) ? store.focusTimerDisplay : "\(store.focusSessionMinutes):00")
+                            Text((store.focusTimerActive || store.focusTimerPaused) ? store.focusTimerDisplay : "\(store.currentPhaseDuration):00")
                                 .font(.system(size: 42, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Color.axisGold)
-                            Text(store.focusTimerActive ? "Stay focused" : (store.focusTimerPaused ? "Paused" : "Ready"))
+                                .foregroundStyle(phaseColor(store.pomodoroPhase))
+                            Text(store.focusTimerActive ? store.pomodoroPhase.rawValue : (store.focusTimerPaused ? "Paused" : "Ready"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -312,6 +446,7 @@ struct WorkSuiteView: View {
                         }
                     }
 
+                    // Controls
                     HStack(spacing: 10) {
                         Button {
                             if store.focusTimerActive || store.focusTimerPaused {
@@ -349,6 +484,48 @@ struct WorkSuiteView: View {
                             }
                         }
                     }
+
+                    // Skip break button
+                    if store.pomodoroPhase != .work && !store.focusTimerActive && !store.focusTimerPaused {
+                        Button {
+                            store.send(.skipBreak)
+                        } label: {
+                            Text("Skip Break")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    // Options row
+                    HStack(spacing: 16) {
+                        Toggle(isOn: Binding(
+                            get: { store.autoStartNextSession },
+                            set: { store.send(.setAutoStartNextSession($0)) }
+                        )) {
+                            Text("Auto-start")
+                                .font(.caption)
+                        }
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+
+                        Spacer()
+
+                        // Ambient sound button
+                        Button {
+                            store.send(.toggleAmbientMixer)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: store.ambientSounds.isEmpty ? "speaker.slash" : "speaker.wave.2.fill")
+                                Text(store.ambientSounds.isEmpty ? "Sounds" : "\(store.ambientSounds.count)")
+                                    .font(.caption)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Capsule())
+                        }
+                    }
                 }
             }
 
@@ -368,8 +545,18 @@ struct WorkSuiteView: View {
 
                         ForEach(store.completedFocusSessions.prefix(5)) { session in
                             HStack {
+                                Circle()
+                                    .fill(session.sessionType == "work" ? Color.axisGold : (session.sessionType == "shortBreak" ? Color.green : Color.blue))
+                                    .frame(width: 6, height: 6)
                                 Text("\(session.durationMinutes) min")
                                     .font(.subheadline)
+                                if let pid = session.projectId,
+                                   let project = store.projects.first(where: { $0.id == pid }) {
+                                    Text("- \(project.title)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                                 Spacer()
                                 Text(session.completedAt.formatted(date: .abbreviated, time: .shortened))
                                     .font(.caption)
@@ -395,6 +582,14 @@ struct WorkSuiteView: View {
                         .lineSpacing(4)
                 }
             }
+        }
+    }
+
+    private func phaseColor(_ phase: WorkSuiteReducer.State.PomodoroPhase) -> Color {
+        switch phase {
+        case .work: return Color.axisGold
+        case .shortBreak: return .green
+        case .longBreak: return .blue
         }
     }
 
@@ -440,7 +635,7 @@ struct WorkSuiteView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { store.send(.toggleAddProject) }
+                    Button("Cancel") { store.send(.dismissAddProject) }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") { store.send(.addProject) }

@@ -13,6 +13,7 @@ final class WorkProject {
     var completedAt: Date?
     var sortOrder: Int
     var createdAt: Date
+    var estimatedPomodoros: Int
 
     init(
         title: String,
@@ -21,7 +22,8 @@ final class WorkProject {
         priority: String = "medium",
         notes: String = "",
         dueDate: Date? = nil,
-        sortOrder: Int = 0
+        sortOrder: Int = 0,
+        estimatedPomodoros: Int = 0
     ) {
         self.uuid = UUID()
         self.title = title
@@ -33,6 +35,7 @@ final class WorkProject {
         self.completedAt = nil
         self.sortOrder = sortOrder
         self.createdAt = Date()
+        self.estimatedPomodoros = estimatedPomodoros
     }
 
     var priorityColor: String {

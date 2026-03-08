@@ -143,6 +143,42 @@ final class PersistenceService: @unchecked Sendable {
         _ = saveContext("deleteDadWin")
     }
 
+    // MARK: - Goals
+
+    func fetchGoals() -> [Goal] {
+        let descriptor = FetchDescriptor<Goal>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        return fetchAll(Goal.self, descriptor: descriptor, operation: "fetchGoals")
+    }
+
+    func saveGoal(_ goal: Goal) {
+        guard let context = modelContext else { return }
+        context.insert(goal)
+        _ = saveContext("saveGoal")
+    }
+
+    func deleteGoal(_ goal: Goal) {
+        guard let context = modelContext else { return }
+        context.delete(goal)
+        _ = saveContext("deleteGoal")
+    }
+
+    func updateGoals() {
+        _ = saveContext("updateGoals")
+    }
+
+    // MARK: - Focus Sessions
+
+    func fetchFocusSessions() -> [FocusSession] {
+        let descriptor = FetchDescriptor<FocusSession>(sortBy: [SortDescriptor(\.completedAt, order: .reverse)])
+        return fetchAll(FocusSession.self, descriptor: descriptor, operation: "fetchFocusSessions")
+    }
+
+    func saveFocusSession(_ session: FocusSession) {
+        guard let context = modelContext else { return }
+        context.insert(session)
+        _ = saveContext("saveFocusSession")
+    }
+
     // MARK: - Contacts
 
     func fetchContacts() -> [Contact] {
@@ -251,6 +287,105 @@ final class PersistenceService: @unchecked Sendable {
         return profile
     }
 
+    // MARK: - Interactions
+
+    func fetchInteractions(forContact contactId: UUID) -> [Interaction] {
+        let descriptor = FetchDescriptor<Interaction>(
+            predicate: #Predicate { $0.contactId == contactId },
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        return fetchAll(Interaction.self, descriptor: descriptor, operation: "fetchInteractions")
+    }
+
+    func fetchAllInteractions() -> [Interaction] {
+        let descriptor = FetchDescriptor<Interaction>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        return fetchAll(Interaction.self, descriptor: descriptor, operation: "fetchAllInteractions")
+    }
+
+    func saveInteraction(_ interaction: Interaction) {
+        guard let context = modelContext else { return }
+        context.insert(interaction)
+        _ = saveContext("saveInteraction")
+    }
+
+    func deleteInteraction(_ interaction: Interaction) {
+        guard let context = modelContext else { return }
+        context.delete(interaction)
+        _ = saveContext("deleteInteraction")
+    }
+
+    // MARK: - Contact Groups
+
+    func fetchContactGroups() -> [ContactGroup] {
+        let descriptor = FetchDescriptor<ContactGroup>(sortBy: [SortDescriptor(\.name)])
+        return fetchAll(ContactGroup.self, descriptor: descriptor, operation: "fetchContactGroups")
+    }
+
+    func saveContactGroup(_ group: ContactGroup) {
+        guard let context = modelContext else { return }
+        context.insert(group)
+        _ = saveContext("saveContactGroup")
+    }
+
+    func deleteContactGroup(_ group: ContactGroup) {
+        guard let context = modelContext else { return }
+        context.delete(group)
+        _ = saveContext("deleteContactGroup")
+    }
+
+    func updateContactGroups() {
+        _ = saveContext("updateContactGroups")
+    }
+
+    // MARK: - Subtasks
+
+    func fetchSubtasks(forProject projectId: UUID) -> [Subtask] {
+        let descriptor = FetchDescriptor<Subtask>(
+            predicate: #Predicate { $0.projectId == projectId },
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        return fetchAll(Subtask.self, descriptor: descriptor, operation: "fetchSubtasks")
+    }
+
+    func saveSubtask(_ subtask: Subtask) {
+        guard let context = modelContext else { return }
+        context.insert(subtask)
+        _ = saveContext("saveSubtask")
+    }
+
+    func deleteSubtask(_ subtask: Subtask) {
+        guard let context = modelContext else { return }
+        context.delete(subtask)
+        _ = saveContext("deleteSubtask")
+    }
+
+    func updateSubtasks() {
+        _ = saveContext("updateSubtasks")
+    }
+
+    // MARK: - Focus Profiles
+
+    func fetchFocusProfiles() -> [FocusProfile] {
+        let descriptor = FetchDescriptor<FocusProfile>(sortBy: [SortDescriptor(\FocusProfile.createdAt)])
+        return fetchAll(FocusProfile.self, descriptor: descriptor, operation: "fetchFocusProfiles")
+    }
+
+    func saveFocusProfile(_ profile: FocusProfile) {
+        guard let context = modelContext else { return }
+        context.insert(profile)
+        _ = saveContext("saveFocusProfile")
+    }
+
+    func deleteFocusProfile(_ profile: FocusProfile) {
+        guard let context = modelContext else { return }
+        context.delete(profile)
+        _ = saveContext("deleteFocusProfile")
+    }
+
+    func updateFocusProfiles() {
+        _ = saveContext("updateFocusProfiles")
+    }
+
     // MARK: - QA Utilities
 
     /// Debug utility for local QA resets. Removes all persisted records.
@@ -266,10 +401,12 @@ final class PersistenceService: @unchecked Sendable {
         fetchFamilyEvents().forEach { context.delete($0) }
         fetchMealPlans().forEach { context.delete($0) }
         fetchDadWins().forEach { context.delete($0) }
+        fetchGoals().forEach { context.delete($0) }
         fetchContacts().forEach { context.delete($0) }
         fetchSavedPlaces().forEach { context.delete($0) }
         fetchCapturedNotes().forEach { context.delete($0) }
         fetchPriorityItems().forEach { context.delete($0) }
+        fetchFocusSessions().forEach { context.delete($0) }
         if let profile = fetchUserProfile() {
             context.delete(profile)
         }

@@ -14,6 +14,8 @@ final class Contact {
     var notes: String
     var relationship: String // "friend", "colleague", "family", "mentor"
     var createdAt: Date
+    var richNotes: String
+    var groupIds: [UUID]
 
     init(
         name: String,
@@ -24,7 +26,9 @@ final class Contact {
         lastContacted: Date? = nil,
         checkInDays: Int = 30,
         notes: String = "",
-        relationship: String = "friend"
+        relationship: String = "friend",
+        richNotes: String = "",
+        groupIds: [UUID] = []
     ) {
         self.uuid = UUID()
         self.name = name
@@ -37,6 +41,8 @@ final class Contact {
         self.notes = notes
         self.relationship = relationship
         self.createdAt = Date()
+        self.richNotes = richNotes
+        self.groupIds = groupIds
     }
 
     var tierLabel: String {

@@ -27,23 +27,23 @@ struct AddPriorityIntent: AppIntent {
     }
 }
 
-// MARK: - Log Dad Win Intent
+// MARK: - Add Goal Intent
 
-struct LogDadWinIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Dad Win"
-    static var description = IntentDescription("Record a dad win moment.")
+struct AddGoalIntent: AppIntent {
+    static var title: LocalizedStringResource = "Add Goal"
+    static var description = IntentDescription("Create a new goal with milestones.")
     static var openAppWhenRun = false
 
-    @Parameter(title: "What happened?")
-    var winTitle: String
+    @Parameter(title: "Goal Title")
+    var goalTitle: String
 
-    @Parameter(title: "Mood", default: "proud")
-    var mood: String
+    @Parameter(title: "Category", default: "personal")
+    var category: String
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let win = DadWin(title: winTitle, mood: mood)
-        PersistenceService.shared.saveDadWin(win)
-        return .result(dialog: "Dad win logged: '\(winTitle)'. Keep it up!")
+        let goal = Goal(title: goalTitle, category: category)
+        PersistenceService.shared.saveGoal(goal)
+        return .result(dialog: "Goal created: '\(goalTitle)'. Add milestones in the app!")
     }
 }
 
@@ -105,13 +105,13 @@ struct AxisAppShortcuts: AppShortcutsProvider {
             systemImageName: "plus.circle.fill"
         )
         AppShortcut(
-            intent: LogDadWinIntent(),
+            intent: AddGoalIntent(),
             phrases: [
-                "Log a dad win in \(.applicationName)",
-                "Record a dad win with \(.applicationName)"
+                "Add a goal in \(.applicationName)",
+                "Create a goal with \(.applicationName)"
             ],
-            shortTitle: "Log Dad Win",
-            systemImageName: "trophy.fill"
+            shortTitle: "Add Goal",
+            systemImageName: "target"
         )
         AppShortcut(
             intent: QuickCaptureIntent(),
