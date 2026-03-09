@@ -50,6 +50,13 @@ struct AxisApp: App {
             HabitCompletion.self,
             // Phase 7
             TrendSnapshot.self,
+            // M6: EA Models
+            EATask.self,
+            EAProject.self,
+            EAMilestone.self,
+            EADailyPlan.self,
+            EATimeBlock.self,
+            EAInboxItem.self,
         ])
         do {
             container = try ModelContainer(for: schema)

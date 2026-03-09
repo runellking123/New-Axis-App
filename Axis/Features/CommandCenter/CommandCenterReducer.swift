@@ -5,17 +5,19 @@ import Foundation
 struct CommandCenterReducer {
     @ObservableState
     struct State: Equatable {
-        var userName: String = "Runell"
+        var userName: String = ""
         var contextMode: ContextMode = .work
         var dayBriefSummary: String = ""
         var priorities: [PriorityState] = []
         var isLoadingBrief: Bool = false
-        var weatherTemp: String = "75°"
-        var weatherIcon: String = "sun.max.fill"
-        var weatherNote: String = "Clear skies — great day."
+        var weatherTemp: String = "--"
+        var weatherIcon: String = "cloud.fill"
+        var weatherNote: String = "Loading..."
+        var isWeatherLoaded: Bool = false
         var nextEventTitle: String = ""
         var nextEventTime: String = ""
-        var energyScore: Int = 7
+        var energyScore: Int = 0
+        var isEnergyLoaded: Bool = false
         var currentGreeting: String = "Good morning"
         var showAddPriority = false
         var newPriorityTitle = ""
@@ -161,6 +163,13 @@ struct CommandCenterReducer {
                             icon: data.sfSymbol,
                             note: data.actionableNote
                         ))
+                    } else {
+                        let errorMessage = await weatherClient.lastErrorMessage()
+                        await send(.weatherLoaded(
+                            temp: "--",
+                            icon: "cloud.fill",
+                            note: errorMessage ?? "Weather unavailable."
+                        ))
                     }
 
                     // Load calendar
@@ -197,6 +206,7 @@ struct CommandCenterReducer {
                 state.weatherTemp = temp
                 state.weatherIcon = icon
                 state.weatherNote = note
+                state.isWeatherLoaded = true
                 return .none
 
             case let .nextEventLoaded(title, time):

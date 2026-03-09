@@ -3,6 +3,8 @@ import SwiftUI
 
 struct BalanceView: View {
     @Bindable var store: StoreOf<BalanceReducer>
+    @State private var showSleepDetail = false
+    @State private var showStepsDetail = false
 
     var body: some View {
         NavigationStack {
@@ -56,6 +58,12 @@ struct BalanceView: View {
             )) {
                 addLogSheet
             }
+            .sheet(isPresented: $showSleepDetail) {
+                SleepDetailView(sleepHours: store.sleepHours)
+            }
+            .sheet(isPresented: $showStepsDetail) {
+                StepsDetailView(stepsToday: store.stepsToday, stepsGoal: store.stepsGoal)
+            }
             .onAppear {
                 store.send(.onAppear)
             }
@@ -66,24 +74,126 @@ struct BalanceView: View {
 
     private var dashboardSection: some View {
         VStack(spacing: 16) {
+            // HealthKit hint when not connected
+            if !store.healthKitConnected {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "heart.text.square.fill")
+                                .font(.title3)
+                                .foregroundStyle(.green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Connect Apple Health")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text("Grant Health access here to sync sleep, steps, calories, heart rate, and standing hours directly into Balance.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Button {
+                            store.send(.requestHealthAccess)
+                        } label: {
+                            HStack {
+                                Image(systemName: "heart.fill")
+                                Text("Connect Health")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundStyle(.green)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                }
+            }
+            if store.healthKitConnected {
+                GlassCard {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Apple Health Sync")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text(store.lastHealthSync.map { "Last synced \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Connected")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button {
+                            store.send(.requestHealthAccess)
+                        } label: {
+                            if store.isSyncingHealth {
+                                ProgressView()
+                            } else {
+                                Label("Sync", systemImage: "arrow.clockwise")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.green)
+                    }
+                }
+            }
+
             // Energy Score - big display
             energyScoreCard
 
             // Stats grid
             HStack(spacing: 12) {
+                Button { showSleepDetail = true } label: {
+                    WidgetCardView(
+                        icon: "bed.double.fill",
+                        title: "Sleep",
+                        value: store.sleepHours > 0 ? String(format: "%.1fh", store.sleepHours) : "--",
+                        subtitle: store.sleepHours > 0 ? (store.sleepHours >= 7 ? "Well rested" : "Need more rest") : "No data",
+                        color: store.sleepHours >= 7 ? .blue : .orange
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button { showStepsDetail = true } label: {
+                    WidgetCardView(
+                        icon: "figure.walk",
+                        title: "Steps",
+                        value: store.stepsToday > 0 ? formatSteps(store.stepsToday) : "--",
+                        subtitle: store.stepsToday > 0 ? "\(Int(store.stepsProgress * 100))% of goal" : "No data",
+                        color: store.stepsProgress >= 0.7 ? .green : .orange
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 12) {
                 WidgetCardView(
-                    icon: "bed.double.fill",
-                    title: "Sleep",
-                    value: String(format: "%.1fh", store.sleepHours),
-                    subtitle: store.sleepHours >= 7 ? "Well rested" : "Need more rest",
-                    color: store.sleepHours >= 7 ? .blue : .orange
+                    icon: "flame.fill",
+                    title: "Calories",
+                    value: store.activeCalories > 0 ? "\(store.activeCalories)" : "--",
+                    subtitle: "active today",
+                    color: .orange
                 )
                 WidgetCardView(
-                    icon: "figure.walk",
-                    title: "Steps",
-                    value: formatSteps(store.stepsToday),
-                    subtitle: "\(Int(store.stepsProgress * 100))% of goal",
-                    color: store.stepsProgress >= 0.7 ? .green : .orange
+                    icon: "heart.fill",
+                    title: "Heart Rate",
+                    value: store.heartRate > 0 ? "\(Int(store.heartRate)) bpm" : "--",
+                    subtitle: "latest reading",
+                    color: .red
+                )
+            }
+
+            HStack(spacing: 12) {
+                WidgetCardView(
+                    icon: "figure.stand",
+                    title: "Stand",
+                    value: store.standHours > 0 ? "\(store.standHours)h" : "--",
+                    subtitle: "stood today",
+                    color: .green
+                )
+                WidgetCardView(
+                    icon: "target",
+                    title: "Step Goal",
+                    value: "\(store.stepsGoal)",
+                    subtitle: "daily target",
+                    color: .blue
                 )
             }
 

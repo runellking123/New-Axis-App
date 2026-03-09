@@ -36,6 +36,9 @@ struct CommandCenterView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 100)
             }
+            .refreshable {
+                store.send(.refreshTapped)
+            }
             .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -211,13 +214,24 @@ struct CommandCenterView: View {
             GridItem(.flexible(), spacing: 12)
         ], spacing: 12) {
             // Weather widget
-            WidgetCardView(
-                icon: store.weatherIcon,
-                title: "Weather",
-                value: store.weatherTemp,
-                subtitle: store.weatherNote,
-                color: .blue
-            )
+            if store.isWeatherLoaded {
+                WidgetCardView(
+                    icon: store.weatherIcon,
+                    title: "Weather",
+                    value: store.weatherTemp,
+                    subtitle: store.weatherNote,
+                    color: .blue
+                )
+            } else {
+                WidgetCardView(
+                    icon: "cloud.fill",
+                    title: "Weather",
+                    value: "--",
+                    subtitle: "Loading...",
+                    color: .blue
+                )
+                .shimmer()
+            }
 
             // Next Event widget
             WidgetCardView(
@@ -238,13 +252,24 @@ struct CommandCenterView: View {
             )
 
             // Energy widget
-            WidgetCardView(
-                icon: "bolt.fill",
-                title: "Energy",
-                value: "\(store.energyScore)/10",
-                subtitle: store.energyScore >= 7 ? "Deep work ready" : "Light tasks",
-                color: store.energyScore >= 7 ? .green : .yellow
-            )
+            if store.isEnergyLoaded {
+                WidgetCardView(
+                    icon: "bolt.fill",
+                    title: "Energy",
+                    value: "\(store.energyScore)/10",
+                    subtitle: store.energyScore >= 7 ? "Deep work ready" : "Light tasks",
+                    color: store.energyScore >= 7 ? .green : .yellow
+                )
+            } else {
+                WidgetCardView(
+                    icon: "bolt.fill",
+                    title: "Energy",
+                    value: "--",
+                    subtitle: "Loading...",
+                    color: .gray
+                )
+                .shimmer()
+            }
         }
     }
 

@@ -17,6 +17,7 @@ struct AppView: View {
         }
         .animation(.easeInOut(duration: 0.5), value: store.showOnboarding)
         .onAppear { store.send(.onAppear) }
+        .onOpenURL { url in store.send(.handleDeepLink(url)) }
         .preferredColorScheme(colorScheme(for: store.settings.darkModeOverride))
     }
 
@@ -31,91 +32,110 @@ struct AppView: View {
     private var mainContent: some View {
         ZStack {
             TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
-                CommandCenterView(
-                    store: store.scope(state: \.commandCenter, action: \.commandCenter),
+                // Tab 1: Dashboard
+                EADashboardView(
+                    store: store.scope(state: \.eaDashboard, action: \.eaDashboard),
+                    onNavigateToPlanner: { store.send(.tabSelected(.planner)) },
+                    onNavigateToTasks: { store.send(.tabSelected(.tasks)) },
+                    onNavigateToProjects: { store.send(.tabSelected(.projects)) },
                     onSettingsTapped: { store.send(.toggleSettings) },
-                    onQuickCapture: { store.send(.toggleQuickCapture) },
-                    onStartFocus: {
-                        store.send(.tabSelected(.workSuite))
-                        store.send(.workSuite(.segmentChanged(.focus)))
-                        store.send(.workSuite(.startFocusTimer))
+                    onAddTapped: {
+                        store.send(.tabSelected(.tasks))
+                        store.send(.eaTasks(.showAddTaskSheet))
                     },
-                    onCheckIn: {
-                        store.send(.tabSelected(.socialCircle))
+                    onCompletedTasksTapped: {
+                        store.send(.tabSelected(.tasks))
+                        store.send(.eaTasks(.filterChanged(.done)))
                     },
-                    onTrendsTapped: {
-                        store.send(.toggleTrends)
-                    }
+                    onMeetingsTapped: { store.send(.tabSelected(.planner)) },
+                    onDeepWorkTapped: { store.send(.tabSelected(.planner)) }
                 )
                 .tabItem {
-                    Label(AppReducer.State.Tab.commandCenter.title,
-                          systemImage: AppReducer.State.Tab.commandCenter.icon)
+                    Label("EA", systemImage: "brain.head.profile.fill")
                 }
-                .accessibilityLabel("Command tab")
-                .tag(AppReducer.State.Tab.commandCenter)
+                .tag(AppReducer.State.Tab.dashboard)
 
-                WorkSuiteView(
-                    store: store.scope(state: \.workSuite, action: \.workSuite)
+                // Tab 2: Planner
+                EAPlannerView(
+                    store: store.scope(state: \.eaPlanner, action: \.eaPlanner)
                 )
                 .tabItem {
-                    Label(AppReducer.State.Tab.workSuite.title,
-                          systemImage: AppReducer.State.Tab.workSuite.icon)
+                    Label("Planner", systemImage: "calendar.badge.clock")
                 }
-                .accessibilityLabel("Work tab")
-                .tag(AppReducer.State.Tab.workSuite)
+                .tag(AppReducer.State.Tab.planner)
 
-                FamilyHQView(
-                    store: store.scope(state: \.familyHQ, action: \.familyHQ)
+                // Tab 3: Tasks
+                EATaskListView(
+                    store: store.scope(state: \.eaTasks, action: \.eaTasks)
                 )
                 .tabItem {
-                    Label(AppReducer.State.Tab.familyHQ.title,
-                          systemImage: AppReducer.State.Tab.familyHQ.icon)
+                    Label("Tasks", systemImage: "checklist")
                 }
-                .accessibilityLabel("Family tab")
-                .tag(AppReducer.State.Tab.familyHQ)
+                .badge(store.eaTasks.inboxCount > 0 ? store.eaTasks.inboxCount : 0)
+                .tag(AppReducer.State.Tab.tasks)
 
+                // Tab 4: Projects
+                EAProjectListView(
+                    store: store.scope(state: \.eaProjects, action: \.eaProjects)
+                )
+                .tabItem {
+                    Label("Projects", systemImage: "folder.fill")
+                }
+                .tag(AppReducer.State.Tab.projects)
+
+                // Tab 5: Social
                 SocialCircleView(
                     store: store.scope(state: \.socialCircle, action: \.socialCircle)
                 )
                 .tabItem {
-                    Label(AppReducer.State.Tab.socialCircle.title,
-                          systemImage: AppReducer.State.Tab.socialCircle.icon)
+                    Label("Social", systemImage: "person.2.fill")
                 }
-                .accessibilityLabel("Social tab")
-                .tag(AppReducer.State.Tab.socialCircle)
+                .tag(AppReducer.State.Tab.social)
+
+                // Under "More" (iOS auto-creates More tab when >5 tabs)
+                FamilyHQView(
+                    store: store.scope(state: \.familyHQ, action: \.familyHQ)
+                )
+                .tabItem {
+                    Label("FamilyHQ", systemImage: "house.and.flag.fill")
+                }
+                .tag(AppReducer.State.Tab.familyHQ)
 
                 ExploreView(
                     store: store.scope(state: \.explore, action: \.explore)
                 )
                 .tabItem {
-                    Label(AppReducer.State.Tab.explore.title,
-                          systemImage: AppReducer.State.Tab.explore.icon)
+                    Label("Explore", systemImage: "map.fill")
                 }
-                .accessibilityLabel("Explore tab")
                 .tag(AppReducer.State.Tab.explore)
 
                 BalanceView(
                     store: store.scope(state: \.balance, action: \.balance)
                 )
                 .tabItem {
-                    Label(AppReducer.State.Tab.balance.title,
-                          systemImage: AppReducer.State.Tab.balance.icon)
+                    Label("Balance", systemImage: "heart.circle.fill")
                 }
-                .accessibilityLabel("Balance tab")
                 .tag(AppReducer.State.Tab.balance)
+
+                TrendsView(
+                    store: store.scope(state: \.trends, action: \.trends)
+                )
+                .tabItem {
+                    Label("Trends", systemImage: "chart.line.uptrend.xyaxis")
+                }
+                .tag(AppReducer.State.Tab.trends)
+
+                SettingsView(
+                    store: store.scope(state: \.settings, action: \.settings)
+                )
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+                .tag(AppReducer.State.Tab.settings)
             }
             .tint(Color.axisGold)
 
-            // Quick Capture overlay
-            if store.showQuickCapture {
-                QuickCaptureView(
-                    onDismiss: { store.send(.toggleQuickCapture) }
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(100)
-            }
         }
-        .animation(.spring(duration: 0.3), value: store.showQuickCapture)
         .sheet(isPresented: Binding(
             get: { store.showSettings },
             set: { newValue in
@@ -125,23 +145,6 @@ struct AppView: View {
             SettingsView(
                 store: store.scope(state: \.settings, action: \.settings)
             )
-        }
-        .sheet(isPresented: Binding(
-            get: { store.showTrends },
-            set: { newValue in
-                if !newValue { store.send(.toggleTrends) }
-            }
-        )) {
-            NavigationStack {
-                TrendsView(
-                    store: store.scope(state: \.trends, action: \.trends)
-                )
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") { store.send(.toggleTrends) }
-                    }
-                }
-            }
         }
     }
 }

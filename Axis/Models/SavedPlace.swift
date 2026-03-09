@@ -12,6 +12,10 @@ final class SavedPlace {
     var isVisited: Bool
     var isFavorite: Bool
     var createdAt: Date
+    var phoneNumber: String = ""
+    var websiteURL: String = ""
+    var hoursOfOperation: String = ""
+    var placeDescription: String = ""
 
     init(
         name: String,
@@ -20,7 +24,11 @@ final class SavedPlace {
         notes: String = "",
         rating: Int = 0,
         isVisited: Bool = false,
-        isFavorite: Bool = false
+        isFavorite: Bool = false,
+        phoneNumber: String = "",
+        websiteURL: String = "",
+        hoursOfOperation: String = "",
+        placeDescription: String = ""
     ) {
         self.uuid = UUID()
         self.name = name
@@ -31,6 +39,10 @@ final class SavedPlace {
         self.isVisited = isVisited
         self.isFavorite = isFavorite
         self.createdAt = Date()
+        self.phoneNumber = phoneNumber
+        self.websiteURL = websiteURL
+        self.hoursOfOperation = hoursOfOperation
+        self.placeDescription = placeDescription
     }
 
     var categoryIcon: String {

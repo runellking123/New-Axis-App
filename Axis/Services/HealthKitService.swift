@@ -55,12 +55,14 @@ final class HealthKitService {
         async let steps = fetchSteps()
         async let calories = fetchActiveCalories()
         async let hr = fetchHeartRate()
+        async let stand = fetchStandHours()
 
-        let (s, st, c, h) = await (sleep, steps, calories, hr)
+        let (s, st, c, h, standValue) = await (sleep, steps, calories, hr, stand)
         sleepHours = s
         stepsToday = st
         activeCalories = c
         heartRate = h
+        standHours = standValue
     }
 
     // MARK: - Sleep
@@ -155,6 +157,28 @@ final class HealthKitService {
         do {
             let samples = try await descriptor.result(for: healthStore)
             return samples.first?.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) ?? 0
+        } catch {
+            return 0
+        }
+    }
+
+    // MARK: - Stand Hours
+
+    private func fetchStandHours() async -> Int {
+        guard let standType = HKCategoryType.categoryType(forIdentifier: .appleStandHour) else { return 0 }
+
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: Date())
+        let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: Date(), options: .strictStartDate)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.categorySample(type: standType, predicate: predicate)],
+            sortDescriptors: []
+        )
+
+        do {
+            let samples = try await descriptor.result(for: healthStore)
+            let stoodHours = samples.filter { $0.value == HKCategoryValueAppleStandHour.stood.rawValue }
+            return stoodHours.count
         } catch {
             return 0
         }

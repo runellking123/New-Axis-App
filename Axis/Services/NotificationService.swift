@@ -155,4 +155,151 @@ final class NotificationService {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
         }
     }
+
+    // MARK: - EA Smart Notifications
+
+    /// Quiet hours check
+    func isInQuietHours(start: Int = 20, end: Int = 7) -> Bool {
+        let hour = Calendar.current.component(.hour, from: Date())
+        return hour >= start || hour < end
+    }
+
+    func scheduleDailyPlanReady(at time: Date) {
+        cancelAll(withPrefix: "ea-plan-ready")
+        let content = UNMutableNotificationContent()
+        content.title = "Your daily plan is ready"
+        content.body = "Tap to see your AI-generated schedule for today."
+        content.sound = .default
+        content.categoryIdentifier = "EA_PLAN_READY"
+        content.threadIdentifier = "ea-planner"
+
+        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        let request = UNNotificationRequest(identifier: "ea-plan-ready", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func scheduleDeadlineWarning(taskTitle: String, taskId: UUID, deadline: Date) {
+        let calendar = Calendar.current
+
+        // 72 hours before
+        if let warn72 = calendar.date(byAdding: .hour, value: -72, to: deadline), warn72 > Date() {
+            scheduleEAAlert(
+                title: "Deadline approaching",
+                body: "\"\(taskTitle)\" is due in 3 days",
+                date: warn72,
+                identifier: "ea-deadline-\(taskId.uuidString)-72h",
+                category: "EA_DEADLINE",
+                threadId: "ea-tasks"
+            )
+        }
+
+        // 24 hours before
+        if let warn24 = calendar.date(byAdding: .hour, value: -24, to: deadline), warn24 > Date() {
+            scheduleEAAlert(
+                title: "Due tomorrow",
+                body: "\"\(taskTitle)\" is due in 24 hours. Prioritize this today.",
+                date: warn24,
+                identifier: "ea-deadline-\(taskId.uuidString)-24h",
+                category: "EA_DEADLINE_URGENT",
+                threadId: "ea-tasks"
+            )
+        }
+    }
+
+    func scheduleFocusBlockStart(taskTitle: String, startTime: Date) {
+        guard startTime > Date() else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Focus block starting"
+        content.body = "Time for deep work: \(taskTitle)"
+        content.sound = .default
+        content.categoryIdentifier = "EA_FOCUS_START"
+        content.threadIdentifier = "ea-planner"
+
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: startTime)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: "ea-focus-\(startTime.timeIntervalSince1970)", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func scheduleMeetingReminder(title: String, eventId: String, startTime: Date) {
+        let calendar = Calendar.current
+
+        // 60 min before
+        if let remind60 = calendar.date(byAdding: .minute, value: -60, to: startTime), remind60 > Date() {
+            scheduleEAAlert(
+                title: "Meeting in 1 hour",
+                body: title,
+                date: remind60,
+                identifier: "ea-meeting-\(eventId)-60m",
+                category: "EA_MEETING",
+                threadId: "ea-calendar"
+            )
+        }
+
+        // 15 min before
+        if let remind15 = calendar.date(byAdding: .minute, value: -15, to: startTime), remind15 > Date() {
+            scheduleEAAlert(
+                title: "Meeting in 15 minutes",
+                body: title,
+                date: remind15,
+                identifier: "ea-meeting-\(eventId)-15m",
+                category: "EA_MEETING",
+                threadId: "ea-calendar"
+            )
+        }
+    }
+
+    func scheduleAtRiskTaskAlert(taskTitle: String, taskId: UUID) {
+        let content = UNMutableNotificationContent()
+        content.title = "At-risk task"
+        content.body = "\"\(taskTitle)\" has a deadline approaching with no scheduled time."
+        content.sound = .default
+        content.categoryIdentifier = "EA_AT_RISK"
+        content.threadIdentifier = "ea-tasks"
+
+        // Fire in 5 seconds (immediate notification)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        let request = UNNotificationRequest(identifier: "ea-atrisk-\(taskId.uuidString)", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func scheduleInboxPending(count: Int) {
+        cancelAll(withPrefix: "ea-inbox")
+        guard count > 0 else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Inbox items pending"
+        content.body = "\(count) unreviewed item\(count == 1 ? "" : "s") in your inbox."
+        content.sound = .default
+        content.categoryIdentifier = "EA_INBOX"
+        content.threadIdentifier = "ea-inbox"
+
+        // Schedule for 9 AM
+        var components = DateComponents()
+        components.hour = 9
+        components.minute = 0
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: "ea-inbox-pending", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    private func scheduleEAAlert(title: String, body: String, date: Date, identifier: String, category: String, threadId: String) {
+        guard !isInQuietHours() else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = category
+        content.threadIdentifier = threadId
+
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error {
+                self?.log("Failed to schedule EA alert \(identifier): \(error.localizedDescription)")
+            }
+        }
+    }
 }

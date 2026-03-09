@@ -13,7 +13,7 @@ final class WorkProject {
     var completedAt: Date?
     var sortOrder: Int
     var createdAt: Date
-    var estimatedPomodoros: Int
+    var estimatedPomodoros: Int?
 
     init(
         title: String,

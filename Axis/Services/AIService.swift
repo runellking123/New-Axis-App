@@ -142,7 +142,7 @@ final class AIService {
             completedPriorities: completedCount,
             totalPriorities: recentPriorities.count,
             dadWinsCount: recentWins.count,
-            averageEnergy: 7.0,
+            averageEnergy: 0,
             topMood: topMood,
             contactsReachedOut: recentContacts.count,
             placesExplored: recentVisited.count,

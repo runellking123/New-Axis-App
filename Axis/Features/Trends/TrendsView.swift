@@ -3,6 +3,15 @@ import SwiftUI
 
 struct TrendsView: View {
     @Bindable var store: StoreOf<TrendsReducer>
+    @State private var selectedMetric: MetricSelection?
+
+    struct MetricSelection: Identifiable {
+        let id = UUID()
+        let name: String
+        let value: String
+        let unit: String
+        let color: Color
+    }
 
     var body: some View {
         ScrollView {
@@ -71,6 +80,14 @@ struct TrendsView: View {
         .navigationTitle("Trends")
         .navigationBarTitleDisplayMode(.large)
         .onAppear { store.send(.onAppear) }
+        .sheet(item: $selectedMetric) { metric in
+            MetricDetailView(
+                metricName: metric.name,
+                currentValue: metric.value,
+                unit: metric.unit,
+                color: metric.color
+            )
+        }
     }
 
     // MARK: - Window Picker
@@ -183,28 +200,33 @@ struct TrendsView: View {
         current: Double,
         previous: Double
     ) -> some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: icon)
-                        .font(.caption)
-                        .foregroundStyle(color)
-                    Text(title)
-                        .font(.caption)
+        Button {
+            selectedMetric = MetricSelection(name: title, value: value, unit: detail, color: color)
+        } label: {
+            GlassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: icon)
+                            .font(.caption)
+                            .foregroundStyle(color)
+                        Text(title)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        TrendIndicator(current: current, previous: previous)
+                    }
+
+                    Text(value)
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    Text(detail)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Spacer()
-                    TrendIndicator(current: current, previous: previous)
                 }
-
-                Text(value)
-                    .font(.title2)
-                    .fontWeight(.bold)
-
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Trend Chart Card

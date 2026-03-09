@@ -14,8 +14,8 @@ final class Contact {
     var notes: String
     var relationship: String // "friend", "colleague", "family", "mentor"
     var createdAt: Date
-    var richNotes: String
-    var groupIds: [UUID]
+    var richNotes: String?
+    var groupIds: [UUID]?
 
     init(
         name: String,

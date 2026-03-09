@@ -1,7 +1,5 @@
 import ComposableArchitecture
-import ContactsUI
 import SwiftUI
-import UIKit
 
 struct SocialCircleView: View {
     @Bindable var store: StoreOf<SocialCircleReducer>
@@ -158,22 +156,13 @@ struct SocialCircleView: View {
                     if !newValue { store.send(.dismissContactPicker) }
                 }
             )) {
-                ContactPickerView { cnContacts in
-                    let imported = cnContacts.map { cn in
-                        let name = [cn.givenName, cn.familyName]
-                            .filter { !$0.isEmpty }
-                            .joined(separator: " ")
-                        let phone = cn.phoneNumbers.first?.value.stringValue ?? ""
-                        let email = (cn.emailAddresses.first?.value as String?) ?? ""
-                        var birthday: Date?
-                        if let bday = cn.birthday {
-                            birthday = Calendar.current.date(from: bday)
-                        }
+                ContactPickerView { selectedContacts in
+                    let imported = selectedContacts.map { contact in
                         return SocialCircleReducer.ImportedContact(
-                            name: name,
-                            phone: phone,
-                            email: email,
-                            birthday: birthday
+                            name: contact.name,
+                            phone: contact.phone,
+                            email: contact.email,
+                            birthday: nil
                         )
                     }
                     store.send(.importContacts(imported))
@@ -190,6 +179,12 @@ struct SocialCircleView: View {
                 set: { if !$0 { store.send(.dismissInteractionLog) } }
             )) {
                 InteractionLogView(store: store)
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showImportTierPicker },
+                set: { if !$0 { store.send(.dismissImportTierPicker) } }
+            )) {
+                importTierPickerSheet
             }
             .navigationDestination(isPresented: Binding(
                 get: { store.selectedContactId != nil },
@@ -208,24 +203,32 @@ struct SocialCircleView: View {
     // MARK: - Overdue Alert
 
     private var overdueAlert: some View {
-        GlassCard {
-            HStack(spacing: 12) {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.orange)
+        Button {
+            store.send(.toggleOverdueFilter)
+        } label: {
+            GlassCard {
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.orange)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(store.overdueCount) check-in\(store.overdueCount == 1 ? "" : "s") overdue")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    Text("Time to reach out to people who matter.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(store.overdueCount) check-in\(store.overdueCount == 1 ? "" : "s") overdue")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text(store.showOverdueOnly ? "Tap to show all" : "Tap to filter overdue")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: store.showOverdueOnly ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                        .foregroundStyle(.orange)
                 }
-
-                Spacer()
             }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Insights
@@ -570,6 +573,7 @@ struct SocialCircleView: View {
 
     private func openURL(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
+        guard UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
     }
 
@@ -602,6 +606,75 @@ struct SocialCircleView: View {
         let digits = sanitizedPhoneDigits(value)
         guard digits.count == 10 else { return value }
         return "\(digits.prefix(3))-\(digits.dropFirst(3).prefix(3))-\(digits.suffix(4))"
+    }
+
+    // MARK: - Import Tier Picker
+
+    private var importTierPickerSheet: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Text("Importing \(store.pendingImports.count) contact\(store.pendingImports.count == 1 ? "" : "s")")
+                    .font(.headline)
+                    .padding(.top, 20)
+
+                Text("Which relationship tier?")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                VStack(spacing: 12) {
+                    tierOption("innerCircle", label: "Inner Circle", icon: "star.circle.fill", color: .yellow, description: "Your closest people")
+                    tierOption("closeFriends", label: "Close Friends", icon: "heart.circle.fill", color: .purple, description: "People you stay in touch with regularly")
+                    tierOption("extended", label: "Extended", icon: "person.circle.fill", color: .gray, description: "Wider network")
+                }
+                .padding(.horizontal)
+
+                Spacer()
+            }
+            .navigationTitle("Assign Tier")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { store.send(.dismissImportTierPicker) }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Import") { store.send(.confirmImportWithTier) }
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.purple)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func tierOption(_ tier: String, label: String, icon: String, color: Color, description: String) -> some View {
+        Button {
+            store.send(.importTierChanged(tier))
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(color)
+                    .frame(width: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if store.importTier == tier {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.purple)
+                }
+            }
+            .padding()
+            .background(store.importTier == tier ? color.opacity(0.1) : Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Add Contact Sheet

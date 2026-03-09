@@ -117,9 +117,13 @@ struct FamilyHQView: View {
                         Text("Family Calendar")
                             .font(.headline)
                         Spacer()
-                        Text("\(store.completedEventCount)/\(store.events.count) done")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Button {
+                            store.send(.eventFilterChanged(store.eventFilter == .completed ? .all : .completed))
+                        } label: {
+                            Text("\(store.completedEventCount)/\(store.events.count) done")
+                                .font(.caption)
+                                .foregroundStyle(store.eventFilter == .completed ? .green : .secondary)
+                        }
                     }
                     Picker("Filter", selection: $store.eventFilter.sending(\.eventFilterChanged)) {
                         ForEach(FamilyHQReducer.State.EventFilter.allCases, id: \.self) { filter in

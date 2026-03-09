@@ -9,7 +9,10 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 profileSection
+                locationSection
                 scheduleSection
+                executiveAssistantSection
+                eaNotificationsSection
                 preferencesSection
                 healthSection
                 aboutSection
@@ -18,11 +21,17 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.axisGold)
+                    Button("Done") {
+                        // Save any pending changes
+                        store.send(.saveProfile)
+                        // Dismiss (works when presented as sheet)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.axisGold)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .onAppear { store.send(.onAppear) }
         }
     }
@@ -63,6 +72,51 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Location
+
+    private var locationSection: some View {
+        Section {
+            HStack {
+                TextField("City, ZIP, or State", text: $store.locationSearchText.sending(\.locationSearchTextChanged))
+                    .textContentType(.addressCity)
+                    .onSubmit { store.send(.locationSearchSubmitted) }
+
+                Button {
+                    store.send(.locationSearchSubmitted)
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(Color.axisGold)
+                }
+                .disabled(store.locationSearchText.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+
+            if store.isUsingCustomLocation {
+                HStack {
+                    Image(systemName: "mappin.circle.fill")
+                        .foregroundStyle(.orange)
+                    Text(store.locationDisplayName)
+                        .font(.subheadline)
+                    Spacer()
+                    Button("Reset") {
+                        store.send(.useMyLocation)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Color.axisGold)
+                }
+            }
+
+            Button {
+                store.send(.useMyLocation)
+            } label: {
+                Label("Use My Location", systemImage: "location.fill")
+            }
+        } header: {
+            Text("Location")
+        } footer: {
+            Text("Used for weather and nearby recommendations. Search by city name, ZIP code, or state.")
+        }
+    }
+
     // MARK: - Schedule
 
     private var scheduleSection: some View {
@@ -74,6 +128,57 @@ struct SettingsView: View {
             Text("Daily Schedule")
         } footer: {
             Text("Used for Day Brief timing and context mode auto-switching.")
+        }
+    }
+
+    // MARK: - Executive Assistant
+
+    private var executiveAssistantSection: some View {
+        Section {
+            DatePicker("Daily Plan Time", selection: $store.eaPlanGenerationTime.sending(\.eaPlanGenerationTimeChanged), displayedComponents: .hourAndMinute)
+
+            DatePicker("Quiet Hours Start", selection: $store.eaQuietHoursStart.sending(\.eaQuietHoursStartChanged), displayedComponents: .hourAndMinute)
+
+            DatePicker("Quiet Hours End", selection: $store.eaQuietHoursEnd.sending(\.eaQuietHoursEndChanged), displayedComponents: .hourAndMinute)
+
+            Picker("Default Task Duration", selection: $store.eaDefaultTaskDuration.sending(\.eaDefaultTaskDurationChanged)) {
+                Text("15 min").tag(15)
+                Text("25 min").tag(25)
+                Text("30 min").tag(30)
+                Text("45 min").tag(45)
+                Text("60 min").tag(60)
+            }
+
+            Picker("Morning Energy", selection: $store.eaMorningEnergyPreference.sending(\.eaMorningEnergyChanged)) {
+                Text("Deep Work").tag("deepWork")
+                Text("Light Work").tag("lightWork")
+            }
+
+            Picker("Afternoon Energy", selection: $store.eaAfternoonEnergyPreference.sending(\.eaAfternoonEnergyChanged)) {
+                Text("Deep Work").tag("deepWork")
+                Text("Light Work").tag("lightWork")
+            }
+        } header: {
+            Text("Executive Assistant")
+        } footer: {
+            Text("Configure how your AI assistant plans your day and manages tasks.")
+        }
+    }
+
+    // MARK: - EA Notifications
+
+    private var eaNotificationsSection: some View {
+        Section {
+            Toggle("Daily Plan Ready", isOn: $store.eaNotifyDailyPlan.sending(\.eaNotifyDailyPlanToggled))
+            Toggle("Deadline Warnings", isOn: $store.eaNotifyDeadlines.sending(\.eaNotifyDeadlinesToggled))
+            Toggle("Focus Block Start", isOn: $store.eaNotifyFocusBlock.sending(\.eaNotifyFocusBlockToggled))
+            Toggle("Meeting Reminders", isOn: $store.eaNotifyMeetings.sending(\.eaNotifyMeetingsToggled))
+            Toggle("At-Risk Tasks", isOn: $store.eaNotifyAtRisk.sending(\.eaNotifyAtRiskToggled))
+            Toggle("Inbox Pending", isOn: $store.eaNotifyInbox.sending(\.eaNotifyInboxToggled))
+        } header: {
+            Text("EA Notifications")
+        } footer: {
+            Text("Individual toggles for each notification category. Quiet hours are respected.")
         }
     }
 

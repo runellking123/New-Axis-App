@@ -5,10 +5,13 @@ import Foundation
 struct BalanceReducer {
     @ObservableState
     struct State: Equatable {
-        var energyScore: Int = 7
+        var energyScore: Int = 0
         var sleepHours: Double = 0
         var stepsToday: Int = 0
         var stepsGoal: Int = 10000
+        var activeCalories: Int = 0
+        var heartRate: Double = 0
+        var standHours: Int = 0
         var stressLevel: StressLevel = .moderate
         var balanceMeter: BalanceMeter = .init()
         var weeklyLog: [DayLog] = []
@@ -20,6 +23,8 @@ struct BalanceReducer {
         var weeklyReport: AIService.WeeklyReport?
         var weeklyReportGeneratedAt: Date?
         var reportRangeDays: Int = 7
+        var isSyncingHealth = false
+        var lastHealthSync: Date?
 
         enum Section: String, CaseIterable, Equatable {
             case dashboard = "Dashboard"
@@ -62,10 +67,10 @@ struct BalanceReducer {
         }
 
         struct BalanceMeter: Equatable {
-            var workPercent: Double = 45
-            var familyPercent: Double = 25
-            var selfPercent: Double = 15
-            var socialPercent: Double = 15
+            var workPercent: Double = 0
+            var familyPercent: Double = 0
+            var selfPercent: Double = 0
+            var socialPercent: Double = 0
         }
 
         struct DayLog: Equatable, Identifiable {
@@ -144,11 +149,13 @@ struct BalanceReducer {
         case sectionChanged(State.Section)
         case energyScoreChanged(Int)
         case toggleLogEntry
+        case requestHealthAccess
+        case healthAccessUnavailable
         case newLogMoodChanged(String)
         case newLogNotesChanged(String)
         case addLogEntry
         case deleteLogEntry(UUID)
-        case healthDataLoaded(sleep: Double, steps: Int, energy: Int)
+        case healthDataLoaded(sleep: Double, steps: Int, energy: Int, calories: Int, heartRate: Double, standHours: Int)
         case loadWeeklyReport
         case reportRangeChanged(Int)
         case weeklyReportLoaded(AIService.WeeklyReport)
@@ -165,25 +172,50 @@ struct BalanceReducer {
                 let profile = PersistenceService.shared.getOrCreateProfile()
                 state.stepsGoal = profile.stepsGoal
                 HapticService.setEnabled(profile.hapticFeedbackEnabled)
-                // Try to load HealthKit data via async effect
+                state.isSyncingHealth = true
+                return .send(.requestHealthAccess)
+
+            case .requestHealthAccess:
+                state.isSyncingHealth = true
                 return .run { send in
                     let data = (isAuth: await health.isAuthorized(), isAvail: await health.isAvailable())
-
-                    if data.isAuth || data.isAvail {
-                        if !data.isAuth {
-                            let authorized = await health.requestAuthorization()
-                            guard authorized else { return }
-                        }
-                        let snapshot = await health.fetchAllData()
-                        await send(.healthDataLoaded(sleep: snapshot.sleep, steps: snapshot.steps, energy: snapshot.energy))
+                    guard data.isAvail else {
+                        await send(.healthAccessUnavailable)
+                        return
                     }
+                    if !data.isAuth {
+                        let authorized = await health.requestAuthorization()
+                        guard authorized else {
+                            await send(.healthAccessUnavailable)
+                            return
+                        }
+                    }
+                    let snapshot = await health.fetchAllData()
+                    await send(.healthDataLoaded(
+                        sleep: snapshot.sleep,
+                        steps: snapshot.steps,
+                        energy: snapshot.energy,
+                        calories: snapshot.calories,
+                        heartRate: snapshot.heartRate,
+                        standHours: snapshot.standHours
+                    ))
                 }
 
-            case let .healthDataLoaded(sleep, steps, energy):
+            case .healthAccessUnavailable:
+                state.isSyncingHealth = false
+                state.healthKitConnected = false
+                return .none
+
+            case let .healthDataLoaded(sleep, steps, energy, calories, heartRate, standHours):
                 state.sleepHours = sleep
                 state.stepsToday = steps
                 state.energyScore = energy
+                state.activeCalories = calories
+                state.heartRate = heartRate
+                state.standHours = standHours
                 state.healthKitConnected = true
+                state.isSyncingHealth = false
+                state.lastHealthSync = Date()
                 // Auto-adjust stress based on energy
                 if energy >= 8 {
                     state.stressLevel = .low

@@ -15,6 +15,9 @@ struct SocialCircleReducer {
         var newContactCheckInDays = 30
         var searchText = ""
         var showContactPicker = false
+        var importTier = "closeFriends"
+        var showImportTierPicker = false
+        var pendingImports: [ImportedContact] = []
 
         // Phase 2: Groups
         var groups: [GroupState] = []
@@ -194,6 +197,9 @@ struct SocialCircleReducer {
 
         var filteredContacts: [ContactState] {
             var result = contacts
+            if showOverdueOnly {
+                result = result.filter(\.isOverdue)
+            }
             if let key = selectedTier.filterKey {
                 result = result.filter { $0.tier == key }
             }
@@ -242,6 +248,7 @@ struct SocialCircleReducer {
         }
 
         var showInsights: Bool = false
+        var showOverdueOnly: Bool = false
         var selectedContactId: UUID?
     }
 
@@ -254,6 +261,9 @@ struct SocialCircleReducer {
         case showContactPicker
         case dismissContactPicker
         case importContacts([ImportedContact])
+        case importTierChanged(String)
+        case confirmImportWithTier
+        case dismissImportTierPicker
         case newContactNameChanged(String)
         case newContactTierChanged(String)
         case newContactPhoneChanged(String)
@@ -263,6 +273,7 @@ struct SocialCircleReducer {
         case deleteContact(UUID)
         case markContacted(UUID)
         case toggleInsights
+        case toggleOverdueFilter
         // Drill-down
         case selectContact(UUID?)
         case updateContactTier(UUID, String)
@@ -311,8 +322,8 @@ struct SocialCircleReducer {
                         id: c.uuid, name: c.name, tier: c.tier, phone: c.phone,
                         email: c.email.isEmpty ? nil : c.email, relationship: c.relationship,
                         lastContacted: c.lastContacted, checkInDays: c.checkInDays,
-                        birthday: c.birthday, richNotes: c.richNotes,
-                        groupIds: c.groupIds, interactions: interactions
+                        birthday: c.birthday, richNotes: c.richNotes ?? "",
+                        groupIds: c.groupIds ?? [], interactions: interactions
                     )
                 }
                 // Load groups
@@ -326,6 +337,11 @@ struct SocialCircleReducer {
             case let .tierFilterChanged(tier):
                 state.selectedTier = tier
                 state.selectedGroupFilter = nil
+                state.showOverdueOnly = false
+                return .none
+
+            case .toggleOverdueFilter:
+                state.showOverdueOnly.toggle()
                 return .none
 
             case let .searchTextChanged(text):
@@ -357,14 +373,28 @@ struct SocialCircleReducer {
 
             case let .importContacts(imported):
                 state.showContactPicker = false
+                if imported.isEmpty { return .none }
+                // Store pending imports and show tier picker
+                state.pendingImports = imported
+                state.importTier = "closeFriends"
+                state.showImportTierPicker = true
+                return .none
+
+            case let .importTierChanged(tier):
+                state.importTier = tier
+                return .none
+
+            case .confirmImportWithTier:
+                state.showImportTierPicker = false
+                let tier = state.importTier
                 let persistence = PersistenceService.shared
                 let existingPhones = Set(state.contacts.compactMap { Self.sanitizePhone($0.phone) })
 
-                for ic in imported {
+                for ic in state.pendingImports {
                     let sanitized = Self.sanitizePhone(ic.phone)
                     if let sanitized, existingPhones.contains(sanitized) { continue }
                     let contact = Contact(
-                        name: ic.name, tier: "extended", phone: ic.phone,
+                        name: ic.name, tier: tier, phone: ic.phone,
                         email: ic.email, birthday: ic.birthday, checkInDays: 30, relationship: "friend"
                     )
                     persistence.saveContact(contact)
@@ -375,7 +405,13 @@ struct SocialCircleReducer {
                         checkInDays: contact.checkInDays, birthday: contact.birthday
                     ))
                 }
-                if !imported.isEmpty { HapticService.notification(.success) }
+                state.pendingImports = []
+                HapticService.notification(.success)
+                return .none
+
+            case .dismissImportTierPicker:
+                state.showImportTierPicker = false
+                state.pendingImports = []
                 return .none
 
             case let .newContactNameChanged(name):

@@ -444,6 +444,7 @@ struct ContactDetailView: View {
 
     private func openURL(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
+        guard UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
     }
 

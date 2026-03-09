@@ -1,6 +1,5 @@
 import CoreLocation
 import Foundation
-import WeatherKit
 
 @Observable
 final class WeatherService {
@@ -9,6 +8,7 @@ final class WeatherService {
     private(set) var currentWeather: WeatherData?
     private(set) var isLoading = false
     private(set) var lastErrorMessage: String?
+    private(set) var lastUpdatedAt: Date?
 
     struct WeatherData: Equatable {
         let temperature: Double
@@ -28,78 +28,206 @@ final class WeatherService {
 
     private init() {}
 
-    func fetchWeather() async {
-        guard !isLoading else { return }
+    func fetchWeather() async -> WeatherData? {
+        let cachedWeather = await MainActor.run { currentWeather }
+        let alreadyLoading = await MainActor.run { isLoading }
+        if alreadyLoading {
+            return cachedWeather
+        }
+
+        if let cachedWeather,
+           let lastUpdatedAt = await MainActor.run(body: { self.lastUpdatedAt }),
+           Date().timeIntervalSince(lastUpdatedAt) < 900 {
+            return cachedWeather
+        }
 
         await MainActor.run { self.isLoading = true }
         defer { Task { @MainActor in self.isLoading = false } }
 
-        let locationService = LocationService.shared
-        locationService.requestLocation()
-
-        // Wait briefly for location
-        for _ in 0..<10 {
-            if locationService.currentLocation != nil { break }
-            try? await Task.sleep(for: .milliseconds(300))
-        }
-
-        guard let location = locationService.currentLocation else {
-            await MainActor.run {
-                self.lastErrorMessage = "Location unavailable"
-                self.currentWeather = WeatherData(
-                    temperature: 75,
-                    condition: "Unknown",
-                    icon: "cloud.fill",
-                    humidity: 50,
-                    feelsLike: 75,
-                    location: "Location unavailable",
-                    actionableNote: "Enable location access for real weather data."
-                )
+        guard let location = await resolveLocation() else {
+            let authStatus = await MainActor.run { LocationService.shared.authorizationStatus }
+            let statusLabel: String
+            switch authStatus {
+            case .notDetermined: statusLabel = "not determined"
+            case .denied: statusLabel = "denied"
+            case .restricted: statusLabel = "restricted"
+            case .authorizedWhenInUse: statusLabel = "authorized (GPS timeout)"
+            case .authorizedAlways: statusLabel = "authorized always (GPS timeout)"
+            @unknown default: statusLabel = "unknown"
             }
-            return
+            await MainActor.run {
+                self.lastErrorMessage = "Location unavailable — \(statusLabel). Pull down to retry."
+            }
+            return cachedWeather
         }
 
         do {
-            let weather = try await WeatherKit.WeatherService.shared.weather(for: location)
-            let current = weather.currentWeather
-
-            let tempF = current.temperature.converted(to: .fahrenheit).value
-            let feelsLikeF = current.apparentTemperature.converted(to: .fahrenheit).value
-            let conditionText = current.condition.description
-            let symbol = current.symbolName
-            let humidity = Int(current.humidity * 100)
-
-            // Reverse geocode for location name
-            let locationName = await reverseGeocode(location)
-
-            let data = WeatherData(
-                temperature: tempF,
-                condition: conditionText,
-                icon: symbol,
-                humidity: humidity,
-                feelsLike: feelsLikeF,
-                location: locationName,
-                actionableNote: generateActionableNote(temp: tempF, condition: conditionText)
-            )
+            let data = try await fetchFromOpenMeteo(location: location)
 
             await MainActor.run {
                 self.lastErrorMessage = nil
                 self.currentWeather = data
+                self.lastUpdatedAt = Date()
             }
+            return data
         } catch {
             await MainActor.run {
                 self.lastErrorMessage = "Weather fetch failed: \(error.localizedDescription)"
-                self.currentWeather = WeatherData(
-                    temperature: 75,
-                    condition: "Clear",
-                    icon: "sun.max.fill",
-                    humidity: 45,
-                    feelsLike: 73,
-                    location: "Weather unavailable",
-                    actionableNote: "Weather data temporarily unavailable."
-                )
             }
+            return cachedWeather
         }
+    }
+
+    // MARK: - Open-Meteo API (free, no API key)
+
+    private func fetchFromOpenMeteo(location: CLLocation) async throws -> WeatherData {
+        let lat = location.coordinate.latitude
+        let lon = location.coordinate.longitude
+        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
+        components.queryItems = [
+            URLQueryItem(name: "latitude", value: String(lat)),
+            URLQueryItem(name: "longitude", value: String(lon)),
+            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,is_day"),
+            URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
+        ]
+
+        let (data, response) = try await URLSession.shared.data(from: components.url!)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let current = json["current"] as! [String: Any]
+
+        let temp = (current["temperature_2m"] as? Double) ?? 0
+        let feelsLike = (current["apparent_temperature"] as? Double) ?? temp
+        let humidity = (current["relative_humidity_2m"] as? Int) ?? 0
+        let weatherCode = (current["weather_code"] as? Int) ?? 0
+        let isDay = (current["is_day"] as? Int) ?? 1
+
+        let conditionText = Self.conditionText(for: weatherCode)
+        let symbol = Self.sfSymbol(for: weatherCode, isDay: isDay == 1)
+        let locationName = await resolveLocationName(for: location)
+
+        return WeatherData(
+            temperature: temp,
+            condition: conditionText,
+            icon: symbol,
+            humidity: humidity,
+            feelsLike: feelsLike,
+            location: locationName,
+            actionableNote: generateActionableNote(temp: temp, condition: conditionText)
+        )
+    }
+
+    // MARK: - WMO Weather Code Mapping
+
+    private static func conditionText(for code: Int) -> String {
+        switch code {
+        case 0: return "Clear"
+        case 1: return "Mostly Clear"
+        case 2: return "Partly Cloudy"
+        case 3: return "Overcast"
+        case 45, 48: return "Foggy"
+        case 51, 53, 55: return "Drizzle"
+        case 56, 57: return "Freezing Drizzle"
+        case 61, 63, 65: return "Rain"
+        case 66, 67: return "Freezing Rain"
+        case 71, 73, 75: return "Snow"
+        case 77: return "Snow Grains"
+        case 80, 81, 82: return "Rain Showers"
+        case 85, 86: return "Snow Showers"
+        case 95: return "Thunderstorm"
+        case 96, 99: return "Thunderstorm with Hail"
+        default: return "Unknown"
+        }
+    }
+
+    private static func sfSymbol(for code: Int, isDay: Bool) -> String {
+        switch code {
+        case 0:
+            return isDay ? "sun.max.fill" : "moon.stars.fill"
+        case 1:
+            return isDay ? "sun.min.fill" : "moon.fill"
+        case 2:
+            return isDay ? "cloud.sun.fill" : "cloud.moon.fill"
+        case 3:
+            return "cloud.fill"
+        case 45, 48:
+            return "cloud.fog.fill"
+        case 51, 53, 55:
+            return "cloud.drizzle.fill"
+        case 56, 57:
+            return "cloud.sleet.fill"
+        case 61, 63, 65:
+            return "cloud.rain.fill"
+        case 66, 67:
+            return "cloud.sleet.fill"
+        case 71, 73, 75, 77:
+            return "cloud.snow.fill"
+        case 80, 81, 82:
+            return "cloud.heavyrain.fill"
+        case 85, 86:
+            return "cloud.snow.fill"
+        case 95, 96, 99:
+            return "cloud.bolt.rain.fill"
+        default:
+            return "cloud.fill"
+        }
+    }
+
+    // MARK: - Location
+
+    private func resolveLocation() async -> CLLocation? {
+        let locationService = await MainActor.run { LocationService.shared }
+
+        // Check for existing location first
+        if let existing = await MainActor.run(body: { locationService.effectiveLocation }) {
+            return existing
+        }
+
+        // Check cached CLLocationManager location
+        if let cached = await MainActor.run(body: { locationService.currentLocation }) {
+            return cached
+        }
+
+        // Request permission if needed
+        let status = await MainActor.run { locationService.authorizationStatus }
+        if status == .notDetermined {
+            await MainActor.run { locationService.requestPermission() }
+            for _ in 0..<20 {
+                let s = await MainActor.run { locationService.authorizationStatus }
+                if s == .authorizedWhenInUse || s == .authorizedAlways { break }
+                if s == .denied || s == .restricted { return nil }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        } else if status == .denied || status == .restricted {
+            return nil
+        }
+
+        // Request a fresh location fix
+        await MainActor.run { locationService.requestLocation() }
+
+        // Wait up to 15 seconds for GPS fix
+        for _ in 0..<30 {
+            if let loc = await MainActor.run(body: {
+                locationService.effectiveLocation ?? locationService.currentLocation
+            }) {
+                return loc
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+
+        return nil
+    }
+
+    private func resolveLocationName(for location: CLLocation) async -> String {
+        let locationService = LocationService.shared
+        let customLocationName = await MainActor.run { locationService.currentLocationName }
+        if !customLocationName.isEmpty {
+            return customLocationName
+        }
+        return await reverseGeocode(location)
     }
 
     private func reverseGeocode(_ location: CLLocation) async -> String {

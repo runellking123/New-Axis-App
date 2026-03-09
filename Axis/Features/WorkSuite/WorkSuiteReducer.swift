@@ -308,7 +308,7 @@ struct WorkSuiteReducer {
                     return State.ProjectState(
                         id: p.uuid, title: p.title, workspace: p.workspace,
                         status: p.status, priority: p.priority, notes: p.notes,
-                        dueDate: p.dueDate, estimatedPomodoros: p.estimatedPomodoros,
+                        dueDate: p.dueDate, estimatedPomodoros: p.estimatedPomodoros ?? 0,
                         subtasks: subtasks
                     )
                 }

@@ -42,7 +42,6 @@ struct ExploreView: View {
             }
             .onAppear {
                 store.send(.onAppear)
-                store.send(.searchNearby)
             }
         }
     }
@@ -496,7 +495,7 @@ struct ExploreView: View {
     private var placesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Places")
+                Text(store.filteredPlaces.isEmpty ? "Recommendations" : "Places")
                     .font(.headline)
                 Spacer()
                 if let filter = store.activeStatFilter {
@@ -511,7 +510,7 @@ struct ExploreView: View {
                         .foregroundStyle(.orange)
                     }
                 }
-                Text("\(store.filteredPlaces.count)")
+                Text("\(displayedPlaceCount)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 8)
@@ -520,17 +519,26 @@ struct ExploreView: View {
                     .clipShape(Capsule())
             }
 
-            if store.filteredPlaces.isEmpty {
+            if store.filteredPlaces.isEmpty && filteredNearbyRecommendations.isEmpty {
                 GlassCard {
                     HStack {
                         Image(systemName: "mappin.slash")
                             .foregroundStyle(.secondary)
-                        Text("No places found. Add some spots to explore!")
+                        Text("No recommendations found for this location yet.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
+                }
+            } else if store.filteredPlaces.isEmpty {
+                ForEach(filteredNearbyRecommendations) { nearby in
+                    Button {
+                        store.send(.addNearbyPlace(nearby))
+                    } label: {
+                        recommendationCard(nearby)
+                    }
+                    .buttonStyle(.plain)
                 }
             } else {
                 ForEach(store.filteredPlaces) { place in
@@ -541,6 +549,47 @@ struct ExploreView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+        }
+    }
+
+    private var displayedPlaceCount: Int {
+        store.filteredPlaces.isEmpty ? filteredNearbyRecommendations.count : store.filteredPlaces.count
+    }
+
+    private var filteredNearbyRecommendations: [ExploreReducer.State.NearbyPlace] {
+        if store.selectedCategory == .all {
+            return store.nearbyResults
+        }
+        return store.nearbyResults.filter { $0.category == store.selectedCategory.filterKey }
+    }
+
+    private func recommendationCard(_ nearby: ExploreReducer.State.NearbyPlace) -> some View {
+        GlassCard {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: categoryIcon(nearby.category))
+                        .foregroundStyle(.orange)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(nearby.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                    Text(nearby.address)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(.orange)
             }
         }
     }
@@ -612,6 +661,7 @@ struct ExploreView: View {
         guard !trimmed.isEmpty else { return }
         let query = "\(name) \(trimmed)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
         guard let url = URL(string: "http://maps.apple.com/?q=\(query)") else { return }
+        guard UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
     }
 

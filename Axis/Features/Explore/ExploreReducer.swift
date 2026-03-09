@@ -42,6 +42,8 @@ struct ExploreReducer {
             var name: String
             var address: String
             var category: String
+            var phoneNumber: String = ""
+            var websiteURL: String = ""
         }
 
         struct SurpriseResult: Equatable, Identifiable {
@@ -99,6 +101,10 @@ struct ExploreReducer {
             var rating: Int
             var isVisited: Bool
             var isFavorite: Bool
+            var phoneNumber: String = ""
+            var websiteURL: String = ""
+            var hoursOfOperation: String = ""
+            var placeDescription: String = ""
 
             var categoryIcon: String {
                 switch category {
@@ -181,11 +187,17 @@ struct ExploreReducer {
         // Surprise Me from search
         case surpriseMeResultsLoaded([State.SurpriseResult])
         case saveSurpriseResult(State.SurpriseResult)
+        // Internal: update location display name from GPS
+        case locationDisplayNameUpdated(String)
         // Place detail
         case selectPlace(UUID?)
         case updatePlaceRating(UUID, Int)
         case updatePlaceNotes(UUID, String)
         case updatePlaceCategory(UUID, String)
+        case updatePlacePhone(UUID, String)
+        case updatePlaceWebsite(UUID, String)
+        case updatePlaceHours(UUID, String)
+        case updatePlaceDescription(UUID, String)
     }
 
     var body: some ReducerOf<Self> {
@@ -193,22 +205,34 @@ struct ExploreReducer {
             switch action {
             case .onAppear:
                 let persistence = PersistenceService.shared
-                let stored = persistence.fetchSavedPlaces()
-                state.places = stored.map { p in
-                    State.PlaceState(id: p.uuid, name: p.name, category: p.category, address: p.address, notes: p.notes, rating: p.rating, isVisited: p.isVisited, isFavorite: p.isFavorite)
+                // Clear old saved places to start fresh
+                persistence.deleteAllSavedPlaces()
+                state.places = []
+                return .run { send in
+                    // Request location permission and trigger a fresh GPS fix
+                    await MainActor.run {
+                        LocationService.shared.requestPermission()
+                        LocationService.shared.requestLocation()
+                    }
+                    // Wait up to 10 seconds for location to resolve
+                    var location: CLLocation?
+                    for _ in 0..<20 {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        location = await MainActor.run { LocationService.shared.effectiveLocation }
+                        if location != nil { break }
+                    }
+                    // Update display name from resolved location
+                    let name = await MainActor.run { LocationService.shared.currentLocationName }
+                    if !name.isEmpty {
+                        await send(.locationDisplayNameUpdated(name))
+                    }
+                    // Now trigger nearby search
+                    await send(.searchNearby)
                 }
-                // Request location permission from Explore tab
-                LocationService.shared.requestPermission()
-                // Set initial location display name
-                let locService = LocationService.shared
-                if !locService.currentLocationName.isEmpty {
-                    state.locationDisplayName = locService.currentLocationName
-                }
-                return .none
 
             case let .categoryChanged(category):
                 state.selectedCategory = category
-                return .none
+                return .send(.searchNearby)
 
             case let .searchTextChanged(text):
                 state.searchText = text
@@ -221,7 +245,8 @@ struct ExploreReducer {
                     try await Task.sleep(for: .milliseconds(300))
                     let request = MKLocalSearch.Request()
                     request.naturalLanguageQuery = text
-                    if let location = LocationService.shared.effectiveLocation {
+                    let location = await MainActor.run { LocationService.shared.effectiveLocation }
+                    if let location {
                         request.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 50000, longitudinalMeters: 50000)
                     }
                     let search = MKLocalSearch(request: request)
@@ -231,7 +256,9 @@ struct ExploreReducer {
                             State.NearbyPlace(
                                 name: item.name ?? "Unknown",
                                 address: item.placemark.title ?? "",
-                                category: Self.categorizeMapItem(item)
+                                category: Self.categorizeMapItem(item),
+                                phoneNumber: item.phoneNumber ?? "",
+                                websiteURL: item.url?.absoluteString ?? ""
                             )
                         }
                         await send(.searchResultsLoaded(Array(results)))
@@ -275,11 +302,16 @@ struct ExploreReducer {
                 guard !state.newPlaceName.trimmingCharacters(in: .whitespaces).isEmpty else {
                     return .none
                 }
+                // Find the nearby/search result to get phone/website
+                let matchedNearby = state.nearbyResults.first { $0.name == state.newPlaceName }
+                    ?? state.searchResults.first { $0.name == state.newPlaceName }
                 let place = SavedPlace(
                     name: state.newPlaceName,
                     category: state.newPlaceCategory,
                     address: state.newPlaceAddress,
-                    notes: state.newPlaceNotes
+                    notes: state.newPlaceNotes,
+                    phoneNumber: matchedNearby?.phoneNumber ?? "",
+                    websiteURL: matchedNearby?.websiteURL ?? ""
                 )
                 PersistenceService.shared.saveSavedPlace(place)
                 state.places.append(State.PlaceState(
@@ -290,7 +322,9 @@ struct ExploreReducer {
                     notes: place.notes,
                     rating: place.rating,
                     isVisited: place.isVisited,
-                    isFavorite: place.isFavorite
+                    isFavorite: place.isFavorite,
+                    phoneNumber: place.phoneNumber,
+                    websiteURL: place.websiteURL
                 ))
                 state.showAddPlace = false
                 HapticService.notification(.success)
@@ -342,7 +376,8 @@ struct ExploreReducer {
                     let randomCategory = categories.randomElement() ?? "restaurant"
                     let request = MKLocalSearch.Request()
                     request.naturalLanguageQuery = randomCategory
-                    if let location = LocationService.shared.effectiveLocation {
+                    let location = await MainActor.run { LocationService.shared.effectiveLocation }
+                    if let location {
                         request.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 15000, longitudinalMeters: 15000)
                     }
                     let search = MKLocalSearch(request: request)
@@ -377,7 +412,8 @@ struct ExploreReducer {
                     let randomCategory = categories.randomElement() ?? "restaurant"
                     let request = MKLocalSearch.Request()
                     request.naturalLanguageQuery = randomCategory
-                    if let location = LocationService.shared.effectiveLocation {
+                    let location = await MainActor.run { LocationService.shared.effectiveLocation }
+                    if let location {
                         request.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 15000, longitudinalMeters: 15000)
                     }
                     let search = MKLocalSearch(request: request)
@@ -416,51 +452,105 @@ struct ExploreReducer {
 
             case .searchNearby:
                 state.isSearchingNearby = true
+                state.nearbyResults = []
+                let selectedCategory = state.selectedCategory
+                let locationName = state.locationDisplayName
                 return .run { send in
-                    guard let location = LocationService.shared.effectiveLocation else {
+                    // Wait for location if not yet available
+                    var location = await MainActor.run { LocationService.shared.effectiveLocation }
+                    if location == nil {
+                        await MainActor.run {
+                            LocationService.shared.requestPermission()
+                            LocationService.shared.requestLocation()
+                        }
+                        // Retry up to 10 seconds waiting for location
+                        for _ in 0..<20 {
+                            try? await Task.sleep(for: .milliseconds(500))
+                            location = await MainActor.run { LocationService.shared.effectiveLocation }
+                            if location != nil { break }
+                        }
+                    }
+                    guard let loc = location else {
                         await send(.nearbyResultsLoaded([]))
                         return
                     }
-                    let request = MKLocalSearch.Request()
-                    request.naturalLanguageQuery = "restaurants, coffee, entertainment, parks"
-                    request.region = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 10000, longitudinalMeters: 10000)
-                    let search = MKLocalSearch(request: request)
-                    do {
-                        let response = try await search.start()
-                        let results = response.mapItems.prefix(8).map { item in
-                            State.NearbyPlace(
-                                name: item.name ?? "Unknown",
-                                address: item.placemark.title ?? "",
-                                category: Self.categorizeMapItem(item)
-                            )
+                    let queries = Self.queriesForCategory(selectedCategory)
+                    let forcedCategory = Self.fixedCategoryKey(for: selectedCategory)
+                    let region = MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 12000, longitudinalMeters: 12000)
+                    var collected: [State.NearbyPlace] = []
+                    var seen = Set<String>()
+
+                    for query in queries {
+                        let request = MKLocalSearch.Request()
+                        if !locationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            request.naturalLanguageQuery = "\(query) in \(locationName)"
+                        } else {
+                            request.naturalLanguageQuery = query
                         }
-                        await send(.nearbyResultsLoaded(Array(results)))
-                    } catch {
-                        await send(.nearbyResultsLoaded([]))
+                        request.region = region
+                        let search = MKLocalSearch(request: request)
+                        do {
+                            let response = try await search.start()
+                            for item in response.mapItems {
+                                let name = item.name ?? "Unknown"
+                                let address = item.placemark.title ?? ""
+                                let key = "\(name.lowercased())|\(address.lowercased())"
+                                guard !seen.contains(key) else { continue }
+                                seen.insert(key)
+                                collected.append(State.NearbyPlace(
+                                    name: name,
+                                    address: address,
+                                    category: forcedCategory ?? Self.categorizeMapItem(item),
+                                    phoneNumber: item.phoneNumber ?? "",
+                                    websiteURL: item.url?.absoluteString ?? ""
+                                ))
+                                if collected.count == 12 { break }
+                            }
+                        } catch {
+                            continue
+                        }
+                        if collected.count == 12 { break }
                     }
+                    await send(.nearbyResultsLoaded(collected))
                 }
 
             case let .nearbyResultsLoaded(results):
                 state.nearbyResults = results
                 state.isSearchingNearby = false
-                // Update location display name
-                let locName = LocationService.shared.currentLocationName
-                if !locName.isEmpty {
-                    state.locationDisplayName = locName
+                return .run { send in
+                    let locName = await MainActor.run { LocationService.shared.currentLocationName }
+                    if !locName.isEmpty {
+                        await send(.locationDisplayNameUpdated(locName))
+                    }
                 }
-                return .none
 
             case let .searchResultsLoaded(results):
                 state.searchResults = results
                 return .none
 
             case let .addNearbyPlace(nearby):
-                // Pre-fill the add place form
-                state.newPlaceName = nearby.name
-                state.newPlaceAddress = nearby.address
-                state.newPlaceCategory = nearby.category
-                state.newPlaceNotes = ""
-                state.showAddPlace = true
+                // Save directly instead of showing add form
+                let place = SavedPlace(
+                    name: nearby.name,
+                    category: nearby.category,
+                    address: nearby.address,
+                    phoneNumber: nearby.phoneNumber,
+                    websiteURL: nearby.websiteURL
+                )
+                PersistenceService.shared.saveSavedPlace(place)
+                state.places.append(State.PlaceState(
+                    id: place.uuid,
+                    name: place.name,
+                    category: place.category,
+                    address: place.address,
+                    notes: "",
+                    rating: 0,
+                    isVisited: false,
+                    isFavorite: false,
+                    phoneNumber: nearby.phoneNumber,
+                    websiteURL: nearby.websiteURL
+                ))
+                HapticService.notification(.success)
                 return .none
 
             // MARK: - Location Bar
@@ -475,7 +565,7 @@ struct ExploreReducer {
                 state.isSearchingLocation = true
                 return .run { send in
                     let success = await LocationService.shared.searchCity(query)
-                    let name = LocationService.shared.currentLocationName
+                    let name = await MainActor.run { LocationService.shared.currentLocationName }
                     await send(.locationSearchCompleted(name: name, success: success))
                 }
 
@@ -485,29 +575,39 @@ struct ExploreReducer {
                     state.locationDisplayName = name
                     state.isUsingCustomLocation = true
                     state.locationBarText = ""
+                    state.searchResults = []
                     // Refresh nearby with new location
                     return .send(.searchNearby)
                 }
                 return .none
 
             case .useMyLocation:
-                LocationService.shared.resetToCurrentLocation()
                 state.isUsingCustomLocation = false
                 state.locationBarText = ""
-                let locName = LocationService.shared.currentLocationName
-                if !locName.isEmpty {
-                    state.locationDisplayName = locName
-                } else {
-                    state.locationDisplayName = "Current Location"
+                state.locationDisplayName = "Current Location"
+                return .run { send in
+                    await MainActor.run {
+                        LocationService.shared.resetToCurrentLocation()
+                        LocationService.shared.requestLocation()
+                    }
+                    // Wait for GPS to deliver a fresh location
+                    for _ in 0..<20 {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        let loc = await MainActor.run { LocationService.shared.currentLocation }
+                        if loc != nil { break }
+                    }
+                    let locName = await MainActor.run { LocationService.shared.currentLocationName }
+                    if !locName.isEmpty {
+                        await send(.locationDisplayNameUpdated(locName))
+                    }
+                    await send(.searchNearby)
                 }
-                return .send(.searchNearby)
 
             case let .saveSurpriseResult(result):
                 let place = SavedPlace(
                     name: result.name,
                     category: result.category,
-                    address: result.address,
-                    notes: ""
+                    address: result.address
                 )
                 PersistenceService.shared.saveSavedPlace(place)
                 state.places.append(State.PlaceState(
@@ -515,12 +615,18 @@ struct ExploreReducer {
                     name: place.name,
                     category: place.category,
                     address: place.address,
-                    notes: place.notes,
-                    rating: place.rating,
-                    isVisited: place.isVisited,
-                    isFavorite: place.isFavorite
+                    notes: "",
+                    rating: 0,
+                    isVisited: false,
+                    isFavorite: false
                 ))
                 HapticService.notification(.success)
+                return .none
+
+            case let .locationDisplayNameUpdated(name):
+                if !name.isEmpty {
+                    state.locationDisplayName = name
+                }
                 return .none
 
             // MARK: - Place Detail
@@ -564,21 +670,96 @@ struct ExploreReducer {
                     }
                 }
                 return .none
+
+            case let .updatePlacePhone(id, phone):
+                if let index = state.places.firstIndex(where: { $0.id == id }) {
+                    state.places[index].phoneNumber = phone
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSavedPlaces()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.phoneNumber = phone
+                        persistence.updateSavedPlaces()
+                    }
+                }
+                return .none
+
+            case let .updatePlaceWebsite(id, url):
+                if let index = state.places.firstIndex(where: { $0.id == id }) {
+                    state.places[index].websiteURL = url
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSavedPlaces()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.websiteURL = url
+                        persistence.updateSavedPlaces()
+                    }
+                }
+                return .none
+
+            case let .updatePlaceHours(id, hours):
+                if let index = state.places.firstIndex(where: { $0.id == id }) {
+                    state.places[index].hoursOfOperation = hours
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSavedPlaces()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.hoursOfOperation = hours
+                        persistence.updateSavedPlaces()
+                    }
+                }
+                return .none
+
+            case let .updatePlaceDescription(id, desc):
+                if let index = state.places.firstIndex(where: { $0.id == id }) {
+                    state.places[index].placeDescription = desc
+                    let persistence = PersistenceService.shared
+                    let stored = persistence.fetchSavedPlaces()
+                    if let match = stored.first(where: { $0.uuid == id }) {
+                        match.placeDescription = desc
+                        persistence.updateSavedPlaces()
+                    }
+                }
+                return .none
             }
         }
     }
 
     private enum SearchDebounceID { case search }
 
+    private static func queriesForCategory(_ category: State.Category) -> [String] {
+        switch category {
+        case .all:
+            return ["restaurants", "events", "things to do", "travel attractions"]
+        case .dining:
+            return ["restaurants", "coffee shops", "brunch", "dessert"]
+        case .events:
+            return ["live music", "theaters", "events", "museums"]
+        case .activities:
+            return ["parks", "fitness", "hiking", "activities"]
+        case .travel:
+            return ["hotels", "landmarks", "tourist attractions", "airports"]
+        }
+    }
+
+    private static func fixedCategoryKey(for category: State.Category) -> String? {
+        switch category {
+        case .all: return nil
+        case .dining: return "dining"
+        case .events: return "events"
+        case .activities: return "activities"
+        case .travel: return "travel"
+        }
+    }
+
     private static func categorizeMapItem(_ item: MKMapItem) -> String {
         if let category = item.pointOfInterestCategory {
             switch category {
             case .restaurant, .bakery, .cafe, .brewery, .winery:
                 return "dining"
-            case .nightlife, .theater, .movieTheater:
+            case .nightlife, .theater, .movieTheater, .museum:
                 return "events"
             case .park, .beach, .nationalPark, .fitnessCenter:
                 return "activities"
+            case .airport, .hotel, .publicTransport:
+                return "travel"
             default:
                 return "activities"
             }

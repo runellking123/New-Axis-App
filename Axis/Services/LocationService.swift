@@ -22,9 +22,19 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        authorizationStatus = manager.authorizationStatus
+        currentLocation = manager.location
+        if let currentLocation {
+            reverseGeocode(currentLocation)
+        }
     }
 
     func requestPermission() {
+        authorizationStatus = manager.authorizationStatus
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            requestLocation()
+            return
+        }
         manager.requestWhenInUseAuthorization()
     }
 

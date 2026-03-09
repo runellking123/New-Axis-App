@@ -30,10 +30,23 @@
     <string>AXIS reads sleep and activity data to calculate your Energy Score and suggest optimal work windows.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>AXIS uses your location for contextual weather, nearby restaurant suggestions, and automatic mode switching.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>AXIS needs reminders access to integrate your reminders into the daily plan and task management.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>AXIS uses your microphone for Quick Capture voice-to-text and meeting transcription.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>AXIS uses speech recognition to transcribe your Quick Capture voice notes into text.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>axis</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>com.axis.app</string>
+        </dict>
+    </array>
     <key>UILaunchScreen</key>
     <dict/>
     <key>UISupportedInterfaceOrientations</key>

@@ -36,6 +36,9 @@ struct PlaceDetailView: View {
                     }
                 }
 
+                // Category-specific details
+                categoryDetailSection
+
                 // Rating
                 GlassCard {
                     VStack(alignment: .leading, spacing: 8) {
@@ -161,6 +164,148 @@ struct PlaceDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    @ViewBuilder
+    private var categoryDetailSection: some View {
+        switch place.category {
+        case "dining":
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Contact & Hours")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    if !place.phoneNumber.isEmpty {
+                        phoneRow
+                    }
+                    if !place.websiteURL.isEmpty {
+                        websiteRow
+                    }
+                    hoursRow
+                }
+            }
+        case "events":
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Event Details")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "text.alignleft")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                            .frame(width: 20)
+                        TextField("Add event details...", text: Binding(
+                            get: { place.placeDescription },
+                            set: { store.send(.updatePlaceDescription(place.id, $0)) }
+                        ), axis: .vertical)
+                        .font(.subheadline)
+                        .lineLimit(3...8)
+                    }
+                    if !place.websiteURL.isEmpty {
+                        websiteRow
+                    }
+                }
+            }
+        case "activities":
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Hours & Info")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    if !place.phoneNumber.isEmpty {
+                        phoneRow
+                    }
+                    hoursRow
+                    if !place.websiteURL.isEmpty {
+                        websiteRow
+                    }
+                }
+            }
+        case "travel":
+            if !place.phoneNumber.isEmpty || !place.websiteURL.isEmpty {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Details")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        if !place.phoneNumber.isEmpty {
+                            phoneRow
+                        }
+                        if !place.websiteURL.isEmpty {
+                            websiteRow
+                        }
+                    }
+                }
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    private var phoneRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "phone.fill")
+                .font(.subheadline)
+                .foregroundStyle(.orange)
+                .frame(width: 20)
+            Text(place.phoneNumber)
+                .font(.subheadline)
+            Spacer()
+            if let url = URL(string: "tel:\(place.phoneNumber.replacingOccurrences(of: " ", with: ""))") {
+                Button {
+                    UIApplication.shared.open(url)
+                } label: {
+                    Image(systemName: "phone.arrow.up.right")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .padding(6)
+                        .background(Color.orange.opacity(0.15))
+                        .clipShape(Circle())
+                }
+            }
+        }
+    }
+
+    private var websiteRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "globe")
+                .font(.subheadline)
+                .foregroundStyle(.orange)
+                .frame(width: 20)
+            Text(place.websiteURL)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer()
+            if let url = URL(string: place.websiteURL) {
+                Button {
+                    UIApplication.shared.open(url)
+                } label: {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .padding(6)
+                        .background(Color.orange.opacity(0.15))
+                        .clipShape(Circle())
+                }
+            }
+        }
+    }
+
+    private var hoursRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "clock")
+                .font(.subheadline)
+                .foregroundStyle(.orange)
+                .frame(width: 20)
+            TextField("Add hours...", text: Binding(
+                get: { place.hoursOfOperation },
+                set: { store.send(.updatePlaceHours(place.id, $0)) }
+            ), axis: .vertical)
+            .font(.subheadline)
+            .lineLimit(1...3)
+        }
+    }
+
     private var mapSection: some View {
         Map {
             // Empty map centered on address
@@ -192,6 +337,7 @@ struct PlaceDetailView: View {
     private func openInMaps() {
         let query = "\(place.name) \(place.address)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? place.address
         guard let url = URL(string: "http://maps.apple.com/?q=\(query)") else { return }
+        guard UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
     }
 }

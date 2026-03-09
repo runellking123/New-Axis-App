@@ -225,6 +225,13 @@ final class PersistenceService: @unchecked Sendable {
         _ = saveContext("updateSavedPlaces")
     }
 
+    func deleteAllSavedPlaces() {
+        guard let context = modelContext else { return }
+        let places = fetchSavedPlaces()
+        for place in places { context.delete(place) }
+        _ = saveContext("deleteAllSavedPlaces")
+    }
+
     // MARK: - Captured Notes
 
     func fetchCapturedNotes() -> [CapturedNote] {
@@ -386,6 +393,159 @@ final class PersistenceService: @unchecked Sendable {
         _ = saveContext("updateFocusProfiles")
     }
 
+    // MARK: - EA Tasks
+
+    func fetchEATasks() -> [EATask] {
+        let descriptor = FetchDescriptor<EATask>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        return fetchAll(EATask.self, descriptor: descriptor, operation: "fetchEATasks")
+    }
+
+    func fetchEATasksByProject(projectId: UUID) -> [EATask] {
+        let descriptor = FetchDescriptor<EATask>(
+            predicate: #Predicate { $0.projectId == projectId },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        return fetchAll(EATask.self, descriptor: descriptor, operation: "fetchEATasksByProject")
+    }
+
+    func saveEATask(_ task: EATask) {
+        guard let context = modelContext else { return }
+        context.insert(task)
+        _ = saveContext("saveEATask")
+    }
+
+    func deleteEATask(_ task: EATask) {
+        guard let context = modelContext else { return }
+        context.delete(task)
+        _ = saveContext("deleteEATask")
+    }
+
+    func updateEATasks() {
+        _ = saveContext("updateEATasks")
+    }
+
+    // MARK: - EA Projects
+
+    func fetchEAProjects() -> [EAProject] {
+        let descriptor = FetchDescriptor<EAProject>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        return fetchAll(EAProject.self, descriptor: descriptor, operation: "fetchEAProjects")
+    }
+
+    func saveEAProject(_ project: EAProject) {
+        guard let context = modelContext else { return }
+        context.insert(project)
+        _ = saveContext("saveEAProject")
+    }
+
+    func deleteEAProject(_ project: EAProject) {
+        guard let context = modelContext else { return }
+        context.delete(project)
+        _ = saveContext("deleteEAProject")
+    }
+
+    func updateEAProjects() {
+        _ = saveContext("updateEAProjects")
+    }
+
+    // MARK: - EA Milestones
+
+    func fetchEAMilestones(forProject projectId: UUID) -> [EAMilestone] {
+        let descriptor = FetchDescriptor<EAMilestone>(
+            predicate: #Predicate { $0.projectId == projectId },
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        return fetchAll(EAMilestone.self, descriptor: descriptor, operation: "fetchEAMilestones")
+    }
+
+    func saveEAMilestone(_ milestone: EAMilestone) {
+        guard let context = modelContext else { return }
+        context.insert(milestone)
+        _ = saveContext("saveEAMilestone")
+    }
+
+    func deleteEAMilestone(_ milestone: EAMilestone) {
+        guard let context = modelContext else { return }
+        context.delete(milestone)
+        _ = saveContext("deleteEAMilestone")
+    }
+
+    func updateEAMilestones() {
+        _ = saveContext("updateEAMilestones")
+    }
+
+    // MARK: - EA Daily Plans
+
+    func fetchEADailyPlan(for date: Date) -> EADailyPlan? {
+        let descriptor = FetchDescriptor<EADailyPlan>(sortBy: [SortDescriptor(\.generatedAt, order: .reverse)])
+        return fetchAll(EADailyPlan.self, descriptor: descriptor, operation: "fetchEADailyPlan")
+            .first { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+
+    func saveEADailyPlan(_ plan: EADailyPlan) {
+        guard let context = modelContext else { return }
+        context.insert(plan)
+        _ = saveContext("saveEADailyPlan")
+    }
+
+    func deleteEADailyPlan(_ plan: EADailyPlan) {
+        guard let context = modelContext else { return }
+        context.delete(plan)
+        _ = saveContext("deleteEADailyPlan")
+    }
+
+    // MARK: - EA Time Blocks
+
+    func fetchEATimeBlocks(forPlan planId: UUID) -> [EATimeBlock] {
+        let descriptor = FetchDescriptor<EATimeBlock>(
+            predicate: #Predicate { $0.planId == planId },
+            sortBy: [SortDescriptor(\.startTime)]
+        )
+        return fetchAll(EATimeBlock.self, descriptor: descriptor, operation: "fetchEATimeBlocks")
+    }
+
+    func saveEATimeBlock(_ timeBlock: EATimeBlock) {
+        guard let context = modelContext else { return }
+        context.insert(timeBlock)
+        _ = saveContext("saveEATimeBlock")
+    }
+
+    func deleteEATimeBlock(_ timeBlock: EATimeBlock) {
+        guard let context = modelContext else { return }
+        context.delete(timeBlock)
+        _ = saveContext("deleteEATimeBlock")
+    }
+
+    // MARK: - EA Inbox Items
+
+    func fetchEAInboxItems() -> [EAInboxItem] {
+        let descriptor = FetchDescriptor<EAInboxItem>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        return fetchAll(EAInboxItem.self, descriptor: descriptor, operation: "fetchEAInboxItems")
+    }
+
+    func fetchUnreviewedEAInboxItems() -> [EAInboxItem] {
+        let descriptor = FetchDescriptor<EAInboxItem>(
+            predicate: #Predicate { $0.isReviewed == false },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        return fetchAll(EAInboxItem.self, descriptor: descriptor, operation: "fetchUnreviewedEAInboxItems")
+    }
+
+    func saveEAInboxItem(_ inboxItem: EAInboxItem) {
+        guard let context = modelContext else { return }
+        context.insert(inboxItem)
+        _ = saveContext("saveEAInboxItem")
+    }
+
+    func deleteEAInboxItem(_ inboxItem: EAInboxItem) {
+        guard let context = modelContext else { return }
+        context.delete(inboxItem)
+        _ = saveContext("deleteEAInboxItem")
+    }
+
+    func updateEAInboxItems() {
+        _ = saveContext("updateEAInboxItems")
+    }
+
     // MARK: - QA Utilities
 
     /// Debug utility for local QA resets. Removes all persisted records.
@@ -407,6 +567,15 @@ final class PersistenceService: @unchecked Sendable {
         fetchCapturedNotes().forEach { context.delete($0) }
         fetchPriorityItems().forEach { context.delete($0) }
         fetchFocusSessions().forEach { context.delete($0) }
+        fetchEATasks().forEach { context.delete($0) }
+        fetchEAProjects().forEach { context.delete($0) }
+        let milestoneDescriptor = FetchDescriptor<EAMilestone>()
+        fetchAll(EAMilestone.self, descriptor: milestoneDescriptor, operation: "resetAllData.fetchEAMilestones").forEach { context.delete($0) }
+        let dailyPlanDescriptor = FetchDescriptor<EADailyPlan>()
+        fetchAll(EADailyPlan.self, descriptor: dailyPlanDescriptor, operation: "resetAllData.fetchEADailyPlans").forEach { context.delete($0) }
+        let timeBlockDescriptor = FetchDescriptor<EATimeBlock>()
+        fetchAll(EATimeBlock.self, descriptor: timeBlockDescriptor, operation: "resetAllData.fetchEATimeBlocks").forEach { context.delete($0) }
+        fetchEAInboxItems().forEach { context.delete($0) }
         if let profile = fetchUserProfile() {
             context.delete(profile)
         }

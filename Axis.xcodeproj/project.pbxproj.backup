@@ -8,37 +8,21 @@
 
 /* Begin PBXBuildFile section */
 		0936D020D5E80572A67D9749 /* WaterEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6BE70596A528662EA250653 /* WaterEntry.swift */; };
-		16697EE0A779FBFDB535AD26 /* EATaskReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027B771B1C65873CEFDAABD4 /* EATaskReducer.swift */; };
-		1AE3F87056A52EBACA00BA39 /* EADashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8E1D33E91C6B00B7D9E589 /* EADashboardView.swift */; };
-		23AD7E142FBAADC6A56D0A77 /* EAProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5CCFCDB81B382F487EC1A4 /* EAProject.swift */; };
-		29BD639D3F43C96504054467 /* EADashboardReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF385E57988A203FA9AC455 /* EADashboardReducer.swift */; };
 		2BF50B6B0D337CB261EB8466 /* JournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF0F0EABAC77488F760411E /* JournalEntry.swift */; };
-		36B4129A528B424F17292ED4 /* EAMilestone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25666BF55714F55644F0A84B /* EAMilestone.swift */; };
 		39B8323A1B79D01398608782 /* Interaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED5F8B495758CC0C145CB39 /* Interaction.swift */; };
-		3DF3724AF5BB7AE1B019ADC4 /* SleepDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D8671ACDABC7CF4DB99AFE /* SleepDetailView.swift */; };
-		445BDF50E7D3210850F92D51 /* EATimeBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9F8E50B87A0C996A63DBA4 /* EATimeBlock.swift */; };
-		47729302AC196EA07BD2625C /* EAProjectReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037CDE58F18FB886F57A2D63 /* EAProjectReducer.swift */; };
 		4D6100354C4884568B3CD018 /* TrendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AFE6899A8E91E4FCA33500 /* TrendService.swift */; };
-		53146FAA4B7A1A394D1120AF /* EAPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCEE92657EEDC2D3A508EF6 /* EAPlannerView.swift */; };
 		55483D59E6B544099E778280 /* HabitCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07F7EA83630A6C9DA0A7427 /* HabitCompletion.swift */; };
-		5B61916BAC2F4F78784D357B /* EAInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD6B41549F91185C04FB4EA6 /* EAInboxItem.swift */; };
 		5CF9444EB1094541F4661D3D /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CDEA4174F253C9F21AFD75 /* AudioService.swift */; };
 		614F357343A3F0CAD28D029F /* Subtask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BD786DFB311D43DF079264 /* Subtask.swift */; };
-		72E9ACD5DB5D83F8F1D8893E /* EAPlannerReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C1DDB6C473A3075E49EBA5 /* EAPlannerReducer.swift */; };
-		755ECBB433C15A4962C894F0 /* EATask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2261D417D0B220B374209349 /* EATask.swift */; };
 		77BE7E5A81CFBBC444B450DD /* Trip.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11F096C6BE71B5F863F0557 /* Trip.swift */; };
 		79A8D11F73D2A9120457E379 /* PlacePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D7A4B3AD8FA0F390910256C /* PlacePhoto.swift */; };
-		7CD0DD571628AD46411F0526 /* EACaptureResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498DD18A08E44FE103CE4598 /* EACaptureResultSheet.swift */; };
-		7FAAE5D0BAD33F3DB41D0F84 /* MetricDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1EBABED5E29BFB6A0E8EC97 /* MetricDetailView.swift */; };
 		7FE791F7B3AB1ED8F5DD49E2 /* BucketListGoal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150A103BEF4A9DE77EA32C12 /* BucketListGoal.swift */; };
 		80EDE13248B373205B3B9802 /* FocusProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78084D847F5FCC9D9BDD246 /* FocusProfile.swift */; };
 		8D13463E20A9D69069AEE30C /* InteractionLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB3B3A3787C03C3DFEE5229 /* InteractionLogView.swift */; };
-		8F41AE3C621434B16F9171AF /* EAQuickCaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC61CE163D4FE43A1F42698A /* EAQuickCaptureOverlay.swift */; };
 		90FF0AB6997829ECF4C1C488 /* Recipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F32965C016EAAE1AD4252BB /* Recipe.swift */; };
 		913A901227D7E7652FED7DF1 /* ShoppingList.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDFD71A9A2220C5A092AA71B /* ShoppingList.swift */; };
 		961C48031E49F62FC9885A90 /* MoodEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 450D2624804234DA272C5C8E /* MoodEntry.swift */; };
 		9A84717073F1B0F757EDB680 /* RoutineCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886744F58C209654AB2DB132 /* RoutineCompletion.swift */; };
-		A02D7D5ACF0C6614142FF1D6 /* EAProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90304734B32FD29C4C9128C8 /* EAProjectListView.swift */; };
 		A10000000000000000000001 /* AxisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* AxisApp.swift */; };
 		A10000000000000000000002 /* AppReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* AppReducer.swift */; };
 		A10000000000000000000003 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* AppView.swift */; };
@@ -90,7 +74,6 @@
 		A10000000000000000000044 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* SettingsView.swift */; };
 		A10000000000000000000045 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* OnboardingView.swift */; };
 		A10000000000000000000046 /* AxisAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000046 /* AxisAppIntents.swift */; };
-		A887435D791B028E3D8DF258 /* StepsDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22256BD2C7057E9798C3289 /* StepsDetailView.swift */; };
 		ACDE0F3FC267E2B08B16BB0E /* FamilyMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28CC6ECC9EAA2D25AF58F5CA /* FamilyMember.swift */; };
 		B1BA28162E6F3750011CFAD4 /* TrendsReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4B9B58532F90DCB4F7C8676 /* TrendsReducer.swift */; };
 		BB0000000000000000000001 /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* Goal.swift */; };
@@ -102,7 +85,6 @@
 		CE0F979FE130A290195D974B /* GroupManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FA1A4DF730053D30D9FD92 /* GroupManagementView.swift */; };
 		CE265282CC403E8C2DCB4FB3 /* Chore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED9BBADA2D2EF2D70F6C98C6 /* Chore.swift */; };
 		D3AF835FE9F707833F19CA2D /* ItineraryDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A22AA418E63D2795750F473 /* ItineraryDay.swift */; };
-		D48A016D36F14F4AD117B6EB /* AIExecutiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B306755418842A07083FCE5E /* AIExecutiveService.swift */; };
 		D5503A8E533CE1D129C6BF1C /* TrendSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F650BFA260516CEA83FD58D3 /* TrendSnapshot.swift */; };
 		DD0000000000000000000001 /* PlaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000001 /* PlaceDetailView.swift */; };
 		DD0000000000000000000002 /* PriorityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000002 /* PriorityDetailView.swift */; };
@@ -116,45 +98,51 @@
 		EAC267D0586540C3D64931CA /* RoutineStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1044935D5A4184C2BE7EFF /* RoutineStep.swift */; };
 		ED86207D61A5EF93224A26B9 /* MiniChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC964EA8E4571942AA5405C /* MiniChartView.swift */; };
 		F73E7A9900700EB1D60DE3E1 /* TrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518157A90CA40FD406467EC9 /* TrendsView.swift */; };
-		F91D73BEA2F39E40F918B883 /* EADailyPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 185F48783064B5807E712D13 /* EADailyPlan.swift */; };
 		FA771897AF6AAB684568E33C /* ShoppingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F216F873325B36C3BC7BAA69 /* ShoppingItem.swift */; };
-		FC6E5E2E9614F5FC04911A82 /* EATaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD23A5D1271ABB59BBE4117C /* EATaskListView.swift */; };
+		097515B9DBB147C2E31D74D3 /* EAPlannerReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C1DDB6C473A3075E49EBA5 /* EAPlannerReducer.swift */; };
+		0F54DAE2FA5F438752290187 /* EAMilestone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25666BF55714F55644F0A84B /* EAMilestone.swift */; };
+		17186E9ECC757F07FCBCE3C5 /* EAProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90304734B32FD29C4C9128C8 /* EAProjectListView.swift */; };
+		24E05525EDABBCB0CC4EBC66 /* EAPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCEE92657EEDC2D3A508EF6 /* EAPlannerView.swift */; };
+		271C8BC263988C0EA187CCF1 /* SleepDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D8671ACDABC7CF4DB99AFE /* SleepDetailView.swift */; };
+		2CEC6A1489F07B3A6FD5A97F /* EAQuickCaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC61CE163D4FE43A1F42698A /* EAQuickCaptureOverlay.swift */; };
+		5B9AE5CAA9CE71B3380BF76E /* EADashboardReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF385E57988A203FA9AC455 /* EADashboardReducer.swift */; };
+		6347C8333DA4AAAC8CFA116C /* EATaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD23A5D1271ABB59BBE4117C /* EATaskListView.swift */; };
+		643FE8FCC6D64969D3ACE00F /* StepsDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22256BD2C7057E9798C3289 /* StepsDetailView.swift */; };
+		9511BEE6C8292A563F8D0158 /* EATaskReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027B771B1C65873CEFDAABD4 /* EATaskReducer.swift */; };
+		97C4FECEF3EB0C661305AC79 /* AIExecutiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B306755418842A07083FCE5E /* AIExecutiveService.swift */; };
+		B1185FB18E948BC70BE3CC2C /* EATask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2261D417D0B220B374209349 /* EATask.swift */; };
+		BBECFEBA2D3F980E23DC9EF9 /* EADailyPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 185F48783064B5807E712D13 /* EADailyPlan.swift */; };
+		C9089AA9E01BE93AC9E0CF73 /* EACaptureResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498DD18A08E44FE103CE4598 /* EACaptureResultSheet.swift */; };
+		CE73D073A45A0493C1959881 /* MetricDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1EBABED5E29BFB6A0E8EC97 /* MetricDetailView.swift */; };
+		D18920D346E1FB8ECC606144 /* EAProjectReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037CDE58F18FB886F57A2D63 /* EAProjectReducer.swift */; };
+		DBD538A6B365BD3875F882A9 /* EADashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8E1D33E91C6B00B7D9E589 /* EADashboardView.swift */; };
+		DFAA59A6C00F046AEC48F660 /* EAProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5CCFCDB81B382F487EC1A4 /* EAProject.swift */; };
+		EAEC120FF8BD943D36AD8D7C /* EAInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD6B41549F91185C04FB4EA6 /* EAInboxItem.swift */; };
+		FF14B565DC20A4AEDA136260 /* EATimeBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9F8E50B87A0C996A63DBA4 /* EATimeBlock.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		027B771B1C65873CEFDAABD4 /* EATaskReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EATaskReducer.swift; sourceTree = "<group>"; };
-		037CDE58F18FB886F57A2D63 /* EAProjectReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAProjectReducer.swift; sourceTree = "<group>"; };
 		0F32965C016EAAE1AD4252BB /* Recipe.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Recipe.swift; sourceTree = "<group>"; };
 		104234F7E6F2ED5EF8F697D6 /* ContactGroup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/ContactGroup.swift; sourceTree = SOURCE_ROOT; };
 		150A103BEF4A9DE77EA32C12 /* BucketListGoal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BucketListGoal.swift; sourceTree = "<group>"; };
-		15C1DDB6C473A3075E49EBA5 /* EAPlannerReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAPlannerReducer.swift; sourceTree = "<group>"; };
-		185F48783064B5807E712D13 /* EADailyPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EADailyPlan.swift; sourceTree = "<group>"; };
 		18618A8A5F7F3B8BAC086E50 /* Habit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Habit.swift; sourceTree = "<group>"; };
-		1D9F8E50B87A0C996A63DBA4 /* EATimeBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EATimeBlock.swift; sourceTree = "<group>"; };
-		2261D417D0B220B374209349 /* EATask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EATask.swift; sourceTree = "<group>"; };
-		25666BF55714F55644F0A84B /* EAMilestone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAMilestone.swift; sourceTree = "<group>"; };
 		28CC6ECC9EAA2D25AF58F5CA /* FamilyMember.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FamilyMember.swift; sourceTree = "<group>"; };
 		2A22AA418E63D2795750F473 /* ItineraryDay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ItineraryDay.swift; sourceTree = "<group>"; };
 		3ED5F8B495758CC0C145CB39 /* Interaction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/Interaction.swift; sourceTree = SOURCE_ROOT; };
 		450D2624804234DA272C5C8E /* MoodEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MoodEntry.swift; sourceTree = "<group>"; };
-		498DD18A08E44FE103CE4598 /* EACaptureResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EACaptureResultSheet.swift; sourceTree = "<group>"; };
 		4D7A4B3AD8FA0F390910256C /* PlacePhoto.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlacePhoto.swift; sourceTree = "<group>"; };
 		518157A90CA40FD406467EC9 /* TrendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendsView.swift; sourceTree = "<group>"; };
-		5B8E1D33E91C6B00B7D9E589 /* EADashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EADashboardView.swift; sourceTree = "<group>"; };
 		5EB3B3A3787C03C3DFEE5229 /* InteractionLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Features/SocialCircle/InteractionLogView.swift; sourceTree = SOURCE_ROOT; };
-		6EF385E57988A203FA9AC455 /* EADashboardReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EADashboardReducer.swift; sourceTree = "<group>"; };
 		78AFE6899A8E91E4FCA33500 /* TrendService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendService.swift; sourceTree = "<group>"; };
 		867AF4E55F95838D665EA2AF /* Routine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Routine.swift; sourceTree = "<group>"; };
 		886744F58C209654AB2DB132 /* RoutineCompletion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineCompletion.swift; sourceTree = "<group>"; };
 		88BD786DFB311D43DF079264 /* Subtask.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/Subtask.swift; sourceTree = SOURCE_ROOT; };
-		90304734B32FD29C4C9128C8 /* EAProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAProjectListView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000001 /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
 		AA0000000000000000000002 /* Milestone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Milestone.swift; sourceTree = "<group>"; };
 		AA0000000000000000000003 /* FocusSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSession.swift; sourceTree = "<group>"; };
 		AA0000000000000000000004 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		AA0000000000000000000005 /* ContactPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPickerView.swift; sourceTree = "<group>"; };
 		ACF0F0EABAC77488F760411E /* JournalEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JournalEntry.swift; sourceTree = "<group>"; };
-		AD23A5D1271ABB59BBE4117C /* EATaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EATaskListView.swift; sourceTree = "<group>"; };
 		AFC964EA8E4571942AA5405C /* MiniChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MiniChartView.swift; sourceTree = "<group>"; };
 		B10000000000000000000001 /* AxisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisApp.swift; sourceTree = "<group>"; };
 		B10000000000000000000002 /* AppReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReducer.swift; sourceTree = "<group>"; };
@@ -208,20 +196,14 @@
 		B10000000000000000000045 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		B10000000000000000000046 /* AxisAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisAppIntents.swift; sourceTree = "<group>"; };
 		B10000000000000000000050 /* Axis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Axis.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B1EBABED5E29BFB6A0E8EC97 /* MetricDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricDetailView.swift; sourceTree = "<group>"; };
-		B306755418842A07083FCE5E /* AIExecutiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIExecutiveService.swift; sourceTree = "<group>"; };
 		B78084D847F5FCC9D9BDD246 /* FocusProfile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/FocusProfile.swift; sourceTree = SOURCE_ROOT; };
-		BD6B41549F91185C04FB4EA6 /* EAInboxItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAInboxItem.swift; sourceTree = "<group>"; };
-		BE5CCFCDB81B382F487EC1A4 /* EAProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAProject.swift; sourceTree = "<group>"; };
 		C3FA1A4DF730053D30D9FD92 /* GroupManagementView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Features/SocialCircle/GroupManagementView.swift; sourceTree = SOURCE_ROOT; };
-		C8D8671ACDABC7CF4DB99AFE /* SleepDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepDetailView.swift; sourceTree = "<group>"; };
 		CC0000000000000000000001 /* PlaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDetailView.swift; sourceTree = "<group>"; };
 		CC0000000000000000000002 /* PriorityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityDetailView.swift; sourceTree = "<group>"; };
 		CC0000000000000000000003 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		CC0000000000000000000004 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
 		CC0000000000000000000005 /* GoalDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalDetailView.swift; sourceTree = "<group>"; };
 		CC0000000000000000000006 /* ContactDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactDetailView.swift; sourceTree = "<group>"; };
-		CCCEE92657EEDC2D3A508EF6 /* EAPlannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAPlannerView.swift; sourceTree = "<group>"; };
 		D11F096C6BE71B5F863F0557 /* Trip.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Trip.swift; sourceTree = "<group>"; };
 		D6BE70596A528662EA250653 /* WaterEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WaterEntry.swift; sourceTree = "<group>"; };
 		E076D42382660E454AEE199F /* AmbientSoundMixerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Features/WorkSuite/AmbientSoundMixerView.swift; sourceTree = SOURCE_ROOT; };
@@ -231,9 +213,27 @@
 		EDFD71A9A2220C5A092AA71B /* ShoppingList.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingList.swift; sourceTree = "<group>"; };
 		EE1044935D5A4184C2BE7EFF /* RoutineStep.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineStep.swift; sourceTree = "<group>"; };
 		F216F873325B36C3BC7BAA69 /* ShoppingItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingItem.swift; sourceTree = "<group>"; };
-		F22256BD2C7057E9798C3289 /* StepsDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsDetailView.swift; sourceTree = "<group>"; };
 		F5CDEA4174F253C9F21AFD75 /* AudioService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Services/AudioService.swift; sourceTree = SOURCE_ROOT; };
 		F650BFA260516CEA83FD58D3 /* TrendSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendSnapshot.swift; sourceTree = "<group>"; };
+		027B771B1C65873CEFDAABD4 /* EATaskReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EATaskReducer.swift; sourceTree = "<group>"; };
+		037CDE58F18FB886F57A2D63 /* EAProjectReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAProjectReducer.swift; sourceTree = "<group>"; };
+		15C1DDB6C473A3075E49EBA5 /* EAPlannerReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAPlannerReducer.swift; sourceTree = "<group>"; };
+		185F48783064B5807E712D13 /* EADailyPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EADailyPlan.swift; sourceTree = "<group>"; };
+		1D9F8E50B87A0C996A63DBA4 /* EATimeBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EATimeBlock.swift; sourceTree = "<group>"; };
+		2261D417D0B220B374209349 /* EATask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EATask.swift; sourceTree = "<group>"; };
+		25666BF55714F55644F0A84B /* EAMilestone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAMilestone.swift; sourceTree = "<group>"; };
+		498DD18A08E44FE103CE4598 /* EACaptureResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EACaptureResultSheet.swift; sourceTree = "<group>"; };
+		5B8E1D33E91C6B00B7D9E589 /* EADashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EADashboardView.swift; sourceTree = "<group>"; };
+		6EF385E57988A203FA9AC455 /* EADashboardReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EADashboardReducer.swift; sourceTree = "<group>"; };
+		90304734B32FD29C4C9128C8 /* EAProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAProjectListView.swift; sourceTree = "<group>"; };
+		AD23A5D1271ABB59BBE4117C /* EATaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EATaskListView.swift; sourceTree = "<group>"; };
+		B1EBABED5E29BFB6A0E8EC97 /* MetricDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricDetailView.swift; sourceTree = "<group>"; };
+		B306755418842A07083FCE5E /* AIExecutiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIExecutiveService.swift; sourceTree = "<group>"; };
+		BD6B41549F91185C04FB4EA6 /* EAInboxItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAInboxItem.swift; sourceTree = "<group>"; };
+		BE5CCFCDB81B382F487EC1A4 /* EAProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAProject.swift; sourceTree = "<group>"; };
+		C8D8671ACDABC7CF4DB99AFE /* SleepDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepDetailView.swift; sourceTree = "<group>"; };
+		CCCEE92657EEDC2D3A508EF6 /* EAPlannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAPlannerView.swift; sourceTree = "<group>"; };
+		F22256BD2C7057E9798C3289 /* StepsDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsDetailView.swift; sourceTree = "<group>"; };
 		FC61CE163D4FE43A1F42698A /* EAQuickCaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAQuickCaptureOverlay.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -249,36 +249,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		047F0B9BA171188D104B0C56 /* EA */ = {
-			isa = PBXGroup;
-			children = (
-				45FFAD58C2025C8E3A96524A /* Capture */,
-				F12F90D3F4D22C11484C4D49 /* Dashboard */,
-				BDAAD2DFDE8DE706E05F2845 /* Planner */,
-				2C865713EFEA298DA4F7FD79 /* Projects */,
-				7BDD5A07131AD20BDAE747F8 /* Tasks */,
-			);
-			path = EA;
-			sourceTree = "<group>";
-		};
-		2C865713EFEA298DA4F7FD79 /* Projects */ = {
-			isa = PBXGroup;
-			children = (
-				90304734B32FD29C4C9128C8 /* EAProjectListView.swift */,
-				037CDE58F18FB886F57A2D63 /* EAProjectReducer.swift */,
-			);
-			path = Projects;
-			sourceTree = "<group>";
-		};
-		45FFAD58C2025C8E3A96524A /* Capture */ = {
-			isa = PBXGroup;
-			children = (
-				498DD18A08E44FE103CE4598 /* EACaptureResultSheet.swift */,
-				FC61CE163D4FE43A1F42698A /* EAQuickCaptureOverlay.swift */,
-			);
-			path = Capture;
-			sourceTree = "<group>";
-		};
 		7BB79E5A8AB790A2821FF14B /* Trends */ = {
 			isa = PBXGroup;
 			children = (
@@ -288,24 +258,6 @@
 			);
 			name = Trends;
 			path = Trends;
-			sourceTree = "<group>";
-		};
-		7BDD5A07131AD20BDAE747F8 /* Tasks */ = {
-			isa = PBXGroup;
-			children = (
-				AD23A5D1271ABB59BBE4117C /* EATaskListView.swift */,
-				027B771B1C65873CEFDAABD4 /* EATaskReducer.swift */,
-			);
-			path = Tasks;
-			sourceTree = "<group>";
-		};
-		BDAAD2DFDE8DE706E05F2845 /* Planner */ = {
-			isa = PBXGroup;
-			children = (
-				15C1DDB6C473A3075E49EBA5 /* EAPlannerReducer.swift */,
-				CCCEE92657EEDC2D3A508EF6 /* EAPlannerView.swift */,
-			);
-			path = Planner;
 			sourceTree = "<group>";
 		};
 		D10000000000000000000001 = {
@@ -338,6 +290,14 @@
 				B10000000000000000000002 /* AppReducer.swift */,
 				B10000000000000000000003 /* AppView.swift */,
 				B10000000000000000000004 /* ContextMode.swift */,
+				1D9F8E50B87A0C996A63DBA4 /* EATimeBlock.swift */,
+				2261D417D0B220B374209349 /* EATask.swift */,
+				BE5CCFCDB81B382F487EC1A4 /* EAProject.swift */,
+				25666BF55714F55644F0A84B /* EAMilestone.swift */,
+				BD6B41549F91185C04FB4EA6 /* EAInboxItem.swift */,
+				185F48783064B5807E712D13 /* EADailyPlan.swift */,
+				B306755418842A07083FCE5E /* AIExecutiveService.swift */,
+				047F0B9BA171188D104B0C56 /* EA */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -355,7 +315,6 @@
 				D1000000000000000000000C /* SocialCircle */,
 				D10000000000000000000016 /* WorkSuite */,
 				7BB79E5A8AB790A2821FF14B /* Trends */,
-				047F0B9BA171188D104B0C56 /* EA */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -480,12 +439,6 @@
 				D11F096C6BE71B5F863F0557 /* Trip.swift */,
 				D6BE70596A528662EA250653 /* WaterEntry.swift */,
 				F650BFA260516CEA83FD58D3 /* TrendSnapshot.swift */,
-				2261D417D0B220B374209349 /* EATask.swift */,
-				BE5CCFCDB81B382F487EC1A4 /* EAProject.swift */,
-				25666BF55714F55644F0A84B /* EAMilestone.swift */,
-				185F48783064B5807E712D13 /* EADailyPlan.swift */,
-				1D9F8E50B87A0C996A63DBA4 /* EATimeBlock.swift */,
-				BD6B41549F91185C04FB4EA6 /* EAInboxItem.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -504,7 +457,6 @@
 				B10000000000000000000017 /* WeatherService.swift */,
 				F5CDEA4174F253C9F21AFD75 /* AudioService.swift */,
 				78AFE6899A8E91E4FCA33500 /* TrendService.swift */,
-				B306755418842A07083FCE5E /* AIExecutiveService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -608,6 +560,27 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		047F0B9BA171188D104B0C56 /* EA */ = {
+			isa = PBXGroup;
+			children = (
+				45FFAD58C2025C8E3A96524A /* Capture */,
+				F12F90D3F4D22C11484C4D49 /* Dashboard */,
+				BDAAD2DFDE8DE706E05F2845 /* Planner */,
+				2C865713EFEA298DA4F7FD79 /* Projects */,
+				7BDD5A07131AD20BDAE747F8 /* Tasks */,
+			);
+			path = EA;
+			sourceTree = "<group>";
+		};
+		45FFAD58C2025C8E3A96524A /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				498DD18A08E44FE103CE4598 /* EACaptureResultSheet.swift */,
+				FC61CE163D4FE43A1F42698A /* EAQuickCaptureOverlay.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
 		F12F90D3F4D22C11484C4D49 /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
@@ -615,6 +588,33 @@
 				5B8E1D33E91C6B00B7D9E589 /* EADashboardView.swift */,
 			);
 			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		BDAAD2DFDE8DE706E05F2845 /* Planner */ = {
+			isa = PBXGroup;
+			children = (
+				15C1DDB6C473A3075E49EBA5 /* EAPlannerReducer.swift */,
+				CCCEE92657EEDC2D3A508EF6 /* EAPlannerView.swift */,
+			);
+			path = Planner;
+			sourceTree = "<group>";
+		};
+		2C865713EFEA298DA4F7FD79 /* Projects */ = {
+			isa = PBXGroup;
+			children = (
+				90304734B32FD29C4C9128C8 /* EAProjectListView.swift */,
+				037CDE58F18FB886F57A2D63 /* EAProjectReducer.swift */,
+			);
+			path = Projects;
+			sourceTree = "<group>";
+		};
+		7BDD5A07131AD20BDAE747F8 /* Tasks */ = {
+			isa = PBXGroup;
+			children = (
+				AD23A5D1271ABB59BBE4117C /* EATaskListView.swift */,
+				027B771B1C65873CEFDAABD4 /* EATaskReducer.swift */,
+			);
+			path = Tasks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -682,6 +682,26 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000020 /* Assets.xcassets in Resources */,
+				271C8BC263988C0EA187CCF1 /* SleepDetailView.swift in Sources */,
+				643FE8FCC6D64969D3ACE00F /* StepsDetailView.swift in Sources */,
+				CE73D073A45A0493C1959881 /* MetricDetailView.swift in Sources */,
+				C9089AA9E01BE93AC9E0CF73 /* EACaptureResultSheet.swift in Sources */,
+				2CEC6A1489F07B3A6FD5A97F /* EAQuickCaptureOverlay.swift in Sources */,
+				6347C8333DA4AAAC8CFA116C /* EATaskListView.swift in Sources */,
+				9511BEE6C8292A563F8D0158 /* EATaskReducer.swift in Sources */,
+				097515B9DBB147C2E31D74D3 /* EAPlannerReducer.swift in Sources */,
+				24E05525EDABBCB0CC4EBC66 /* EAPlannerView.swift in Sources */,
+				17186E9ECC757F07FCBCE3C5 /* EAProjectListView.swift in Sources */,
+				D18920D346E1FB8ECC606144 /* EAProjectReducer.swift in Sources */,
+				5B9AE5CAA9CE71B3380BF76E /* EADashboardReducer.swift in Sources */,
+				DBD538A6B365BD3875F882A9 /* EADashboardView.swift in Sources */,
+				DFAA59A6C00F046AEC48F660 /* EAProject.swift in Sources */,
+				BBECFEBA2D3F980E23DC9EF9 /* EADailyPlan.swift in Sources */,
+				EAEC120FF8BD943D36AD8D7C /* EAInboxItem.swift in Sources */,
+				FF14B565DC20A4AEDA136260 /* EATimeBlock.swift in Sources */,
+				0F54DAE2FA5F438752290187 /* EAMilestone.swift in Sources */,
+				B1185FB18E948BC70BE3CC2C /* EATask.swift in Sources */,
+				97C4FECEF3EB0C661305AC79 /* AIExecutiveService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -782,26 +802,6 @@
 				B1BA28162E6F3750011CFAD4 /* TrendsReducer.swift in Sources */,
 				F73E7A9900700EB1D60DE3E1 /* TrendsView.swift in Sources */,
 				ED86207D61A5EF93224A26B9 /* MiniChartView.swift in Sources */,
-				755ECBB433C15A4962C894F0 /* EATask.swift in Sources */,
-				23AD7E142FBAADC6A56D0A77 /* EAProject.swift in Sources */,
-				36B4129A528B424F17292ED4 /* EAMilestone.swift in Sources */,
-				F91D73BEA2F39E40F918B883 /* EADailyPlan.swift in Sources */,
-				445BDF50E7D3210850F92D51 /* EATimeBlock.swift in Sources */,
-				5B61916BAC2F4F78784D357B /* EAInboxItem.swift in Sources */,
-				D48A016D36F14F4AD117B6EB /* AIExecutiveService.swift in Sources */,
-				29BD639D3F43C96504054467 /* EADashboardReducer.swift in Sources */,
-				1AE3F87056A52EBACA00BA39 /* EADashboardView.swift in Sources */,
-				72E9ACD5DB5D83F8F1D8893E /* EAPlannerReducer.swift in Sources */,
-				53146FAA4B7A1A394D1120AF /* EAPlannerView.swift in Sources */,
-				16697EE0A779FBFDB535AD26 /* EATaskReducer.swift in Sources */,
-				FC6E5E2E9614F5FC04911A82 /* EATaskListView.swift in Sources */,
-				47729302AC196EA07BD2625C /* EAProjectReducer.swift in Sources */,
-				A02D7D5ACF0C6614142FF1D6 /* EAProjectListView.swift in Sources */,
-				8F41AE3C621434B16F9171AF /* EAQuickCaptureOverlay.swift in Sources */,
-				7CD0DD571628AD46411F0526 /* EACaptureResultSheet.swift in Sources */,
-				3DF3724AF5BB7AE1B019ADC4 /* SleepDetailView.swift in Sources */,
-				A887435D791B028E3D8DF258 /* StepsDetailView.swift in Sources */,
-				7FAAE5D0BAD33F3DB41D0F84 /* MetricDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

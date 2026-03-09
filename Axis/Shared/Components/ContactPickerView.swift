@@ -1,38 +1,243 @@
-import ContactsUI
+import Contacts
 import SwiftUI
 
-struct ContactPickerView: UIViewControllerRepresentable {
+struct ContactPickerView: View {
+    struct SelectableContact: Equatable, Identifiable {
+        let id: String
+        let name: String
+        let phone: String
+        let email: String
+    }
+
     @Environment(\.dismiss) private var dismiss
-    var onContactsSelected: ([CNContact]) -> Void
+    @State private var contacts: [SelectableContact] = []
+    @State private var searchText = ""
+    @State private var selectedIds = Set<String>()
+    @State private var accessDenied = false
+    @State private var isLoading = false
+    @State private var hasAttemptedLoad = false
+    @State private var loadErrorMessage: String?
 
-    func makeUIViewController(context: Context) -> CNContactPickerViewController {
-        let picker = CNContactPickerViewController()
-        picker.delegate = context.coordinator
-        picker.predicateForEnablingContact = NSPredicate(value: true)
-        return picker
+    var onContactsSelected: ([SelectableContact]) -> Void
+
+    private var filteredContacts: [SelectableContact] {
+        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return contacts
+        }
+        let query = searchText.lowercased()
+        return contacts.filter { contact in
+            contact.name.lowercased().contains(query)
+                || contact.phone.lowercased().contains(query)
+                || contact.email.lowercased().contains(query)
+        }
     }
 
-    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
+    var body: some View {
+        NavigationStack {
+            Group {
+                if accessDenied {
+                    ContentUnavailableView(
+                        "Contacts Access Needed",
+                        systemImage: "person.crop.circle.badge.exclamationmark",
+                        description: Text("Enable Contacts access in Settings to import people into Social Circle.")
+                    )
+                } else if isLoading {
+                    ProgressView("Loading contacts...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if contacts.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "person.2.crop.square.stack.fill")
+                            .font(.system(size: 42))
+                            .foregroundStyle(.purple)
+                        Text(hasAttemptedLoad ? "No contacts available" : "Import from Contacts")
+                            .font(.headline)
+                        Text("Load your Apple Contacts into a searchable list, then choose which ones to import.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        if let loadErrorMessage {
+                            Text(loadErrorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        Button {
+                            Task { await loadContacts() }
+                        } label: {
+                            Text("Load Contacts")
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.purple.opacity(0.15))
+                                .foregroundStyle(.purple)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .padding(.horizontal)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    VStack(spacing: 12) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.secondary)
+                            TextField("Search contacts", text: $searchText)
+                                .textInputAutocapitalization(.words)
+                            if !searchText.isEmpty {
+                                Button {
+                                    searchText = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal)
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onContactsSelected: onContactsSelected, dismiss: dismiss)
+                        ScrollView {
+                            LazyVStack(spacing: 8) {
+                                ForEach(filteredContacts) { contact in
+                                    Button {
+                                        toggleSelection(for: contact.id)
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: selectedIds.contains(contact.id) ? "checkmark.circle.fill" : "circle")
+                                                .foregroundStyle(selectedIds.contains(contact.id) ? .purple : .secondary)
+
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(contact.name.isEmpty ? "Unnamed Contact" : contact.name)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(.primary)
+                                                if !contact.email.isEmpty {
+                                                    Text(contact.email)
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                } else if !contact.phone.isEmpty {
+                                                    Text(contact.phone)
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+
+                                            Spacer()
+                                        }
+                                        .padding(12)
+                                        .background(Color(.systemGray6))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .padding(.horizontal)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Import Contacts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Import") {
+                        let selected = contacts.filter { selectedIds.contains($0.id) }
+                        onContactsSelected(selected)
+                        dismiss()
+                    }
+                    .disabled(selectedIds.isEmpty)
+                }
+            }
+        }
     }
 
-    class Coordinator: NSObject, CNContactPickerDelegate {
-        var onContactsSelected: ([CNContact]) -> Void
-        var dismiss: DismissAction
-
-        init(onContactsSelected: @escaping ([CNContact]) -> Void, dismiss: DismissAction) {
-            self.onContactsSelected = onContactsSelected
-            self.dismiss = dismiss
+    private func toggleSelection(for id: String) {
+        if selectedIds.contains(id) {
+            selectedIds.remove(id)
+        } else {
+            selectedIds.insert(id)
         }
+    }
 
-        func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
-            onContactsSelected(contacts)
+    @MainActor
+    private func loadContacts() async {
+        isLoading = true
+        hasAttemptedLoad = true
+        loadErrorMessage = nil
+        defer { isLoading = false }
+        do {
+            let granted = try await requestAccessIfNeeded()
+            guard granted else {
+                accessDenied = true
+                return
+            }
+            contacts = try await fetchContacts()
+        } catch {
+            loadErrorMessage = "Unable to load contacts right now."
         }
+    }
 
-        func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
-            dismiss()
+    private func requestAccessIfNeeded() async throws -> Bool {
+        let store = CNContactStore()
+        switch CNContactStore.authorizationStatus(for: .contacts) {
+        case .authorized:
+            return true
+        case .denied, .restricted:
+            return false
+        case .notDetermined:
+            return try await withCheckedThrowingContinuation { continuation in
+                store.requestAccess(for: .contacts) { granted, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: granted)
+                    }
+                }
+            }
+        @unknown default:
+            return false
+        }
+    }
+
+    private func fetchContacts() async throws -> [SelectableContact] {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let store = CNContactStore()
+                let keys: [CNKeyDescriptor] = [
+                    CNContactIdentifierKey as CNKeyDescriptor,
+                    CNContactGivenNameKey as CNKeyDescriptor,
+                    CNContactFamilyNameKey as CNKeyDescriptor,
+                    CNContactPhoneNumbersKey as CNKeyDescriptor,
+                    CNContactEmailAddressesKey as CNKeyDescriptor
+                ]
+                let request = CNContactFetchRequest(keysToFetch: keys)
+                var loaded: [SelectableContact] = []
+
+                do {
+                    try store.enumerateContacts(with: request) { contact, _ in
+                        let name = [contact.givenName, contact.familyName]
+                            .filter { !$0.isEmpty }
+                            .joined(separator: " ")
+                        loaded.append(
+                            SelectableContact(
+                                id: contact.identifier,
+                                name: name,
+                                phone: contact.phoneNumbers.first?.value.stringValue ?? "",
+                                email: (contact.emailAddresses.first?.value as String?) ?? ""
+                            )
+                        )
+                    }
+                    let sorted = loaded.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                    continuation.resume(returning: sorted)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
         }
     }
 }

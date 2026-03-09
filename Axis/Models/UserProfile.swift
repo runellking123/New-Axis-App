@@ -16,7 +16,7 @@ final class UserProfile {
     var createdAt: Date
 
     init(
-        name: String = "Runell",
+        name: String = "",
         wakeTime: Date = Calendar.current.date(from: DateComponents(hour: 6, minute: 30)) ?? Date(),
         workStartTime: Date = Calendar.current.date(from: DateComponents(hour: 8, minute: 0)) ?? Date(),
         workEndTime: Date = Calendar.current.date(from: DateComponents(hour: 17, minute: 0)) ?? Date(),
