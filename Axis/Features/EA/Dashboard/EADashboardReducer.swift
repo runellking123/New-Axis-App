@@ -10,6 +10,9 @@ struct EADashboardReducer {
         var weatherTemp: String = "--"
         var weatherIcon: String = "cloud.fill"
         var weatherNote: String = "Loading..."
+        var weatherCondition: String = ""
+        var weatherFeelsLike: String = ""
+        var weatherHumidity: String = ""
         var isWeatherLoaded: Bool = false
         var locationName: String = ""
         var nextEventTitle: String = ""
@@ -34,10 +37,25 @@ struct EADashboardReducer {
         // Inbox
         var inboxCount: Int = 0
 
+        // Upcoming deadlines
+        var upcomingDeadlines: [DeadlineState] = []
+
+        // Recent AI chat summary
+        var recentChatSummary: String = ""
+
         // Quick stats
         var tasksCompletedToday: Int = 0
         var meetingsRemaining: Int = 0
         var deepWorkHoursToday: Double = 0
+
+        // Quick add
+        var quickAddText: String = ""
+
+        // Streak
+        var streakDays: Int = 0
+
+        // Focus mode
+        var isFocusMode: Bool = false
 
         var isLoading: Bool = false
 
@@ -69,12 +87,20 @@ struct EADashboardReducer {
             var daysToDeadline: Int?
             var category: String
         }
+
+        struct DeadlineState: Equatable, Identifiable {
+            let id: UUID
+            var title: String
+            var deadline: Date
+            var daysLeft: Int
+            var category: String
+        }
     }
 
     enum Action: Equatable {
         case onAppear
         case refreshTapped
-        case weatherLoaded(temp: String, icon: String, note: String, location: String)
+        case weatherLoaded(temp: String, icon: String, note: String, location: String, condition: String, feelsLike: String, humidity: String)
         case energyLoaded(Int)
         case planLoaded(summary: String, blocks: [State.TimeBlockState])
         case atRiskTasksLoaded([State.AtRiskTaskState])
@@ -82,6 +108,12 @@ struct EADashboardReducer {
         case projectsLoaded([State.ProjectSummaryState])
         case statsLoaded(completed: Int, meetings: Int, deepWork: Double)
         case inboxCountLoaded(Int)
+        case deadlinesLoaded([State.DeadlineState])
+        case chatSummaryLoaded(String)
+        case quickAddTextChanged(String)
+        case quickAddSubmit
+        case streakLoaded(Int)
+        case toggleFocusMode
         case navigateToPlanner
         case navigateToTasks
         case scheduleAtRiskTask(UUID)
@@ -125,7 +157,10 @@ struct EADashboardReducer {
                             temp: data.temperatureFormatted,
                             icon: data.sfSymbol,
                             note: data.actionableNote,
-                            location: locationName
+                            location: locationName,
+                            condition: data.condition,
+                            feelsLike: "\(Int(data.feelsLike))°",
+                            humidity: "\(data.humidity)%"
                         ))
                     } else {
                         let errorMessage = await weather.lastErrorMessage()
@@ -133,7 +168,10 @@ struct EADashboardReducer {
                             temp: "--",
                             icon: "cloud.fill",
                             note: errorMessage ?? "Weather unavailable.",
-                            location: ""
+                            location: "",
+                            condition: "",
+                            feelsLike: "",
+                            humidity: ""
                         ))
                     }
 
@@ -217,6 +255,30 @@ struct EADashboardReducer {
 
                     await send(.inboxCountLoaded(persistence.fetchUnreviewedInboxCount()))
 
+                    // Upcoming deadlines (next 7 days)
+                    let allTasks = persistence.fetchEATasks()
+                    let now = Date()
+                    let weekFromNow = Calendar.current.date(byAdding: .day, value: 7, to: now)!
+                    let upcoming = allTasks
+                        .filter { $0.deadline != nil && $0.deadline! > now && $0.deadline! <= weekFromNow && $0.status != "completed" }
+                        .sorted { ($0.deadline ?? .distantFuture) < ($1.deadline ?? .distantFuture) }
+                        .prefix(5)
+                        .map { task in
+                            let days = Calendar.current.dateComponents([.day], from: now, to: task.deadline!).day ?? 0
+                            return State.DeadlineState(id: task.uuid, title: task.title, deadline: task.deadline!, daysLeft: days, category: task.category)
+                        }
+                    await send(.deadlinesLoaded(Array(upcoming)))
+
+                    // Recent AI chat summary
+                    let recentThreads = persistence.fetchChatThreads()
+                    if let latest = recentThreads.first {
+                        let messages = persistence.fetchChatMessages(latest.uuid)
+                        if let lastAssistant = messages.last(where: { $0.role == "assistant" }) {
+                            let preview = String(lastAssistant.content.prefix(120))
+                            await send(.chatSummaryLoaded(preview + (lastAssistant.content.count > 120 ? "..." : "")))
+                        }
+                    }
+
                     let nextBest = AIExecutiveService.shared.nextBestAction(tasks: eaTasks, energyScore: energyScore).map {
                         State.NextBestActionState(
                             taskTitle: $0.taskTitle,
@@ -225,15 +287,42 @@ struct EADashboardReducer {
                         )
                     }
                     await send(.nextBestActionLoaded(nextBest))
+
+                    // Streak calculation
+                    let lastOpenKey = "axis_last_open_date"
+                    let streakKey = "axis_streak_count"
+                    let today = Calendar.current.startOfDay(for: Date())
+                    let lastOpen = UserDefaults.standard.object(forKey: lastOpenKey) as? Date
+                    let currentStreak = UserDefaults.standard.integer(forKey: streakKey)
+
+                    var newStreak = currentStreak
+                    if let lastOpen {
+                        let lastDay = Calendar.current.startOfDay(for: lastOpen)
+                        let daysBetween = Calendar.current.dateComponents([.day], from: lastDay, to: today).day ?? 0
+                        if daysBetween == 1 {
+                            newStreak = currentStreak + 1
+                        } else if daysBetween > 1 {
+                            newStreak = 1
+                        }
+                        // daysBetween == 0 means same day, keep current streak
+                    } else {
+                        newStreak = 1
+                    }
+                    UserDefaults.standard.set(today, forKey: lastOpenKey)
+                    UserDefaults.standard.set(newStreak, forKey: streakKey)
+                    await send(.streakLoaded(newStreak))
                 }
 
             case .refreshTapped:
                 return .send(.onAppear)
 
-            case let .weatherLoaded(temp, icon, note, location):
+            case let .weatherLoaded(temp, icon, note, location, condition, feelsLike, humidity):
                 state.weatherTemp = temp
                 state.weatherIcon = icon
                 state.weatherNote = note
+                state.weatherCondition = condition
+                state.weatherFeelsLike = feelsLike
+                state.weatherHumidity = humidity
                 state.locationName = location
                 state.isWeatherLoaded = true
                 state.isLoading = false
@@ -270,6 +359,35 @@ struct EADashboardReducer {
 
             case let .inboxCountLoaded(count):
                 state.inboxCount = count
+                return .none
+
+            case let .deadlinesLoaded(deadlines):
+                state.upcomingDeadlines = deadlines
+                return .none
+
+            case let .chatSummaryLoaded(summary):
+                state.recentChatSummary = summary
+                return .none
+
+            case let .quickAddTextChanged(text):
+                state.quickAddText = text
+                return .none
+
+            case .quickAddSubmit:
+                let text = state.quickAddText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return .none }
+                let task = EATask(title: text, status: "inbox", category: "general")
+                persistence.saveEATask(task)
+                state.quickAddText = ""
+                state.inboxCount += 1
+                return .none
+
+            case let .streakLoaded(days):
+                state.streakDays = days
+                return .none
+
+            case .toggleFocusMode:
+                state.isFocusMode.toggle()
                 return .none
 
             case .navigateToPlanner, .navigateToTasks:

@@ -14,6 +14,8 @@ struct EATaskReducer {
         var parsedPreview: ParsedPreviewState?
         var selectedTaskId: UUID?
         var isAIParsing: Bool = false
+        var isSelectMode: Bool = false
+        var selectedTaskIds: Set<UUID> = []
         var showAddTask: Bool = false
         var newTaskTitle: String = ""
         var newTaskPriority: String = "medium"
@@ -109,6 +111,12 @@ struct EATaskReducer {
         case deleteTask(UUID)
         case selectTask(UUID?)
         case updateTaskStatus(UUID, String)
+        case toggleSelectMode
+        case toggleTaskSelection(UUID)
+        case batchComplete
+        case batchDelete
+        case selectAll
+        case deselectAll
         case showAddTaskSheet
         case dismissAddTaskSheet
         case newTaskTitleChanged(String)
@@ -280,6 +288,53 @@ struct EATaskReducer {
                         persistence.updateEATasks()
                     }
                 }
+                return .none
+
+            case .toggleSelectMode:
+                state.isSelectMode.toggle()
+                if !state.isSelectMode { state.selectedTaskIds.removeAll() }
+                return .none
+
+            case let .toggleTaskSelection(id):
+                if state.selectedTaskIds.contains(id) {
+                    state.selectedTaskIds.remove(id)
+                } else {
+                    state.selectedTaskIds.insert(id)
+                }
+                return .none
+
+            case .batchComplete:
+                for id in state.selectedTaskIds {
+                    if let index = state.tasks.firstIndex(where: { $0.id == id }) {
+                        state.tasks[index].status = "completed"
+                        let tasks = persistence.fetchEATasks()
+                        if let model = tasks.first(where: { $0.uuid == id }) {
+                            model.status = "completed"
+                            persistence.updateEATasks()
+                        }
+                    }
+                }
+                state.selectedTaskIds.removeAll()
+                state.isSelectMode = false
+                haptics.notificationSuccess()
+                return .none
+
+            case .batchDelete:
+                for id in state.selectedTaskIds {
+                    state.tasks.removeAll { $0.id == id }
+                    persistence.deleteEATaskById(id)
+                }
+                state.selectedTaskIds.removeAll()
+                state.isSelectMode = false
+                haptics.notificationSuccess()
+                return .none
+
+            case .selectAll:
+                state.selectedTaskIds = Set(state.filteredTasks.map(\.id))
+                return .none
+
+            case .deselectAll:
+                state.selectedTaskIds.removeAll()
                 return .none
 
             case .showAddTaskSheet:

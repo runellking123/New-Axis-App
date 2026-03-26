@@ -11,6 +11,7 @@ final class EAProject {
     var isTemplate: Bool?
     var templateName: String?
     var deadline: Date?
+    var statusNote: String?
     var createdAt: Date
 
     init(
@@ -20,7 +21,8 @@ final class EAProject {
         category: String = "personal",
         isTemplate: Bool? = nil,
         templateName: String? = nil,
-        deadline: Date? = nil
+        deadline: Date? = nil,
+        statusNote: String? = nil
     ) {
         self.uuid = UUID()
         self.title = title
@@ -30,6 +32,7 @@ final class EAProject {
         self.isTemplate = isTemplate
         self.templateName = templateName
         self.deadline = deadline
+        self.statusNote = statusNote
         self.createdAt = Date()
     }
 }

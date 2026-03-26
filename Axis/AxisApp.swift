@@ -57,6 +57,13 @@ struct AxisApp: App {
             EADailyPlan.self,
             EATimeBlock.self,
             EAInboxItem.self,
+            // M6: Chat Models
+            ChatMessage.self,
+            ChatThread.self,
+            // Chore Counter
+            ChoreCount.self,
+            // Budget & Bills
+            BillEntry.self,
         ])
         do {
             container = try ModelContainer(for: schema)

@@ -8,7 +8,8 @@ struct EAProjectListView: View {
         NavigationStack {
             mainProjectContent
                 .background(Color(.systemGroupedBackground))
-                .navigationTitle("Projects")
+                .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("Projects")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { addProjectButton }
                 .sheet(item: scaffoldBinding) { _ in scaffoldPreviewSheet }
@@ -224,6 +225,17 @@ struct EAProjectListView: View {
                 }
             }
 
+            if let note = project.statusNote, !note.isEmpty {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.ultraThinMaterial)
+                    .clipShape(.rect(cornerRadius: 6))
+            }
+
             if project.hasAtRiskDependencies {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -375,6 +387,15 @@ struct EAProjectListView: View {
                 Section("Project Name") {
                     TextField("Enter project name", text: $store.newProjectTitle.sending(\.newProjectTitleChanged))
                 }
+                Section("Template") {
+                    Picker("Template", selection: $store.newProjectTemplate.sending(\.newProjectTemplateChanged)) {
+                        Text("Blank").tag("")
+                        Text("Accreditation Report").tag("accreditation")
+                        Text("IPEDS Submission").tag("ipeds")
+                        Text("Grant Proposal").tag("grant")
+                        Text("Data Analysis").tag("analysis")
+                    }
+                }
                 Section("Category") {
                     Picker("Category", selection: $store.newProjectCategory.sending(\.newProjectCategoryChanged)) {
                         Text("Personal").tag("personal")
@@ -386,6 +407,39 @@ struct EAProjectListView: View {
                 Section("Description (optional)") {
                     TextField("Describe the project...", text: $store.newProjectDescription.sending(\.newProjectDescriptionChanged), axis: .vertical)
                         .lineLimit(3...6)
+                }
+                if !store.newProjectTemplate.isEmpty {
+                    Section("Template Preview") {
+                        let data = EAProjectReducer.templateData(for: store.newProjectTemplate)
+                        ForEach(Array(data.tasks.enumerated()), id: \.offset) { _, task in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(priorityColor(task.priority))
+                                    .frame(width: 6, height: 6)
+                                Text(task.title)
+                                    .font(.caption)
+                                Spacer()
+                                if let mins = task.estimatedMinutes {
+                                    Text("\(mins)m")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        ForEach(Array(data.milestones.enumerated()), id: \.offset) { _, ms in
+                            HStack(spacing: 8) {
+                                Image(systemName: "flag.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.axisGold)
+                                Text(ms.title)
+                                    .font(.caption)
+                                Spacer()
+                                Text("Day \(ms.relativeDayOffset)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle("New Project")
@@ -402,7 +456,7 @@ struct EAProjectListView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
     }
 
     // MARK: - Helpers
@@ -454,6 +508,7 @@ private struct ProjectWorkspaceView: View {
     @State private var newTaskMinutes = 30
     @State private var newMilestoneTitle = ""
     @State private var newMilestoneDate = Date()
+    @State private var statusNoteText: String = ""
 
     var body: some View {
         NavigationStack {
@@ -469,6 +524,21 @@ private struct ProjectWorkspaceView: View {
                     if let deadline = project.deadline {
                         LabeledContent("Deadline") { Text(deadline, style: .date) }
                     }
+                }
+
+                Section("Status Update") {
+                    TextField("Status update...", text: $statusNoteText)
+                        .font(.caption)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .clipShape(.rect(cornerRadius: 8))
+                        .onAppear { statusNoteText = project.statusNote ?? "" }
+                        .onSubmit {
+                            store.send(.updateStatusNote(project.id, statusNoteText))
+                        }
+                        .onChange(of: statusNoteText) { _, newValue in
+                            store.send(.updateStatusNote(project.id, newValue))
+                        }
                 }
 
                 Section("Actions") {
@@ -512,28 +582,73 @@ private struct ProjectWorkspaceView: View {
                     }
                 }
 
-                Section("Milestones") {
+                Section("Milestone Timeline") {
                     if project.milestones.isEmpty {
                         Text("No milestones yet. Add checkpoints for this project.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(project.milestones.sorted { $0.sortOrder < $1.sortOrder }) { milestone in
+                        ForEach(Array(project.milestones.sorted { $0.sortOrder < $1.sortOrder }.enumerated()), id: \.element.id) { index, milestone in
                             Button {
                                 store.send(.toggleMilestoneCompletion(projectId: project.id, milestoneId: milestone.id))
                             } label: {
-                                HStack {
-                                    Image(systemName: milestone.isCompleted ? "flag.checkered.circle.fill" : "flag.circle")
-                                        .foregroundStyle(milestone.isCompleted ? .green : Color.axisGold)
+                                HStack(spacing: 12) {
+                                    // Timeline visual
+                                    VStack(spacing: 0) {
+                                        if index > 0 {
+                                            Rectangle()
+                                                .fill(milestone.isCompleted ? Color.green.opacity(0.5) : Color.secondary.opacity(0.2))
+                                                .frame(width: 2, height: 12)
+                                        } else {
+                                            Spacer().frame(height: 12)
+                                        }
+                                        Image(systemName: milestone.isCompleted ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 18))
+                                            .foregroundStyle(milestone.isCompleted ? .green : Color.axisGold)
+                                        if index < project.milestones.count - 1 {
+                                            Rectangle()
+                                                .fill(milestone.isCompleted ? Color.green.opacity(0.5) : Color.secondary.opacity(0.2))
+                                                .frame(width: 2, height: 12)
+                                        } else {
+                                            Spacer().frame(height: 12)
+                                        }
+                                    }
+
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(milestone.title)
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .strikethrough(milestone.isCompleted)
                                             .foregroundStyle(.primary)
                                         if let dueDate = milestone.dueDate {
+                                            let isPast = dueDate < Date() && !milestone.isCompleted
                                             Text(dueDate, style: .date)
+                                                .font(.caption2)
+                                                .foregroundStyle(isPast ? .red : .secondary)
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    if milestone.isCompleted {
+                                        Text("Done")
+                                            .font(.caption2)
+                                            .foregroundStyle(.green)
+                                    } else if let dueDate = milestone.dueDate {
+                                        let daysUntil = Calendar.current.dateComponents([.day], from: Date(), to: dueDate).day ?? 0
+                                        if daysUntil < 0 {
+                                            Text("Overdue")
+                                                .font(.caption2)
+                                                .foregroundStyle(.red)
+                                        } else if daysUntil == 0 {
+                                            Text("Today")
+                                                .font(.caption2)
+                                                .foregroundStyle(.orange)
+                                        } else {
+                                            Text("\(daysUntil)d")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
                                         }
                                     }
-                                    Spacer()
                                 }
                             }
                             .buttonStyle(.plain)

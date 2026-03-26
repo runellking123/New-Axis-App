@@ -55,16 +55,30 @@ struct AppView: View {
                 }
                 .tag(AppReducer.State.Tab.dashboard)
 
-                // Tab 2: Planner
-                EAPlannerView(
-                    store: store.scope(state: \.eaPlanner, action: \.eaPlanner)
+                // Tab 2: Calendar
+                CalendarTabView()
+                    .tabItem {
+                        Label("Calendar", systemImage: "calendar")
+                    }
+                    .tag(AppReducer.State.Tab.calendar)
+
+                // Tab 3: AI Chat
+                AIChatView(store: store.scope(state: \.aiChat, action: \.aiChat))
+                    .tabItem {
+                        Label("AI Chat", systemImage: "bubble.left.and.text.bubble.right")
+                    }
+                    .tag(AppReducer.State.Tab.aiChat)
+
+                // Tab 4: Notes
+                QuickNotesView(
+                    store: store.scope(state: \.quickNotes, action: \.quickNotes)
                 )
                 .tabItem {
-                    Label("Planner", systemImage: "calendar.badge.clock")
+                    Label("Notes", systemImage: "note.text")
                 }
-                .tag(AppReducer.State.Tab.planner)
+                .tag(AppReducer.State.Tab.notes)
 
-                // Tab 3: Tasks
+                // Tab 5: Tasks
                 EATaskListView(
                     store: store.scope(state: \.eaTasks, action: \.eaTasks)
                 )
@@ -74,7 +88,23 @@ struct AppView: View {
                 .badge(store.eaTasks.inboxCount > 0 ? store.eaTasks.inboxCount : 0)
                 .tag(AppReducer.State.Tab.tasks)
 
-                // Tab 4: Projects
+                // Under "More" (iOS auto-creates More tab when >5 tabs)
+                ExploreView(
+                    store: store.scope(state: \.explore, action: \.explore)
+                )
+                .tabItem {
+                    Label("Explore", systemImage: "map.fill")
+                }
+                .tag(AppReducer.State.Tab.explore)
+
+                EAPlannerView(
+                    store: store.scope(state: \.eaPlanner, action: \.eaPlanner)
+                )
+                .tabItem {
+                    Label("Planner", systemImage: "calendar.badge.clock")
+                }
+                .tag(AppReducer.State.Tab.planner)
+
                 EAProjectListView(
                     store: store.scope(state: \.eaProjects, action: \.eaProjects)
                 )
@@ -83,7 +113,6 @@ struct AppView: View {
                 }
                 .tag(AppReducer.State.Tab.projects)
 
-                // Tab 5: Social
                 SocialCircleView(
                     store: store.scope(state: \.socialCircle, action: \.socialCircle)
                 )
@@ -92,7 +121,6 @@ struct AppView: View {
                 }
                 .tag(AppReducer.State.Tab.social)
 
-                // Under "More" (iOS auto-creates More tab when >5 tabs)
                 FamilyHQView(
                     store: store.scope(state: \.familyHQ, action: \.familyHQ)
                 )
@@ -100,14 +128,6 @@ struct AppView: View {
                     Label("FamilyHQ", systemImage: "house.and.flag.fill")
                 }
                 .tag(AppReducer.State.Tab.familyHQ)
-
-                ExploreView(
-                    store: store.scope(state: \.explore, action: \.explore)
-                )
-                .tabItem {
-                    Label("Explore", systemImage: "map.fill")
-                }
-                .tag(AppReducer.State.Tab.explore)
 
                 BalanceView(
                     store: store.scope(state: \.balance, action: \.balance)
@@ -117,11 +137,19 @@ struct AppView: View {
                 }
                 .tag(AppReducer.State.Tab.balance)
 
+                BudgetView(
+                    store: store.scope(state: \.budget, action: \.budget)
+                )
+                .tabItem {
+                    Label("Budget", systemImage: "dollarsign.circle.fill")
+                }
+                .tag(AppReducer.State.Tab.budget)
+
                 TrendsView(
                     store: store.scope(state: \.trends, action: \.trends)
                 )
                 .tabItem {
-                    Label("Trends", systemImage: "chart.line.uptrend.xyaxis")
+                    Label("News", systemImage: "newspaper.fill")
                 }
                 .tag(AppReducer.State.Tab.trends)
 

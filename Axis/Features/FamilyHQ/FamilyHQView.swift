@@ -20,6 +20,46 @@ struct FamilyHQView: View {
 
                     ScrollView {
                         VStack(spacing: 16) {
+                            // Chore Counter Button
+                            Button { store.send(.toggleChoreCounter) } label: {
+                                GlassCard {
+                                    HStack {
+                                        Image(systemName: "chart.bar.fill")
+                                            .foregroundStyle(Color.axisGold)
+                                        Text("Chore Counter")
+                                            .font(.headline)
+                                            .foregroundStyle(Color.axisGold)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            // Shopping List Button
+                            Button { store.send(.toggleShoppingList) } label: {
+                                GlassCard {
+                                    HStack {
+                                        Image(systemName: "cart.fill")
+                                            .foregroundStyle(.green)
+                                        Text("Shopping List")
+                                            .font(.headline)
+                                            .foregroundStyle(.green)
+                                        Spacer()
+                                        let boughtCount = store.shoppingItems.filter(\.isBought).count
+                                        if !store.shoppingItems.isEmpty {
+                                            Text("\(boughtCount)/\(store.shoppingItems.count)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Image(systemName: "chevron.right")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+
                             switch store.selectedSection {
                             case .calendar:
                                 calendarSection
@@ -82,6 +122,18 @@ struct FamilyHQView: View {
                 if let id = store.selectedGoalId, let goal = store.goals.first(where: { $0.id == id }) {
                     GoalDetailView(store: store, goal: goal)
                 }
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showChoreCounter },
+                set: { _ in store.send(.dismissChoreCounter) }
+            )) {
+                choreCounterSheet
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showShoppingList },
+                set: { _ in store.send(.dismissShoppingList) }
+            )) {
+                shoppingListSheet
             }
             .onAppear {
                 store.send(.onAppear)
@@ -419,6 +471,7 @@ struct FamilyHQView: View {
                     DatePicker("Date & Time", selection: $store.newEventDate.sending(\.newEventDateChanged))
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("New Event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -516,5 +569,424 @@ struct FamilyHQView: View {
             }
         }
         .presentationDetents([.large])
+    }
+
+    // MARK: - Chore Counter Sheet
+
+    private var choreCounterSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Overall scoreboard
+                    let dkTotal = totalFor("drking")
+                    let wifeTotal = totalFor("wife")
+                    let grandTotal = max(dkTotal + wifeTotal, 1)
+
+                    HStack(spacing: 0) {
+                        // Dr. King side
+                        VStack(spacing: 4) {
+                            Text("\(dkTotal)")
+                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.axisGold)
+                            Text("Dr. King")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        // Progress bar
+                        GeometryReader { geo in
+                            let goldWidth = geo.size.width * CGFloat(dkTotal) / CGFloat(grandTotal)
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color.purple.opacity(0.3)).frame(height: 12)
+                                Capsule().fill(Color.axisGold).frame(width: max(goldWidth, 6), height: 12)
+                            }
+                        }
+                        .frame(height: 12)
+                        .frame(maxWidth: .infinity)
+
+                        // Wife side
+                        VStack(spacing: 4) {
+                            Text("\(wifeTotal)")
+                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .foregroundStyle(.purple)
+                            Text("Wife")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .clipShape(.rect(cornerRadius: 16))
+
+                    // Chore rows — progress bar style
+                    ForEach(store.choreCategories, id: \.self) { chore in
+                        let dk = store.choreCounts[chore]?["drking"] ?? 0
+                        let wife = store.choreCounts[chore]?["wife"] ?? 0
+                        let total = max(dk + wife, 1)
+
+                        VStack(spacing: 6) {
+                            Text(chore)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+
+                            HStack(spacing: 8) {
+                                // Dr. King -/+
+                                Button { store.send(.decrementChore(chore, "drking")) } label: {
+                                    Image(systemName: "minus")
+                                        .font(.caption2).fontWeight(.bold)
+                                        .frame(width: 24, height: 24)
+                                        .background(Color(.systemGray5))
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+
+                                Text("\(dk)")
+                                    .font(.caption).fontWeight(.bold).monospacedDigit()
+                                    .foregroundStyle(Color.axisGold)
+                                    .frame(width: 24)
+
+                                Button { store.send(.incrementChore(chore, "drking")) } label: {
+                                    Image(systemName: "plus")
+                                        .font(.caption2).fontWeight(.bold)
+                                        .frame(width: 24, height: 24)
+                                        .background(Color.axisGold.opacity(0.2))
+                                        .foregroundStyle(Color.axisGold)
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+
+                                // Tug-of-war bar
+                                GeometryReader { geo in
+                                    let goldW = geo.size.width * CGFloat(dk) / CGFloat(total)
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(Color.purple.opacity(0.25)).frame(height: 8)
+                                        Capsule().fill(Color.axisGold).frame(width: max(goldW, 4), height: 8)
+                                    }
+                                }
+                                .frame(height: 8)
+
+                                // Wife +/-
+                                Button { store.send(.decrementChore(chore, "wife")) } label: {
+                                    Image(systemName: "minus")
+                                        .font(.caption2).fontWeight(.bold)
+                                        .frame(width: 24, height: 24)
+                                        .background(Color(.systemGray5))
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+
+                                Text("\(wife)")
+                                    .font(.caption).fontWeight(.bold).monospacedDigit()
+                                    .foregroundStyle(.purple)
+                                    .frame(width: 24)
+
+                                Button { store.send(.incrementChore(chore, "wife")) } label: {
+                                    Image(systemName: "plus")
+                                        .font(.caption2).fontWeight(.bold)
+                                        .frame(width: 24, height: 24)
+                                        .background(Color.purple.opacity(0.2))
+                                        .foregroundStyle(.purple)
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(.rect(cornerRadius: 12))
+                    }
+
+                    // Export + Reset
+                    Button { exportChoreCSV() } label: {
+                        Label("Export to CSV", systemImage: "square.and.arrow.up")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.axisGold.opacity(0.15))
+                            .foregroundStyle(Color.axisGold)
+                            .clipShape(.rect(cornerRadius: 12))
+                    }
+
+                    Button("Reset Weekly Counts", role: .destructive) {
+                        store.send(.resetChoreCounts)
+                    }
+                    .font(.caption)
+                }
+                .padding()
+            }
+            .navigationTitle("Chore Counter")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { store.send(.dismissChoreCounter) }
+                }
+            }
+            .onAppear { store.send(.loadChoreCounts) }
+        }
+    }
+
+    // MARK: - Shopping List Sheet
+
+    private let shoppingStores = ["Any", "Kroger", "Walmart", "Fresh", "H-E-B", "Sam's Club", "Target", "Dollar General", "Aldi", "Other"]
+    private let shoppingCategories = ["General", "Produce", "Meat", "Dairy", "Frozen", "Household", "Snacks", "Beverages", "Other"]
+
+    private var shoppingListSheet: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Add item form
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(.green)
+                        TextField("Add item...", text: $store.newShoppingItem.sending(\.newShoppingItemChanged))
+                            .font(.subheadline)
+                            .onSubmit { store.send(.addShoppingItem) }
+                    }
+
+                    HStack(spacing: 8) {
+                        // Store picker
+                        Picker("Store", selection: $store.newShoppingStore.sending(\.newShoppingStoreChanged)) {
+                            ForEach(shoppingStores, id: \.self) { s in Text(s).tag(s) }
+                        }
+                        .pickerStyle(.menu)
+                        .font(.caption)
+
+                        // Category picker
+                        Picker("Category", selection: $store.newShoppingCategory.sending(\.newShoppingCategoryChanged)) {
+                            ForEach(shoppingCategories, id: \.self) { c in Text(c).tag(c) }
+                        }
+                        .pickerStyle(.menu)
+                        .font(.caption)
+                    }
+
+                    HStack(spacing: 12) {
+                        // Quantity stepper
+                        HStack(spacing: 4) {
+                            Text("Qty:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Stepper("\(store.newShoppingQuantity)", value: $store.newShoppingQuantity.sending(\.newShoppingQuantityChanged), in: 1...99)
+                                .font(.caption)
+                        }
+
+                        // Budget price
+                        HStack(spacing: 4) {
+                            Text("$")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("0.00", value: $store.newShoppingBudget.sending(\.newShoppingBudgetChanged), format: .number)
+                                .font(.caption)
+                                .keyboardType(.decimalPad)
+                                .frame(width: 60)
+                        }
+
+                        Spacer()
+
+                        if !store.newShoppingItem.isEmpty {
+                            Button { store.send(.addShoppingItem) } label: {
+                                Text("Add")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(.green)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(.ultraThinMaterial)
+
+                // Summary card
+                if !store.shoppingItems.isEmpty {
+                    let grandTotal = store.shoppingItems.reduce(0.0) { $0 + $1.budgetPrice * Double($1.quantity) }
+                    let boughtTotal = store.shoppingItems.filter(\.isBought).reduce(0.0) { $0 + $1.budgetPrice * Double($1.quantity) }
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Budget Total")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text("$\(String(format: "%.2f", grandTotal))")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.green)
+                        }
+                        Spacer()
+                        VStack(alignment: .center, spacing: 2) {
+                            Text("Bought")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text("$\(String(format: "%.2f", boughtTotal))")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Remaining")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text("$\(String(format: "%.2f", grandTotal - boughtTotal))")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGray6))
+                }
+
+                // Items list grouped by store
+                if store.shoppingItems.isEmpty {
+                    VStack(spacing: 12) {
+                        Spacer()
+                        Image(systemName: "cart")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text("No items yet. Add something above!")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    let stores = Array(Set(store.shoppingItems.map(\.store))).sorted()
+                    List {
+                        ForEach(stores, id: \.self) { storeName in
+                            let storeItems = store.shoppingItems.filter { $0.store == storeName }
+                            let unbought = storeItems.filter { !$0.isBought }
+                            let bought = storeItems.filter(\.isBought)
+                            let storeTotal = storeItems.reduce(0.0) { $0 + $1.budgetPrice * Double($1.quantity) }
+
+                            Section {
+                                ForEach(unbought) { item in
+                                    shoppingItemRow(item)
+                                }
+                                ForEach(bought) { item in
+                                    shoppingItemRow(item)
+                                }
+                            } header: {
+                                HStack {
+                                    Text(storeName)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    Text("$\(String(format: "%.2f", storeTotal))")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle("Shopping List")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        store.send(.shareShoppingList)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { store.send(.dismissShoppingList) }
+                }
+            }
+        }
+    }
+
+    private func shoppingItemRow(_ item: FamilyHQReducer.State.ShoppingItemState) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                store.send(.toggleShoppingItemBought(item.id))
+            } label: {
+                Image(systemName: item.isBought ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(item.isBought ? .green : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(.subheadline)
+                    .strikethrough(item.isBought)
+                    .foregroundStyle(item.isBought ? .secondary : .primary)
+                HStack(spacing: 6) {
+                    Text("x\(item.quantity)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    if !item.category.isEmpty && item.category != "General" {
+                        Text(item.category)
+                            .font(.caption2)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color(.systemGray5))
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+
+            Spacer()
+
+            if item.budgetPrice > 0 {
+                Text("$\(String(format: "%.2f", item.budgetPrice * Double(item.quantity)))")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(item.isBought ? .green : .primary)
+            }
+
+            Button {
+                store.send(.deleteShoppingItem(item.id))
+            } label: {
+                Image(systemName: "trash")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func totalFor(_ person: String) -> Int {
+        store.choreCounts.values.reduce(0) { $0 + ($1[person] ?? 0) }
+    }
+
+    private func exportChoreCSV() {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMMM d, yyyy"
+        let dateStr = dateFormatter.string(from: Date())
+
+        var csv = "AXIS Chore Counter Report\n"
+        csv += "Week of \(dateStr)\n\n"
+        csv += "Chore,Dr. King,Wife,Total\n"
+
+        for chore in store.choreCategories {
+            let dk = store.choreCounts[chore]?["drking"] ?? 0
+            let wife = store.choreCounts[chore]?["wife"] ?? 0
+            csv += "\(chore),\(dk),\(wife),\(dk + wife)\n"
+        }
+
+        let dkTotal = totalFor("drking")
+        let wifeTotal = totalFor("wife")
+        csv += "\nTOTAL,\(dkTotal),\(wifeTotal),\(dkTotal + wifeTotal)\n"
+
+        let fileName = "ChoreCounter_\(dateFormatter.string(from: Date()).replacingOccurrences(of: " ", with: "_")).csv"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController { topVC = presented }
+            let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
+            topVC.present(activityVC, animated: true)
+        }
     }
 }

@@ -103,17 +103,19 @@ struct AmbientSoundMixerView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        store.send(.toggleAmbientMixer)
+                        store.send(.dismissAmbientMixer)
                     }
                 }
             }
             .alert("Save Profile", isPresented: Binding(
                 get: { store.showSaveProfile },
-                set: { if !$0 { store.send(.toggleSaveProfile) } }
+                set: { newValue in
+                    if !newValue { store.send(.dismissSaveProfile) }
+                }
             )) {
                 TextField("Profile name", text: $store.newProfileName.sending(\.newProfileNameChanged))
                 Button("Save") { store.send(.saveFocusProfile) }
-                Button("Cancel", role: .cancel) { store.send(.toggleSaveProfile) }
+                Button("Cancel", role: .cancel) { store.send(.dismissSaveProfile) }
             } message: {
                 Text("Save current \(store.focusSessionMinutes)min timer with \(store.ambientSounds.count) sound(s)")
             }

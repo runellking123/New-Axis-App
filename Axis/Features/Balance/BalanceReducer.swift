@@ -25,6 +25,10 @@ struct BalanceReducer {
         var reportRangeDays: Int = 7
         var isSyncingHealth = false
         var lastHealthSync: Date?
+        var waterGlasses: Int = 0
+        var waterGoal: Int = 8
+        var moodToday: Int = 0  // 0=not set, 1-5 scale
+        var sleepGoalHours: Double = 7.0
 
         enum Section: String, CaseIterable, Equatable {
             case dashboard = "Dashboard"
@@ -149,6 +153,7 @@ struct BalanceReducer {
         case sectionChanged(State.Section)
         case energyScoreChanged(Int)
         case toggleLogEntry
+        case dismissLogEntry
         case requestHealthAccess
         case healthAccessUnavailable
         case newLogMoodChanged(String)
@@ -159,6 +164,9 @@ struct BalanceReducer {
         case loadWeeklyReport
         case reportRangeChanged(Int)
         case weeklyReportLoaded(AIService.WeeklyReport)
+        case addWater
+        case setMood(Int)
+        case sleepGoalChanged(Double)
     }
 
     @Dependency(\.axisHealth) var health
@@ -172,6 +180,11 @@ struct BalanceReducer {
                 let profile = PersistenceService.shared.getOrCreateProfile()
                 state.stepsGoal = profile.stepsGoal
                 HapticService.setEnabled(profile.hapticFeedbackEnabled)
+                // Load persisted water, mood, sleep goal
+                state.waterGlasses = UserDefaults.standard.integer(forKey: "axis_water_\(Self.todayKey())")
+                state.moodToday = UserDefaults.standard.integer(forKey: "axis_mood_\(Self.todayKey())")
+                state.sleepGoalHours = UserDefaults.standard.double(forKey: "axis_sleep_goal")
+                if state.sleepGoalHours == 0 { state.sleepGoalHours = 7.0 }
                 state.isSyncingHealth = true
                 return .send(.requestHealthAccess)
 
@@ -259,6 +272,10 @@ struct BalanceReducer {
                 }
                 return .none
 
+            case .dismissLogEntry:
+                state.showLogEntry = false
+                return .none
+
             case let .newLogMoodChanged(mood):
                 state.newLogMood = mood
                 return .none
@@ -301,8 +318,28 @@ struct BalanceReducer {
                 state.weeklyReport = report
                 state.weeklyReportGeneratedAt = Date()
                 return .none
+
+            case .addWater:
+                state.waterGlasses += 1
+                UserDefaults.standard.set(state.waterGlasses, forKey: "axis_water_\(Self.todayKey())")
+                return .none
+
+            case let .setMood(mood):
+                state.moodToday = mood
+                UserDefaults.standard.set(mood, forKey: "axis_mood_\(Self.todayKey())")
+                return .none
+
+            case let .sleepGoalChanged(hours):
+                state.sleepGoalHours = hours
+                UserDefaults.standard.set(hours, forKey: "axis_sleep_goal")
+                return .none
             }
         }
     }
 
+    private static func todayKey() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
+    }
 }

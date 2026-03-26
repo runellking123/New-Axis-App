@@ -15,6 +15,10 @@ struct SettingsView: View {
                 eaNotificationsSection
                 preferencesSection
                 healthSection
+                aiChatSection
+                dataManagementSection
+                securitySection
+                dataExportSection
                 aboutSection
             }
             .navigationTitle("Settings")
@@ -232,6 +236,129 @@ struct SettingsView: View {
             Text("Health")
         } footer: {
             Text("Connect to Apple Health for real sleep, steps, and energy data in the Balance tab.")
+        }
+    }
+
+    // MARK: - AI Chat
+
+    private var aiChatSection: some View {
+        Section {
+            SecureField("Anthropic API Key", text: Binding(
+                get: { MultiProviderChatService.shared.anthropicAPIKey },
+                set: { MultiProviderChatService.shared.anthropicAPIKey = $0 }
+            ))
+            .textInputAutocapitalization(.never)
+
+            SecureField("Google Gemini API Key", text: Binding(
+                get: { MultiProviderChatService.shared.geminiAPIKey },
+                set: { MultiProviderChatService.shared.geminiAPIKey = $0 }
+            ))
+            .textInputAutocapitalization(.never)
+
+            HStack {
+                Text("Selected Model")
+                Spacer()
+                Text(MultiProviderChatService.shared.selectedModel.displayName)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Text("Status")
+                Spacer()
+                Text(MultiProviderChatService.shared.isConfigured ? "Ready" : "API Key Needed")
+                    .foregroundStyle(MultiProviderChatService.shared.isConfigured ? .green : .orange)
+            }
+        } header: {
+            Text("AI Chat")
+        } footer: {
+            Text("Get API keys from console.anthropic.com and aistudio.google.com")
+        }
+    }
+
+    // MARK: - Data Management
+
+    @State private var showDeleteContactsAlert = false
+
+    private var dataManagementSection: some View {
+        Section {
+            Button("Delete All Imported Contacts", role: .destructive) {
+                showDeleteContactsAlert = true
+            }
+            .alert("Delete All Contacts?", isPresented: $showDeleteContactsAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete All", role: .destructive) {
+                    PersistenceService.shared.deleteAllContacts()
+                }
+            } message: {
+                Text("This will permanently remove all contacts from Social Circle. Your Apple Contacts are not affected.")
+            }
+        } header: {
+            Text("Data Management")
+        }
+    }
+
+    // MARK: - Security
+
+    private var securitySection: some View {
+        Section {
+            Toggle("Require Face ID", isOn: Binding(
+                get: { UserDefaults.standard.bool(forKey: "axis_require_faceid") },
+                set: { UserDefaults.standard.set($0, forKey: "axis_require_faceid") }
+            ))
+        } header: {
+            Text("Security")
+        }
+    }
+
+    // MARK: - Data Export
+
+    private var dataExportSection: some View {
+        Section {
+            Button("Export All Data (JSON)") {
+                exportAllData()
+            }
+        } header: {
+            Text("Data Export")
+        } footer: {
+            Text("Export all tasks, projects, contacts, and chat history")
+        }
+    }
+
+    private func exportAllData() {
+        let persistence = PersistenceService.shared
+        var export: [String: Any] = [:]
+        export["exportDate"] = DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .short)
+        export["tasks"] = persistence.fetchEATasks().map { [
+            "title": $0.title,
+            "status": $0.status,
+            "category": $0.category,
+            "priority": $0.priority
+        ] as [String: String] }
+        export["projects"] = persistence.fetchEAProjects().map { [
+            "title": $0.title,
+            "status": $0.status,
+            "category": $0.category
+        ] as [String: String] }
+        export["contacts"] = persistence.fetchContacts().map { [
+            "name": $0.name,
+            "phone": $0.phone,
+            "tier": $0.tier
+        ] as [String: String] }
+        export["chatThreads"] = persistence.fetchChatThreads().map { [
+            "title": $0.title,
+            "date": "\($0.updatedAt)"
+        ] as [String: String] }
+
+        if let jsonData = try? JSONSerialization.data(withJSONObject: export, options: .prettyPrinted) {
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("AXIS_Export_\(Int(Date().timeIntervalSince1970)).json")
+            try? jsonData.write(to: tempURL)
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootVC = windowScene.windows.first?.rootViewController {
+                var topVC = rootVC
+                while let presented = topVC.presentedViewController { topVC = presented }
+                let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
+                topVC.present(activityVC, animated: true)
+            }
         }
     }
 

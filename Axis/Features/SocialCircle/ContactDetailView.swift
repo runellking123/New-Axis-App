@@ -370,7 +370,8 @@ struct ContactDetailView: View {
             .padding()
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(contact.name)
+        .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(contact.name)
         .navigationBarTitleDisplayMode(.inline)
     }
 

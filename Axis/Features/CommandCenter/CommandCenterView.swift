@@ -386,6 +386,7 @@ struct CommandCenterView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("New Priority")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

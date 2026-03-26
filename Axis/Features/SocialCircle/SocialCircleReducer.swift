@@ -209,7 +209,12 @@ struct SocialCircleReducer {
             if !searchText.isEmpty {
                 result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
             }
-            return result.sorted { $0.daysSinceContact > $1.daysSinceContact }
+            return result.sorted {
+                if showOverdueOnly || sortByLastContacted {
+                    return $0.daysSinceContact > $1.daysSinceContact
+                }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
         }
 
         var overdueCount: Int {
@@ -247,13 +252,16 @@ struct SocialCircleReducer {
             return total / contacts.count
         }
 
+        var sortByLastContacted: Bool = false
         var showInsights: Bool = false
         var showOverdueOnly: Bool = false
         var selectedContactId: UUID?
+        var isLoadingContacts: Bool = false
     }
 
     enum Action: Equatable {
         case onAppear
+        case contactsLoaded([State.ContactState], [State.GroupState])
         case tierFilterChanged(State.TierFilter)
         case searchTextChanged(String)
         case toggleAddContact
@@ -274,6 +282,7 @@ struct SocialCircleReducer {
         case markContacted(UUID)
         case toggleInsights
         case toggleOverdueFilter
+        case toggleSortByLastContacted
         // Drill-down
         case selectContact(UUID?)
         case updateContactTier(UUID, String)
@@ -283,7 +292,9 @@ struct SocialCircleReducer {
         case updateContactNotes(UUID, String)
         // Phase 2: Groups
         case toggleGroupManagement
+        case dismissGroupManagement
         case toggleAddGroup
+        case dismissAddGroup
         case newGroupNameChanged(String)
         case newGroupEmojiChanged(String)
         case addGroup
@@ -326,11 +337,17 @@ struct SocialCircleReducer {
                         groupIds: c.groupIds ?? [], interactions: interactions
                     )
                 }
-                // Load groups
                 let groups = persistence.fetchContactGroups()
                 state.groups = groups.map { g in
                     State.GroupState(id: g.uuid, name: g.name, emoji: g.emoji, memberIds: g.memberIds)
                 }
+                NotificationService.shared.scheduleCheckInReminders()
+                return .none
+
+            case let .contactsLoaded(contacts, groups):
+                state.contacts = contacts
+                state.groups = groups
+                state.isLoadingContacts = false
                 NotificationService.shared.scheduleCheckInReminders()
                 return .none
 
@@ -342,6 +359,10 @@ struct SocialCircleReducer {
 
             case .toggleOverdueFilter:
                 state.showOverdueOnly.toggle()
+                return .none
+
+            case .toggleSortByLastContacted:
+                state.sortByLastContacted.toggle()
                 return .none
 
             case let .searchTextChanged(text):
@@ -374,10 +395,27 @@ struct SocialCircleReducer {
             case let .importContacts(imported):
                 state.showContactPicker = false
                 if imported.isEmpty { return .none }
-                // Store pending imports and show tier picker
-                state.pendingImports = imported
-                state.importTier = "closeFriends"
-                state.showImportTierPicker = true
+                // Auto-import with default tier (skip tier picker)
+                let tier = "closeFriends"
+                let persistence = PersistenceService.shared
+                let existingPhones = Set(state.contacts.compactMap { Self.sanitizePhone($0.phone) })
+
+                for ic in imported {
+                    let sanitized = Self.sanitizePhone(ic.phone)
+                    if let sanitized, existingPhones.contains(sanitized) { continue }
+                    let contact = Contact(
+                        name: ic.name, tier: tier, phone: ic.phone,
+                        email: ic.email, birthday: ic.birthday, checkInDays: 30, relationship: "friend"
+                    )
+                    persistence.saveContact(contact)
+                    state.contacts.append(State.ContactState(
+                        id: contact.uuid, name: contact.name, tier: contact.tier,
+                        phone: contact.phone, email: contact.email.isEmpty ? nil : contact.email,
+                        relationship: contact.relationship, lastContacted: nil,
+                        checkInDays: contact.checkInDays, birthday: contact.birthday
+                    ))
+                }
+                HapticService.notification(.success)
                 return .none
 
             case let .importTierChanged(tier):
@@ -535,12 +573,20 @@ struct SocialCircleReducer {
                 state.showGroupManagement.toggle()
                 return .none
 
+            case .dismissGroupManagement:
+                state.showGroupManagement = false
+                return .none
+
             case .toggleAddGroup:
                 state.showAddGroup.toggle()
                 if state.showAddGroup {
                     state.newGroupName = ""
                     state.newGroupEmoji = "👥"
                 }
+                return .none
+
+            case .dismissAddGroup:
+                state.showAddGroup = false
                 return .none
 
             case let .newGroupNameChanged(name):

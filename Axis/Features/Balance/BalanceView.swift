@@ -54,7 +54,9 @@ struct BalanceView: View {
             }
             .sheet(isPresented: Binding(
                 get: { store.showLogEntry },
-                set: { _ in store.send(.toggleLogEntry) }
+                set: { newValue in
+                    if !newValue { store.send(.dismissLogEntry) }
+                }
             )) {
                 addLogSheet
             }
@@ -197,6 +199,9 @@ struct BalanceView: View {
                 )
             }
 
+            // Sleep Goal Progress
+            sleepGoalCard
+
             // Stress level
             stressCard
 
@@ -205,6 +210,104 @@ struct BalanceView: View {
 
             // Recovery suggestions
             recoverySuggestionsCard
+
+            // Water tracker
+            waterTrackerCard
+
+            // Mood check-in
+            moodCheckInCard
+        }
+    }
+
+    // MARK: - Sleep Goal Card
+
+    private var sleepGoalCard: some View {
+        GlassCard {
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "bed.double.fill").foregroundStyle(.indigo)
+                    Text("Sleep Goal").font(.headline)
+                    Spacer()
+                    Text("\(String(format: "%.1f", store.sleepGoalHours))h goal")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                let progress = store.sleepHours > 0 ? min(store.sleepHours / store.sleepGoalHours, 1.0) : 0
+                ProgressView(value: progress)
+                    .tint(.indigo)
+                if store.sleepHours > 0 {
+                    Text("\(String(format: "%.1f", store.sleepHours))h slept — \(Int(progress * 100))% of goal")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                HStack {
+                    Stepper("Goal: \(String(format: "%.1f", store.sleepGoalHours))h",
+                            value: $store.sleepGoalHours.sending(\.sleepGoalChanged),
+                            in: 4...12, step: 0.5)
+                        .font(.caption)
+                }
+            }
+        }
+    }
+
+    // MARK: - Water Tracker Card
+
+    private var waterTrackerCard: some View {
+        GlassCard {
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "drop.fill").foregroundStyle(.cyan)
+                    Text("Water").font(.headline)
+                    Spacer()
+                    Text("\(store.waterGlasses)/\(store.waterGoal) glasses")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                ProgressView(value: Double(min(store.waterGlasses, store.waterGoal)), total: Double(store.waterGoal))
+                    .tint(.cyan)
+                Button { store.send(.addWater) } label: {
+                    Label("+1 Glass", systemImage: "plus.circle.fill")
+                        .font(.caption).fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(.cyan.opacity(0.15))
+                        .foregroundStyle(.cyan)
+                        .clipShape(.capsule)
+                }
+            }
+        }
+    }
+
+    // MARK: - Mood Check-in Card
+
+    private var moodCheckInCard: some View {
+        GlassCard {
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "face.smiling").foregroundStyle(.yellow)
+                    Text("Mood").font(.headline)
+                    Spacer()
+                }
+                HStack(spacing: 16) {
+                    ForEach(1...5, id: \.self) { level in
+                        Button { store.send(.setMood(level)) } label: {
+                            Text(Self.moodEmoji(level))
+                                .font(.title2)
+                                .opacity(store.moodToday == level ? 1.0 : 0.4)
+                                .scaleEffect(store.moodToday == level ? 1.2 : 1.0)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func moodEmoji(_ level: Int) -> String {
+        switch level {
+        case 1: return "\u{1F62B}"
+        case 2: return "\u{1F615}"
+        case 3: return "\u{1F610}"
+        case 4: return "\u{1F642}"
+        case 5: return "\u{1F604}"
+        default: return "\u{1F610}"
         }
     }
 
@@ -479,11 +582,12 @@ struct BalanceView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Daily Check-in")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { store.send(.toggleLogEntry) }
+                    Button("Cancel") { store.send(.dismissLogEntry) }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { store.send(.addLogEntry) }

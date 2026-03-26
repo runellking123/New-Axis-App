@@ -43,6 +43,7 @@ struct EAPlannerView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Planner")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

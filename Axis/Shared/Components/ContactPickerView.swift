@@ -7,12 +7,16 @@ struct ContactPickerView: View {
         let name: String
         let phone: String
         let email: String
+        let birthday: Date?
     }
 
     @Environment(\.dismiss) private var dismiss
     @State private var contacts: [SelectableContact] = []
     @State private var searchText = ""
+    @State private var selectAll = false
+    @State private var deselectedIds = Set<String>()
     @State private var selectedIds = Set<String>()
+    @State private var useSelectAllMode = false
     @State private var accessDenied = false
     @State private var isLoading = false
     @State private var hasAttemptedLoad = false
@@ -30,6 +34,27 @@ struct ContactPickerView: View {
                 || contact.phone.lowercased().contains(query)
                 || contact.email.lowercased().contains(query)
         }
+    }
+
+    private func isSelected(_ id: String) -> Bool {
+        if useSelectAllMode {
+            return !deselectedIds.contains(id)
+        }
+        return selectedIds.contains(id)
+    }
+
+    private var selectedCount: Int {
+        if useSelectAllMode {
+            return contacts.count - deselectedIds.count
+        }
+        return selectedIds.count
+    }
+
+    private var effectiveSelectedContacts: [SelectableContact] {
+        if useSelectAllMode {
+            return contacts.filter { !deselectedIds.contains($0.id) }
+        }
+        return contacts.filter { selectedIds.contains($0.id) }
     }
 
     var body: some View {
@@ -51,7 +76,7 @@ struct ContactPickerView: View {
                             .foregroundStyle(.purple)
                         Text(hasAttemptedLoad ? "No contacts available" : "Import from Contacts")
                             .font(.headline)
-                        Text("Load your Apple Contacts into a searchable list, then choose which ones to import.")
+                        Text("Load your Apple Contacts, then import all or select specific ones.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -78,64 +103,7 @@ struct ContactPickerView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    VStack(spacing: 12) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            TextField("Search contacts", text: $searchText)
-                                .textInputAutocapitalization(.words)
-                            if !searchText.isEmpty {
-                                Button {
-                                    searchText = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .padding(10)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .padding(.horizontal)
-
-                        ScrollView {
-                            LazyVStack(spacing: 8) {
-                                ForEach(filteredContacts) { contact in
-                                    Button {
-                                        toggleSelection(for: contact.id)
-                                    } label: {
-                                        HStack(spacing: 12) {
-                                            Image(systemName: selectedIds.contains(contact.id) ? "checkmark.circle.fill" : "circle")
-                                                .foregroundStyle(selectedIds.contains(contact.id) ? .purple : .secondary)
-
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(contact.name.isEmpty ? "Unnamed Contact" : contact.name)
-                                                    .font(.subheadline)
-                                                    .foregroundStyle(.primary)
-                                                if !contact.email.isEmpty {
-                                                    Text(contact.email)
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                } else if !contact.phone.isEmpty {
-                                                    Text(contact.phone)
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                            }
-
-                                            Spacer()
-                                        }
-                                        .padding(12)
-                                        .background(Color(.systemGray6))
-                                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                                        .padding(.horizontal)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
+                    contactListView
                 }
             }
             .navigationTitle("Import Contacts")
@@ -145,22 +113,127 @@ struct ContactPickerView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Import") {
-                        let selected = contacts.filter { selectedIds.contains($0.id) }
-                        onContactsSelected(selected)
+                    Button("Import \(selectedCount > 0 ? "(\(selectedCount))" : "")") {
+                        onContactsSelected(effectiveSelectedContacts)
                         dismiss()
                     }
-                    .disabled(selectedIds.isEmpty)
+                    .disabled(selectedCount == 0)
                 }
             }
         }
     }
 
+    // MARK: - Contact List
+
+    private var contactListView: some View {
+        VStack(spacing: 0) {
+            // Search + actions bar
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search contacts", text: $searchText)
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                HStack {
+                    Text("\(selectedCount) of \(contacts.count) selected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+
+                    Button {
+                        // Import all immediately — no per-row re-render
+                        onContactsSelected(contacts)
+                        dismiss()
+                    } label: {
+                        Text("Import All (\(contacts.count))")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.purple)
+                            .foregroundStyle(.white)
+                            .clipShape(.capsule)
+                    }
+
+                    Button {
+                        if useSelectAllMode && deselectedIds.isEmpty {
+                            // Deselect all
+                            useSelectAllMode = false
+                            selectedIds.removeAll()
+                        } else {
+                            // Select all
+                            useSelectAllMode = true
+                            deselectedIds.removeAll()
+                            selectedIds.removeAll()
+                        }
+                    } label: {
+                        Text(useSelectAllMode && deselectedIds.isEmpty ? "Deselect All" : "Select All")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.purple)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            // Use List for efficient rendering
+            List(filteredContacts) { contact in
+                Button {
+                    toggleSelection(for: contact.id)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: isSelected(contact.id) ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(isSelected(contact.id) ? .purple : .secondary)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(contact.name.isEmpty ? "Unnamed Contact" : contact.name)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                            if !contact.phone.isEmpty {
+                                Text(contact.phone)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if !contact.email.isEmpty {
+                                Text(contact.email)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            }
+            .listStyle(.plain)
+        }
+    }
+
     private func toggleSelection(for id: String) {
-        if selectedIds.contains(id) {
-            selectedIds.remove(id)
+        if useSelectAllMode {
+            if deselectedIds.contains(id) {
+                deselectedIds.remove(id)
+            } else {
+                deselectedIds.insert(id)
+            }
         } else {
-            selectedIds.insert(id)
+            if selectedIds.contains(id) {
+                selectedIds.remove(id)
+            } else {
+                selectedIds.insert(id)
+            }
         }
     }
 
@@ -213,7 +286,8 @@ struct ContactPickerView: View {
                     CNContactGivenNameKey as CNKeyDescriptor,
                     CNContactFamilyNameKey as CNKeyDescriptor,
                     CNContactPhoneNumbersKey as CNKeyDescriptor,
-                    CNContactEmailAddressesKey as CNKeyDescriptor
+                    CNContactEmailAddressesKey as CNKeyDescriptor,
+                    CNContactBirthdayKey as CNKeyDescriptor
                 ]
                 let request = CNContactFetchRequest(keysToFetch: keys)
                 var loaded: [SelectableContact] = []
@@ -223,12 +297,14 @@ struct ContactPickerView: View {
                         let name = [contact.givenName, contact.familyName]
                             .filter { !$0.isEmpty }
                             .joined(separator: " ")
+                        let bday = contact.birthday?.date
                         loaded.append(
                             SelectableContact(
                                 id: contact.identifier,
                                 name: name,
                                 phone: contact.phoneNumbers.first?.value.stringValue ?? "",
-                                email: (contact.emailAddresses.first?.value as String?) ?? ""
+                                email: (contact.emailAddresses.first?.value as String?) ?? "",
+                                birthday: bday
                             )
                         )
                     }

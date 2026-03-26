@@ -29,6 +29,17 @@ struct AxisPersistenceClient {
     var fetchEATimeBlocks: @Sendable (UUID) -> [EATimeBlock]
     var saveEATimeBlock: @Sendable (EATimeBlock) -> Void
     var deleteEATimeBlock: @Sendable (EATimeBlock) -> Void
+    var fetchChatMessages: @Sendable (UUID?) -> [ChatMessage]
+    var saveChatMessage: @Sendable (ChatMessage) -> Void
+    var deleteChatMessage: @Sendable (UUID) -> Void
+    var fetchChatThreads: @Sendable () -> [ChatThread]
+    var saveChatThread: @Sendable (ChatThread) -> Void
+    var deleteChatThread: @Sendable (UUID) -> Void
+    var updateChatThreadTimestamp: @Sendable (UUID) -> Void
+    var fetchNotes: @Sendable () -> [CapturedNote]
+    var saveNote: @Sendable (CapturedNote) -> Void
+    var deleteNote: @Sendable (CapturedNote) -> Void
+    var updateNotes: @Sendable () -> Void
 }
 
 struct AxisHapticsClient {
@@ -109,7 +120,40 @@ private enum AxisPersistenceKey: DependencyKey {
         deleteEADailyPlan: { PersistenceService.shared.deleteEADailyPlan($0) },
         fetchEATimeBlocks: { PersistenceService.shared.fetchEATimeBlocks(forPlan: $0) },
         saveEATimeBlock: { PersistenceService.shared.saveEATimeBlock($0) },
-        deleteEATimeBlock: { PersistenceService.shared.deleteEATimeBlock($0) }
+        deleteEATimeBlock: { PersistenceService.shared.deleteEATimeBlock($0) },
+        fetchChatMessages: { threadId in
+            PersistenceService.shared.fetchChatMessages(threadId: threadId)
+        },
+        saveChatMessage: { msg in
+            PersistenceService.shared.saveChatMessage(msg)
+        },
+        deleteChatMessage: { id in
+            PersistenceService.shared.deleteChatMessage(id)
+        },
+        fetchChatThreads: {
+            PersistenceService.shared.fetchChatThreads()
+        },
+        saveChatThread: { thread in
+            PersistenceService.shared.saveChatThread(thread)
+        },
+        deleteChatThread: { id in
+            PersistenceService.shared.deleteChatThread(id)
+        },
+        updateChatThreadTimestamp: { id in
+            PersistenceService.shared.updateChatThreadTimestamp(id)
+        },
+        fetchNotes: {
+            PersistenceService.shared.fetchCapturedNotes()
+        },
+        saveNote: { note in
+            PersistenceService.shared.saveCapturedNote(note)
+        },
+        deleteNote: { note in
+            PersistenceService.shared.deleteCapturedNote(note)
+        },
+        updateNotes: {
+            PersistenceService.shared.updateCapturedNotes()
+        }
     )
 }
 
@@ -241,6 +285,9 @@ struct AppReducer {
         var explore = ExploreReducer.State()
         var balance = BalanceReducer.State()
         var trends = TrendsReducer.State()
+        var aiChat = AIChatReducer.State()
+        var budget = BudgetReducer.State()
+        var quickNotes = QuickNotesReducer.State()
         var settings = SettingsReducer.State()
 
         // Legacy (kept for data but not primary tabs)
@@ -256,30 +303,38 @@ struct AppReducer {
         enum Tab: Int, CaseIterable, Identifiable {
             // Primary tabs (visible in tab bar)
             case dashboard = 0
-            case planner = 1
-            case tasks = 2
-            case projects = 3
-            case social = 4
+            case calendar = 1
+            case aiChat = 2
+            case notes = 3
+            case tasks = 4
             // Under More
-            case familyHQ = 5
-            case explore = 6
-            case balance = 7
-            case trends = 8
-            case settings = 9
+            case explore = 5
+            case planner = 6
+            case projects = 7
+            case social = 8
+            case familyHQ = 9
+            case balance = 10
+            case budget = 11
+            case trends = 12
+            case settings = 13
 
             var id: Int { rawValue }
 
             var title: String {
                 switch self {
                 case .dashboard: return "Dashboard"
-                case .planner: return "Planner"
+                case .calendar: return "Calendar"
+                case .aiChat: return "AI Chat"
+                case .explore: return "Explore"
                 case .tasks: return "Tasks"
+                case .planner: return "Planner"
                 case .projects: return "Projects"
                 case .social: return "Social"
                 case .familyHQ: return "FamilyHQ"
-                case .explore: return "Explore"
                 case .balance: return "Balance"
-                case .trends: return "Trends"
+                case .budget: return "Budget"
+                case .trends: return "News"
+                case .notes: return "Notes"
                 case .settings: return "Settings"
                 }
             }
@@ -287,21 +342,25 @@ struct AppReducer {
             var icon: String {
                 switch self {
                 case .dashboard: return "house.fill"
-                case .planner: return "calendar.badge.clock"
+                case .calendar: return "calendar"
+                case .aiChat: return "bubble.left.and.text.bubble.right"
+                case .explore: return "map.fill"
                 case .tasks: return "checklist"
+                case .planner: return "calendar.badge.clock"
                 case .projects: return "folder.fill"
                 case .social: return "person.2.fill"
                 case .familyHQ: return "house.and.flag.fill"
-                case .explore: return "map.fill"
                 case .balance: return "heart.circle.fill"
-                case .trends: return "chart.line.uptrend.xyaxis"
+                case .budget: return "dollarsign.circle.fill"
+                case .trends: return "newspaper.fill"
+                case .notes: return "note.text"
                 case .settings: return "gearshape.fill"
                 }
             }
 
             var isPrimary: Bool {
                 switch self {
-                case .dashboard, .planner, .tasks, .projects, .social: return true
+                case .dashboard, .calendar, .aiChat, .notes, .tasks: return true
                 default: return false
                 }
             }
@@ -324,7 +383,10 @@ struct AppReducer {
         case familyHQ(FamilyHQReducer.Action)
         case explore(ExploreReducer.Action)
         case balance(BalanceReducer.Action)
+        case budget(BudgetReducer.Action)
+        case quickNotes(QuickNotesReducer.Action)
         case trends(TrendsReducer.Action)
+        case aiChat(AIChatReducer.Action)
         case settings(SettingsReducer.Action)
 
         // Legacy
@@ -368,8 +430,17 @@ struct AppReducer {
         Scope(state: \.balance, action: \.balance) {
             BalanceReducer()
         }
+        Scope(state: \.budget, action: \.budget) {
+            BudgetReducer()
+        }
+        Scope(state: \.quickNotes, action: \.quickNotes) {
+            QuickNotesReducer()
+        }
         Scope(state: \.trends, action: \.trends) {
             TrendsReducer()
+        }
+        Scope(state: \.aiChat, action: \.aiChat) {
+            AIChatReducer()
         }
         Scope(state: \.settings, action: \.settings) {
             SettingsReducer()
@@ -443,12 +514,14 @@ struct AppReducer {
                 case "tasks": state.selectedTab = .tasks
                 case "projects": state.selectedTab = .projects
                 case "dashboard": state.selectedTab = .dashboard
+                case "calendar": state.selectedTab = .calendar
+                case "notes": state.selectedTab = .notes
                 default: break
                 }
                 return .none
 
             case .eaDashboard, .eaPlanner, .eaTasks, .eaProjects,
-                 .socialCircle, .familyHQ, .explore, .balance, .trends, .settings,
+                 .socialCircle, .familyHQ, .explore, .balance, .budget, .quickNotes, .trends, .aiChat, .settings,
                  .commandCenter, .workSuite:
                 return .none
             }

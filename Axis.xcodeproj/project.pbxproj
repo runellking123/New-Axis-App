@@ -18,6 +18,7 @@
 		3DF3724AF5BB7AE1B019ADC4 /* SleepDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D8671ACDABC7CF4DB99AFE /* SleepDetailView.swift */; };
 		445BDF50E7D3210850F92D51 /* EATimeBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9F8E50B87A0C996A63DBA4 /* EATimeBlock.swift */; };
 		47729302AC196EA07BD2625C /* EAProjectReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037CDE58F18FB886F57A2D63 /* EAProjectReducer.swift */; };
+		4AF123CE485047F898F47BBE /* QuickNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E52903BE671F7A014AC0BB /* QuickNotesView.swift */; };
 		4D6100354C4884568B3CD018 /* TrendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AFE6899A8E91E4FCA33500 /* TrendService.swift */; };
 		53146FAA4B7A1A394D1120AF /* EAPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCEE92657EEDC2D3A508EF6 /* EAPlannerView.swift */; };
 		55483D59E6B544099E778280 /* HabitCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07F7EA83630A6C9DA0A7427 /* HabitCompletion.swift */; };
@@ -30,6 +31,17 @@
 		79A8D11F73D2A9120457E379 /* PlacePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D7A4B3AD8FA0F390910256C /* PlacePhoto.swift */; };
 		7CD0DD571628AD46411F0526 /* EACaptureResultSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498DD18A08E44FE103CE4598 /* EACaptureResultSheet.swift */; };
 		7FAAE5D0BAD33F3DB41D0F84 /* MetricDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1EBABED5E29BFB6A0E8EC97 /* MetricDetailView.swift */; };
+		7FB00000000000000000AC01 /* AIChatReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000AC01 /* AIChatReducer.swift */; };
+		7FB00000000000000000AC02 /* AIChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000AC02 /* AIChatView.swift */; };
+		7FB00000000000000000AC03 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000AC03 /* ChatMessage.swift */; };
+		7FB00000000000000000AC04 /* ChatThread.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000AC04 /* ChatThread.swift */; };
+		7FB00000000000000000AC05 /* MultiProviderChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000AC05 /* MultiProviderChatService.swift */; };
+		7FB00000000000000000AC06 /* ChoreCount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000AC06 /* ChoreCount.swift */; };
+		7FB00000000000000000AC07 /* CalendarTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000AC07 /* CalendarTabView.swift */; };
+		7FB00000000000000000AC08 /* YelpService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000AC08 /* YelpService.swift */; };
+		7FB00000000000000000BD01 /* BillEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000BD01 /* BillEntry.swift */; };
+		7FB00000000000000000BD02 /* BudgetReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000BD02 /* BudgetReducer.swift */; };
+		7FB00000000000000000BD03 /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC00000000000000000BD03 /* BudgetView.swift */; };
 		7FE791F7B3AB1ED8F5DD49E2 /* BucketListGoal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150A103BEF4A9DE77EA32C12 /* BucketListGoal.swift */; };
 		80EDE13248B373205B3B9802 /* FocusProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78084D847F5FCC9D9BDD246 /* FocusProfile.swift */; };
 		8D13463E20A9D69069AEE30C /* InteractionLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB3B3A3787C03C3DFEE5229 /* InteractionLogView.swift */; };
@@ -114,6 +126,7 @@
 		E17760D5B0E084DEEECCEFBE /* AmbientSoundMixerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076D42382660E454AEE199F /* AmbientSoundMixerView.swift */; };
 		E191D770159FB4BC74353DFF /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18618A8A5F7F3B8BAC086E50 /* Habit.swift */; };
 		EAC267D0586540C3D64931CA /* RoutineStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1044935D5A4184C2BE7EFF /* RoutineStep.swift */; };
+		ED5F741C804C93D98985D68B /* QuickNotesReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FA0520BC27F2C39F831F96F /* QuickNotesReducer.swift */; };
 		ED86207D61A5EF93224A26B9 /* MiniChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC964EA8E4571942AA5405C /* MiniChartView.swift */; };
 		F73E7A9900700EB1D60DE3E1 /* TrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518157A90CA40FD406467EC9 /* TrendsView.swift */; };
 		F91D73BEA2F39E40F918B883 /* EADailyPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 185F48783064B5807E712D13 /* EADailyPlan.swift */; };
@@ -140,10 +153,23 @@
 		498DD18A08E44FE103CE4598 /* EACaptureResultSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EACaptureResultSheet.swift; sourceTree = "<group>"; };
 		4D7A4B3AD8FA0F390910256C /* PlacePhoto.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlacePhoto.swift; sourceTree = "<group>"; };
 		518157A90CA40FD406467EC9 /* TrendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendsView.swift; sourceTree = "<group>"; };
+		52E52903BE671F7A014AC0BB /* QuickNotesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickNotesView.swift; sourceTree = "<group>"; };
 		5B8E1D33E91C6B00B7D9E589 /* EADashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EADashboardView.swift; sourceTree = "<group>"; };
 		5EB3B3A3787C03C3DFEE5229 /* InteractionLogView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Features/SocialCircle/InteractionLogView.swift; sourceTree = SOURCE_ROOT; };
+		5FA0520BC27F2C39F831F96F /* QuickNotesReducer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickNotesReducer.swift; sourceTree = "<group>"; };
 		6EF385E57988A203FA9AC455 /* EADashboardReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EADashboardReducer.swift; sourceTree = "<group>"; };
 		78AFE6899A8E91E4FCA33500 /* TrendService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendService.swift; sourceTree = "<group>"; };
+		7FC00000000000000000AC01 /* AIChatReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatReducer.swift; sourceTree = "<group>"; };
+		7FC00000000000000000AC02 /* AIChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatView.swift; sourceTree = "<group>"; };
+		7FC00000000000000000AC03 /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		7FC00000000000000000AC04 /* ChatThread.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatThread.swift; sourceTree = "<group>"; };
+		7FC00000000000000000AC05 /* MultiProviderChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiProviderChatService.swift; sourceTree = "<group>"; };
+		7FC00000000000000000AC06 /* ChoreCount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoreCount.swift; sourceTree = "<group>"; };
+		7FC00000000000000000AC07 /* CalendarTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTabView.swift; sourceTree = "<group>"; };
+		7FC00000000000000000AC08 /* YelpService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YelpService.swift; sourceTree = "<group>"; };
+		7FC00000000000000000BD01 /* BillEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillEntry.swift; sourceTree = "<group>"; };
+		7FC00000000000000000BD02 /* BudgetReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetReducer.swift; sourceTree = "<group>"; };
+		7FC00000000000000000BD03 /* BudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetView.swift; sourceTree = "<group>"; };
 		867AF4E55F95838D665EA2AF /* Routine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Routine.swift; sourceTree = "<group>"; };
 		886744F58C209654AB2DB132 /* RoutineCompletion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoutineCompletion.swift; sourceTree = "<group>"; };
 		88BD786DFB311D43DF079264 /* Subtask.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Axis/Models/Subtask.swift; sourceTree = SOURCE_ROOT; };
@@ -261,6 +287,16 @@
 			path = EA;
 			sourceTree = "<group>";
 		};
+		1D640D61D7C20BAAA53C9967 /* QuickNotes */ = {
+			isa = PBXGroup;
+			children = (
+				5FA0520BC27F2C39F831F96F /* QuickNotesReducer.swift */,
+				52E52903BE671F7A014AC0BB /* QuickNotesView.swift */,
+			);
+			name = QuickNotes;
+			path = QuickNotes;
+			sourceTree = "<group>";
+		};
 		2C865713EFEA298DA4F7FD79 /* Projects */ = {
 			isa = PBXGroup;
 			children = (
@@ -297,6 +333,32 @@
 				027B771B1C65873CEFDAABD4 /* EATaskReducer.swift */,
 			);
 			path = Tasks;
+			sourceTree = "<group>";
+		};
+		7FD00000000000000000AC00 /* AIChat */ = {
+			isa = PBXGroup;
+			children = (
+				7FC00000000000000000AC01 /* AIChatReducer.swift */,
+				7FC00000000000000000AC02 /* AIChatView.swift */,
+			);
+			path = AIChat;
+			sourceTree = "<group>";
+		};
+		7FD00000000000000000AC07 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				7FC00000000000000000AC07 /* CalendarTabView.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
+		7FD00000000000000000BD00 /* Budget */ = {
+			isa = PBXGroup;
+			children = (
+				7FC00000000000000000BD02 /* BudgetReducer.swift */,
+				7FC00000000000000000BD03 /* BudgetView.swift */,
+			);
+			path = Budget;
 			sourceTree = "<group>";
 		};
 		BDAAD2DFDE8DE706E05F2845 /* Planner */ = {
@@ -345,7 +407,10 @@
 		D10000000000000000000004 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				7FD00000000000000000AC00 /* AIChat */,
 				D10000000000000000000005 /* Balance */,
+				7FD00000000000000000BD00 /* Budget */,
+				7FD00000000000000000AC07 /* Calendar */,
 				D10000000000000000000006 /* CommandCenter */,
 				D1000000000000000000000A /* Explore */,
 				D1000000000000000000000B /* FamilyHQ */,
@@ -356,6 +421,7 @@
 				D10000000000000000000016 /* WorkSuite */,
 				7BB79E5A8AB790A2821FF14B /* Trends */,
 				047F0B9BA171188D104B0C56 /* EA */,
+				1D640D61D7C20BAAA53C9967 /* QuickNotes */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -486,6 +552,10 @@
 				185F48783064B5807E712D13 /* EADailyPlan.swift */,
 				1D9F8E50B87A0C996A63DBA4 /* EATimeBlock.swift */,
 				BD6B41549F91185C04FB4EA6 /* EAInboxItem.swift */,
+				7FC00000000000000000AC03 /* ChatMessage.swift */,
+				7FC00000000000000000AC04 /* ChatThread.swift */,
+				7FC00000000000000000AC06 /* ChoreCount.swift */,
+				7FC00000000000000000BD01 /* BillEntry.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -505,6 +575,8 @@
 				F5CDEA4174F253C9F21AFD75 /* AudioService.swift */,
 				78AFE6899A8E91E4FCA33500 /* TrendService.swift */,
 				B306755418842A07083FCE5E /* AIExecutiveService.swift */,
+				7FC00000000000000000AC05 /* MultiProviderChatService.swift */,
+				7FC00000000000000000AC08 /* YelpService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -802,6 +874,19 @@
 				3DF3724AF5BB7AE1B019ADC4 /* SleepDetailView.swift in Sources */,
 				A887435D791B028E3D8DF258 /* StepsDetailView.swift in Sources */,
 				7FAAE5D0BAD33F3DB41D0F84 /* MetricDetailView.swift in Sources */,
+				7FB00000000000000000AC01 /* AIChatReducer.swift in Sources */,
+				7FB00000000000000000AC02 /* AIChatView.swift in Sources */,
+				7FB00000000000000000AC03 /* ChatMessage.swift in Sources */,
+				7FB00000000000000000AC04 /* ChatThread.swift in Sources */,
+				7FB00000000000000000AC05 /* MultiProviderChatService.swift in Sources */,
+				7FB00000000000000000AC06 /* ChoreCount.swift in Sources */,
+				7FB00000000000000000AC07 /* CalendarTabView.swift in Sources */,
+				7FB00000000000000000AC08 /* YelpService.swift in Sources */,
+				7FB00000000000000000BD01 /* BillEntry.swift in Sources */,
+				7FB00000000000000000BD02 /* BudgetReducer.swift in Sources */,
+				7FB00000000000000000BD03 /* BudgetView.swift in Sources */,
+				ED5F741C804C93D98985D68B /* QuickNotesReducer.swift in Sources */,
+				4AF123CE485047F898F47BBE /* QuickNotesView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

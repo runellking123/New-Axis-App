@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import UIKit
 
 @Reducer
 struct FamilyHQReducer {
@@ -24,6 +25,31 @@ struct FamilyHQReducer {
         var expandedGoalId: UUID?
         var selectedEventId: UUID?
         var selectedGoalId: UUID?
+
+        // Chore Counter
+        var choreCategories: [String] = ["Pick up kids", "Wash clothes", "Clean house", "Cook dinner", "Groceries", "Dishes", "Take out trash", "Help with homework"]
+        var choreCounts: [String: [String: Int]] = [:]  // [choreName: ["drking": count, "wife": count]]
+        var showChoreCounter: Bool = false
+
+        // Shopping List
+        var shoppingItems: [ShoppingItemState] = []
+        var newShoppingItem = ""
+        var newShoppingQuantity: Int = 1
+        var newShoppingBudget: Double = 0
+        var newShoppingStore: String = "Any"
+        var newShoppingCategory: String = "General"
+        var showShoppingList = false
+
+        struct ShoppingItemState: Equatable, Identifiable {
+            let id: UUID
+            var name: String
+            var quantity: Int
+            var budgetPrice: Double
+            var actualPrice: Double
+            var store: String
+            var category: String
+            var isBought: Bool
+        }
 
         enum Section: String, CaseIterable, Equatable {
             case calendar = "Calendar"
@@ -207,6 +233,27 @@ struct FamilyHQReducer {
         case hideConfetti
         // Meals
         case mealNameChanged(dayOfWeek: Int, mealType: String, name: String)
+        // Chore Counter
+        case toggleChoreCounter
+        case dismissChoreCounter
+        case loadChoreCounts
+        case choreCountsLoaded([String: [String: Int]])
+        case incrementChore(String, String)  // choreName, person
+        case decrementChore(String, String)  // choreName, person
+        case resetChoreCounts
+        // Shopping List
+        case toggleShoppingList
+        case dismissShoppingList
+        case addShoppingItem
+        case newShoppingItemChanged(String)
+        case newShoppingQuantityChanged(Int)
+        case newShoppingBudgetChanged(Double)
+        case newShoppingStoreChanged(String)
+        case newShoppingCategoryChanged(String)
+        case toggleShoppingItemBought(UUID)
+        case updateShoppingActualPrice(UUID, Double)
+        case deleteShoppingItem(UUID)
+        case shareShoppingList
         // Drill-down
         case selectEvent(UUID?)
         case selectGoal(UUID?)
@@ -488,6 +535,173 @@ struct FamilyHQReducer {
                 state.showConfetti = false
                 return .none
 
+            // MARK: - Chore Counter
+
+            case .toggleChoreCounter:
+                state.showChoreCounter = true
+                return .none
+
+            case .dismissChoreCounter:
+                state.showChoreCounter = false
+                return .none
+
+            case .loadChoreCounts:
+                let persistence = PersistenceService.shared
+                let counts = persistence.fetchChoreCounts()
+                var mapped: [String: [String: Int]] = [:]
+                for c in counts {
+                    if mapped[c.choreName] == nil { mapped[c.choreName] = [:] }
+                    mapped[c.choreName]?[c.person] = c.count
+                }
+                state.choreCounts = mapped
+                return .none
+
+            case let .choreCountsLoaded(counts):
+                state.choreCounts = counts
+                return .none
+
+            case let .incrementChore(name, person):
+                PersistenceService.shared.incrementChore(name: name, person: person)
+                var counts = state.choreCounts
+                var inner = counts[name] ?? [:]
+                inner[person] = (inner[person] ?? 0) + 1
+                counts[name] = inner
+                state.choreCounts = counts
+                return .none
+
+            case let .decrementChore(name, person):
+                var counts = state.choreCounts
+                var inner = counts[name] ?? [:]
+                let current = inner[person] ?? 0
+                guard current > 0 else { return .none }
+                inner[person] = current - 1
+                counts[name] = inner
+                state.choreCounts = counts
+                PersistenceService.shared.decrementChore(name: name, person: person)
+                return .none
+
+            case .resetChoreCounts:
+                PersistenceService.shared.resetWeeklyChoreCounts()
+                state.choreCounts = [:]
+                return .none
+
+            // MARK: - Shopping List
+
+            case .toggleShoppingList:
+                state.showShoppingList = true
+                // Load from UserDefaults
+                if let data = UserDefaults.standard.data(forKey: "axis_shopping_items_v2"),
+                   let decoded = try? JSONDecoder().decode([[String: String]].self, from: data) {
+                    state.shoppingItems = decoded.compactMap { dict in
+                        guard let idStr = dict["id"], let id = UUID(uuidString: idStr),
+                              let name = dict["name"], let boughtStr = dict["isBought"] else { return nil }
+                        return State.ShoppingItemState(
+                            id: id,
+                            name: name,
+                            quantity: Int(dict["quantity"] ?? "1") ?? 1,
+                            budgetPrice: Double(dict["budgetPrice"] ?? "0") ?? 0,
+                            actualPrice: Double(dict["actualPrice"] ?? "0") ?? 0,
+                            store: dict["store"] ?? "Any",
+                            category: dict["category"] ?? "General",
+                            isBought: boughtStr == "true"
+                        )
+                    }
+                }
+                return .none
+
+            case .dismissShoppingList:
+                state.showShoppingList = false
+                return .none
+
+            case .addShoppingItem:
+                let trimmed = state.newShoppingItem.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return .none }
+                let item = State.ShoppingItemState(
+                    id: UUID(),
+                    name: trimmed,
+                    quantity: state.newShoppingQuantity,
+                    budgetPrice: state.newShoppingBudget,
+                    actualPrice: 0,
+                    store: state.newShoppingStore,
+                    category: state.newShoppingCategory,
+                    isBought: false
+                )
+                state.shoppingItems.insert(item, at: 0)
+                state.newShoppingItem = ""
+                state.newShoppingQuantity = 1
+                state.newShoppingBudget = 0
+                Self.saveShoppingItems(state.shoppingItems)
+                HapticService.impact(.light)
+                return .none
+
+            case let .newShoppingItemChanged(text):
+                state.newShoppingItem = text
+                return .none
+
+            case let .newShoppingQuantityChanged(qty):
+                state.newShoppingQuantity = qty
+                return .none
+
+            case let .newShoppingBudgetChanged(price):
+                state.newShoppingBudget = price
+                return .none
+
+            case let .newShoppingStoreChanged(store):
+                state.newShoppingStore = store
+                return .none
+
+            case let .newShoppingCategoryChanged(cat):
+                state.newShoppingCategory = cat
+                return .none
+
+            case let .toggleShoppingItemBought(id):
+                if let index = state.shoppingItems.firstIndex(where: { $0.id == id }) {
+                    state.shoppingItems[index].isBought.toggle()
+                    Self.saveShoppingItems(state.shoppingItems)
+                    HapticService.impact(.light)
+                }
+                return .none
+
+            case let .updateShoppingActualPrice(id, price):
+                if let index = state.shoppingItems.firstIndex(where: { $0.id == id }) {
+                    state.shoppingItems[index].actualPrice = price
+                    Self.saveShoppingItems(state.shoppingItems)
+                }
+                return .none
+
+            case let .deleteShoppingItem(id):
+                state.shoppingItems.removeAll { $0.id == id }
+                Self.saveShoppingItems(state.shoppingItems)
+                return .none
+
+            case .shareShoppingList:
+                // Build formatted text
+                var text = "Shopping List\n"
+                text += String(repeating: "\u{2500}", count: 30) + "\n\n"
+                let stores = Set(state.shoppingItems.map(\.store))
+                for store in stores.sorted() {
+                    let items = state.shoppingItems.filter { $0.store == store }
+                    text += "\u{1F4CD} \(store)\n"
+                    for item in items {
+                        let check = item.isBought ? "\u{2713}" : "\u{25CB}"
+                        text += "  \(check) \(item.name) x\(item.quantity) — $\(String(format: "%.2f", item.budgetPrice))\n"
+                    }
+                    let storeTotal = items.reduce(0.0) { $0 + $1.budgetPrice * Double($1.quantity) }
+                    text += "  Subtotal: $\(String(format: "%.2f", storeTotal))\n\n"
+                }
+                let grandTotal = state.shoppingItems.reduce(0.0) { $0 + $1.budgetPrice * Double($1.quantity) }
+                text += "TOTAL BUDGET: $\(String(format: "%.2f", grandTotal))\n"
+                // Share via UIActivityViewController
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ShoppingList.txt")
+                try? text.write(to: tempURL, atomically: true, encoding: .utf8)
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let vc = scene.windows.first?.rootViewController {
+                    var top = vc
+                    while let p = top.presentedViewController { top = p }
+                    top.present(UIActivityViewController(activityItems: [tempURL], applicationActivities: nil), animated: true)
+                }
+                return .none
+
             // MARK: - Drill-down
 
             case let .selectEvent(id):
@@ -589,4 +803,21 @@ struct FamilyHQReducer {
         }
     }
 
+    private static func saveShoppingItems(_ items: [State.ShoppingItemState]) {
+        let encoded = items.map { item -> [String: String] in
+            [
+                "id": item.id.uuidString,
+                "name": item.name,
+                "quantity": "\(item.quantity)",
+                "budgetPrice": "\(item.budgetPrice)",
+                "actualPrice": "\(item.actualPrice)",
+                "store": item.store,
+                "category": item.category,
+                "isBought": item.isBought ? "true" : "false"
+            ]
+        }
+        if let data = try? JSONEncoder().encode(encoded) {
+            UserDefaults.standard.set(data, forKey: "axis_shopping_items_v2")
+        }
+    }
 }

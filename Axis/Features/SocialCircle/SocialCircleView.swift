@@ -162,7 +162,7 @@ struct SocialCircleView: View {
                             name: contact.name,
                             phone: contact.phone,
                             email: contact.email,
-                            birthday: nil
+                            birthday: contact.birthday
                         )
                     }
                     store.send(.importContacts(imported))
@@ -170,7 +170,9 @@ struct SocialCircleView: View {
             }
             .sheet(isPresented: Binding(
                 get: { store.showGroupManagement },
-                set: { if !$0 { store.send(.toggleGroupManagement) } }
+                set: { newValue in
+                    if !newValue { store.send(.dismissGroupManagement) }
+                }
             )) {
                 GroupManagementView(store: store)
             }
@@ -344,37 +346,33 @@ struct SocialCircleView: View {
     private var birthdaySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: "gift.fill")
+                Image(systemName: "birthday.cake.fill")
                     .foregroundStyle(.pink)
                 Text("Upcoming Birthdays")
                     .font(.headline)
+                    .foregroundStyle(.pink)
             }
-
-            ForEach(store.upcomingBirthdays) { contact in
-                GlassCard {
-                    HStack(spacing: 12) {
-                        Image(systemName: "gift.fill")
-                            .foregroundStyle(.pink)
-                            .frame(width: 24)
-
-                        Text(contact.name)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-
-                        Spacer()
-
-                        if let days = contact.daysUntilBirthday {
-                            Text(days == 0 ? "Today!" : "in \(days)d")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(days <= 7 ? Color.pink.opacity(0.15) : Color(.systemGray5))
-                                .foregroundStyle(days <= 7 ? .pink : .secondary)
-                                .clipShape(Capsule())
-                        }
+            ForEach(store.upcomingBirthdays.prefix(3)) { contact in
+                HStack {
+                    Text(contact.initials)
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .frame(width: 28, height: 28)
+                        .background(.pink.opacity(0.15))
+                        .clipShape(Circle())
+                    Text(contact.name)
+                        .font(.subheadline)
+                    Spacer()
+                    if let days = contact.daysUntilBirthday {
+                        Text(days == 0 ? "Today!" : "\(days)d")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(days == 0 ? .red : .pink)
                     }
                 }
+                .padding(8)
+                .background(.ultraThinMaterial)
+                .clipShape(.rect(cornerRadius: 10))
             }
         }
     }
@@ -387,6 +385,17 @@ struct SocialCircleView: View {
                 Text("Contacts")
                     .font(.headline)
                 Spacer()
+                HStack(spacing: 4) {
+                    Text("Sort:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button { store.send(.toggleSortByLastContacted) } label: {
+                        Text(store.sortByLastContacted ? "Last Contacted" : "Name")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.axisGold)
+                    }
+                }
                 Text("\(store.filteredContacts.count)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -456,6 +465,47 @@ struct SocialCircleView: View {
                     }
 
                     Spacer()
+
+                    if !contact.phone.isEmpty {
+                        Button {
+                            if let url = URL(string: "tel:\(contact.phone.filter(\.isNumber))") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Image(systemName: "phone.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.green)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Text button
+                    if !contact.phone.isEmpty {
+                        Button {
+                            if let url = URL(string: "sms:\(contact.phone.filter(\.isNumber))") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Image(systemName: "message.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // FaceTime button
+                    if !contact.phone.isEmpty {
+                        Button {
+                            if let url = URL(string: "facetime:\(contact.phone.filter(\.isNumber))") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Image(systemName: "video.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.purple)
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     // Health score + Days since contact
                     VStack(alignment: .trailing, spacing: 2) {

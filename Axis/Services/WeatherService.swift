@@ -185,31 +185,29 @@ final class WeatherService {
         if let existing = await MainActor.run(body: { locationService.effectiveLocation }) {
             return existing
         }
-
-        // Check cached CLLocationManager location
         if let cached = await MainActor.run(body: { locationService.currentLocation }) {
             return cached
         }
 
-        // Request permission if needed
+        // Request permission and location if needed
         let status = await MainActor.run { locationService.authorizationStatus }
-        if status == .notDetermined {
-            await MainActor.run { locationService.requestPermission() }
-            for _ in 0..<20 {
-                let s = await MainActor.run { locationService.authorizationStatus }
-                if s == .authorizedWhenInUse || s == .authorizedAlways { break }
-                if s == .denied || s == .restricted { return nil }
-                try? await Task.sleep(for: .milliseconds(500))
-            }
-        } else if status == .denied || status == .restricted {
+        if status == .denied || status == .restricted {
             return nil
         }
 
-        // Request a fresh location fix
-        await MainActor.run { locationService.requestLocation() }
+        await MainActor.run {
+            if status == .notDetermined {
+                locationService.requestPermission()
+            } else {
+                locationService.requestLocation()
+            }
+        }
 
-        // Wait up to 15 seconds for GPS fix
-        for _ in 0..<30 {
+        // Wait for either permission + location or just location (up to 10s)
+        for _ in 0..<20 {
+            let currentStatus = await MainActor.run { locationService.authorizationStatus }
+            if currentStatus == .denied || currentStatus == .restricted { return nil }
+
             if let loc = await MainActor.run(body: {
                 locationService.effectiveLocation ?? locationService.currentLocation
             }) {

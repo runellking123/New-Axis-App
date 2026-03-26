@@ -19,6 +19,7 @@ struct EAProjectReducer {
         var newProjectTitle: String = ""
         var newProjectCategory: String = "personal"
         var newProjectDescription: String = ""
+        var newProjectTemplate: String = ""
 
         enum ProjectView: String, CaseIterable, Equatable {
             case list = "List"
@@ -32,6 +33,7 @@ struct EAProjectReducer {
             var status: String
             var category: String
             var deadline: Date?
+            var statusNote: String?
             var tasks: [TaskState]
             var milestones: [MilestoneState]
 
@@ -148,6 +150,8 @@ struct EAProjectReducer {
         case newProjectTitleChanged(String)
         case newProjectCategoryChanged(String)
         case newProjectDescriptionChanged(String)
+        case newProjectTemplateChanged(String)
+        case updateStatusNote(UUID, String)
         case confirmCreateProject
         case deleteProject(UUID)
         case updateProjectStatus(UUID, String)
@@ -258,6 +262,7 @@ struct EAProjectReducer {
                     status: "active",
                     category: preview.category,
                     deadline: milestones.last?.dueDate,
+                    statusNote: nil,
                     tasks: tasks,
                     milestones: milestones
                 )
@@ -306,6 +311,7 @@ struct EAProjectReducer {
                 state.newProjectTitle = ""
                 state.newProjectCategory = "personal"
                 state.newProjectDescription = ""
+                state.newProjectTemplate = ""
                 return .none
 
             case .dismissCreateProjectSheet:
@@ -324,19 +330,56 @@ struct EAProjectReducer {
                 state.newProjectDescription = desc
                 return .none
 
+            case let .newProjectTemplateChanged(template):
+                state.newProjectTemplate = template
+                return .none
+
+            case let .updateStatusNote(id, note):
+                if let index = state.projects.firstIndex(where: { $0.id == id }) {
+                    state.projects[index].statusNote = note
+                    let projects = persistence.fetchEAProjects()
+                    if let model = projects.first(where: { $0.uuid == id }) {
+                        model.statusNote = note
+                        persistence.updateEAProjects()
+                    }
+                }
+                return .none
+
             case .confirmCreateProject:
                 let title = state.newProjectTitle.trimmingCharacters(in: .whitespaces)
                 guard !title.isEmpty else { return .none }
                 let projectId = UUID()
+                let template = state.newProjectTemplate
+                let templateData = Self.templateData(for: template)
+                let tasks = templateData.tasks.map { t in
+                    State.TaskState(
+                        id: UUID(),
+                        title: t.title,
+                        status: "inbox",
+                        priority: t.priority,
+                        deadline: nil,
+                        estimatedMinutes: t.estimatedMinutes
+                    )
+                }
+                let milestones = templateData.milestones.enumerated().map { index, ms in
+                    State.MilestoneState(
+                        id: UUID(),
+                        title: ms.title,
+                        dueDate: Calendar.current.date(byAdding: .day, value: ms.relativeDayOffset, to: Date()),
+                        isCompleted: false,
+                        sortOrder: index
+                    )
+                }
                 let project = State.ProjectState(
                     id: projectId,
                     title: title,
                     projectDescription: state.newProjectDescription.isEmpty ? nil : state.newProjectDescription,
                     status: "active",
                     category: state.newProjectCategory,
-                    deadline: nil,
-                    tasks: [],
-                    milestones: []
+                    deadline: milestones.last?.dueDate,
+                    statusNote: nil,
+                    tasks: tasks,
+                    milestones: milestones
                 )
                 state.projects.insert(project, at: 0)
                 let projectModel = EAProject(
@@ -344,11 +387,37 @@ struct EAProjectReducer {
                     projectDescription: state.newProjectDescription.isEmpty ? nil : state.newProjectDescription,
                     status: "active",
                     category: state.newProjectCategory,
-                    deadline: nil
+                    deadline: milestones.last?.dueDate
                 )
                 projectModel.uuid = projectId
                 persistence.saveEAProject(projectModel)
+                // Persist template tasks
+                for task in tasks {
+                    let model = EATask(
+                        title: task.title,
+                        priority: task.priority,
+                        status: "inbox",
+                        category: state.newProjectCategory,
+                        estimatedMinutes: task.estimatedMinutes,
+                        projectId: projectId
+                    )
+                    model.uuid = task.id
+                    persistence.saveEATask(model)
+                }
+                // Persist template milestones
+                for (index, milestone) in milestones.enumerated() {
+                    let model = EAMilestone(
+                        title: milestone.title,
+                        dueDate: milestone.dueDate,
+                        isCompleted: false,
+                        projectId: projectId,
+                        sortOrder: index
+                    )
+                    model.uuid = milestone.id
+                    persistence.saveEAMilestone(model)
+                }
                 state.showCreateProject = false
+                state.newProjectTemplate = ""
                 haptics.notificationSuccess()
                 return .none
 
@@ -360,6 +429,7 @@ struct EAProjectReducer {
                     status: status,
                     category: category,
                     deadline: nil,
+                    statusNote: nil,
                     tasks: [],
                     milestones: []
                 )
@@ -501,7 +571,7 @@ struct EAProjectReducer {
     }
 }
 
-private extension EAProjectReducer {
+extension EAProjectReducer {
     static func taskState(from model: EATask) -> State.TaskState {
         State.TaskState(
             id: model.uuid,
@@ -535,8 +605,104 @@ private extension EAProjectReducer {
             status: model.status,
             category: model.category,
             deadline: model.deadline,
+            statusNote: model.statusNote,
             tasks: tasks,
             milestones: milestones
         )
+    }
+
+    // MARK: - Project Templates
+
+    struct TemplateTaskData {
+        let title: String
+        let priority: String
+        let estimatedMinutes: Int?
+    }
+
+    struct TemplateMilestoneData {
+        let title: String
+        let relativeDayOffset: Int
+    }
+
+    struct TemplateData {
+        let tasks: [TemplateTaskData]
+        let milestones: [TemplateMilestoneData]
+    }
+
+    static func templateData(for template: String) -> TemplateData {
+        switch template {
+        case "accreditation":
+            return TemplateData(
+                tasks: [
+                    TemplateTaskData(title: "Gather institutional data and evidence", priority: "high", estimatedMinutes: 120),
+                    TemplateTaskData(title: "Draft compliance narratives", priority: "high", estimatedMinutes: 180),
+                    TemplateTaskData(title: "Compile appendices and supporting documents", priority: "medium", estimatedMinutes: 90),
+                    TemplateTaskData(title: "Internal review and feedback", priority: "high", estimatedMinutes: 60),
+                    TemplateTaskData(title: "Final revisions and formatting", priority: "medium", estimatedMinutes: 90),
+                    TemplateTaskData(title: "Submit report", priority: "critical", estimatedMinutes: 30),
+                ],
+                milestones: [
+                    TemplateMilestoneData(title: "Data collection complete", relativeDayOffset: 14),
+                    TemplateMilestoneData(title: "First draft ready for review", relativeDayOffset: 30),
+                    TemplateMilestoneData(title: "Internal review complete", relativeDayOffset: 45),
+                    TemplateMilestoneData(title: "Final submission", relativeDayOffset: 60),
+                ]
+            )
+
+        case "ipeds":
+            return TemplateData(
+                tasks: [
+                    TemplateTaskData(title: "Identify IPEDS survey components due", priority: "high", estimatedMinutes: 30),
+                    TemplateTaskData(title: "Extract data from SIS/ERP", priority: "high", estimatedMinutes: 90),
+                    TemplateTaskData(title: "Validate data against prior year", priority: "high", estimatedMinutes: 60),
+                    TemplateTaskData(title: "Enter data into IPEDS portal", priority: "medium", estimatedMinutes: 120),
+                    TemplateTaskData(title: "Lock and submit survey", priority: "critical", estimatedMinutes: 15),
+                ],
+                milestones: [
+                    TemplateMilestoneData(title: "Data extraction complete", relativeDayOffset: 5),
+                    TemplateMilestoneData(title: "Validation complete", relativeDayOffset: 10),
+                    TemplateMilestoneData(title: "Submission deadline", relativeDayOffset: 14),
+                ]
+            )
+
+        case "grant":
+            return TemplateData(
+                tasks: [
+                    TemplateTaskData(title: "Review RFP/solicitation requirements", priority: "high", estimatedMinutes: 60),
+                    TemplateTaskData(title: "Draft project narrative", priority: "high", estimatedMinutes: 180),
+                    TemplateTaskData(title: "Build budget and justification", priority: "high", estimatedMinutes: 90),
+                    TemplateTaskData(title: "Collect letters of support", priority: "medium", estimatedMinutes: 30),
+                    TemplateTaskData(title: "Internal review and sign-off", priority: "high", estimatedMinutes: 60),
+                    TemplateTaskData(title: "Final formatting and submission", priority: "critical", estimatedMinutes: 45),
+                ],
+                milestones: [
+                    TemplateMilestoneData(title: "Narrative first draft", relativeDayOffset: 14),
+                    TemplateMilestoneData(title: "Budget finalized", relativeDayOffset: 21),
+                    TemplateMilestoneData(title: "Internal review complete", relativeDayOffset: 28),
+                    TemplateMilestoneData(title: "Submission deadline", relativeDayOffset: 35),
+                ]
+            )
+
+        case "analysis":
+            return TemplateData(
+                tasks: [
+                    TemplateTaskData(title: "Define research questions", priority: "high", estimatedMinutes: 45),
+                    TemplateTaskData(title: "Gather and clean data", priority: "high", estimatedMinutes: 120),
+                    TemplateTaskData(title: "Build analysis framework", priority: "medium", estimatedMinutes: 90),
+                    TemplateTaskData(title: "Generate visualizations", priority: "medium", estimatedMinutes: 60),
+                    TemplateTaskData(title: "Write findings summary", priority: "medium", estimatedMinutes: 90),
+                    TemplateTaskData(title: "Present results", priority: "high", estimatedMinutes: 30),
+                ],
+                milestones: [
+                    TemplateMilestoneData(title: "Data ready", relativeDayOffset: 5),
+                    TemplateMilestoneData(title: "Analysis complete", relativeDayOffset: 10),
+                    TemplateMilestoneData(title: "Report delivered", relativeDayOffset: 14),
+                ]
+            )
+
+        default:
+            // Blank template: no pre-populated tasks or milestones
+            return TemplateData(tasks: [], milestones: [])
+        }
     }
 }

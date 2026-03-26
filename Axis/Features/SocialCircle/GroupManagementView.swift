@@ -51,16 +51,18 @@ struct GroupManagementView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { store.send(.toggleGroupManagement) }
+                    Button("Done") { store.send(.dismissGroupManagement) }
                 }
             }
             .alert("New Group", isPresented: Binding(
                 get: { store.showAddGroup },
-                set: { if !$0 { store.send(.toggleAddGroup) } }
+                set: { newValue in
+                    if !newValue { store.send(.dismissAddGroup) }
+                }
             )) {
                 TextField("Group name", text: $store.newGroupName.sending(\.newGroupNameChanged))
                 Button("Create") { store.send(.addGroup) }
-                Button("Cancel", role: .cancel) { store.send(.toggleAddGroup) }
+                Button("Cancel", role: .cancel) { store.send(.dismissAddGroup) }
             }
         }
     }

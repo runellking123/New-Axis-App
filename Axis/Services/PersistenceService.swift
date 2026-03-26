@@ -198,6 +198,15 @@ final class PersistenceService: @unchecked Sendable {
         _ = saveContext("deleteContact")
     }
 
+    func deleteAllContacts() {
+        guard let context = modelContext else { return }
+        let contacts = fetchContacts()
+        for contact in contacts {
+            context.delete(contact)
+        }
+        _ = saveContext("deleteAllContacts")
+    }
+
     func updateContacts() {
         _ = saveContext("updateContacts")
     }
@@ -243,6 +252,16 @@ final class PersistenceService: @unchecked Sendable {
         guard let context = modelContext else { return }
         context.insert(note)
         _ = saveContext("saveCapturedNote")
+    }
+
+    func deleteCapturedNote(_ note: CapturedNote) {
+        guard let context = modelContext else { return }
+        context.delete(note)
+        _ = saveContext("deleteCapturedNote")
+    }
+
+    func updateCapturedNotes() {
+        _ = saveContext("updateCapturedNotes")
     }
 
     // MARK: - Priority Items
@@ -546,6 +565,143 @@ final class PersistenceService: @unchecked Sendable {
         _ = saveContext("updateEAInboxItems")
     }
 
+    // MARK: - Chat Messages
+
+    func fetchChatMessages(threadId: UUID? = nil) -> [ChatMessage] {
+        guard let context = modelContext else { return [] }
+        var descriptor = FetchDescriptor<ChatMessage>(sortBy: [SortDescriptor(\.timestamp)])
+        if let threadId {
+            descriptor.predicate = #Predicate<ChatMessage> { $0.threadId == threadId }
+        }
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    func saveChatMessage(_ message: ChatMessage) {
+        guard let context = modelContext else { return }
+        context.insert(message)
+        _ = saveContext("saveChatMessage")
+    }
+
+    func deleteChatMessage(_ id: UUID) {
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<ChatMessage>()
+        if let messages = try? context.fetch(descriptor) {
+            for msg in messages where msg.uuid == id {
+                context.delete(msg)
+            }
+        }
+        _ = saveContext("deleteChatMessage")
+    }
+
+    // MARK: - Chat Threads
+
+    func fetchChatThreads() -> [ChatThread] {
+        guard let context = modelContext else { return [] }
+        let descriptor = FetchDescriptor<ChatThread>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    func saveChatThread(_ thread: ChatThread) {
+        guard let context = modelContext else { return }
+        context.insert(thread)
+        _ = saveContext("saveChatThread")
+    }
+
+    func deleteChatThread(_ id: UUID) {
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<ChatThread>()
+        if let threads = try? context.fetch(descriptor) {
+            for thread in threads where thread.uuid == id {
+                context.delete(thread)
+            }
+        }
+        // Also delete messages
+        let msgDescriptor = FetchDescriptor<ChatMessage>()
+        if let messages = try? context.fetch(msgDescriptor) {
+            for msg in messages where msg.threadId == id {
+                context.delete(msg)
+            }
+        }
+        _ = saveContext("deleteChatThread")
+    }
+
+    func updateChatThreadTimestamp(_ id: UUID) {
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<ChatThread>()
+        if let threads = try? context.fetch(descriptor) {
+            for thread in threads where thread.uuid == id {
+                thread.updatedAt = Date()
+            }
+        }
+        _ = saveContext("updateChatThreadTimestamp")
+    }
+
+    // MARK: - Chore Counter
+
+    func fetchChoreCounts() -> [ChoreCount] {
+        let descriptor = FetchDescriptor<ChoreCount>()
+        return fetchAll(ChoreCount.self, descriptor: descriptor, operation: "fetchChoreCounts")
+    }
+
+    func incrementChore(name: String, person: String) {
+        guard let context = modelContext else { return }
+        let all = fetchChoreCounts()
+        let weekStart = Calendar.current.startOfDay(for: Calendar.current.date(from: Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date()))!)
+
+        if let existing = all.first(where: { $0.choreName == name && $0.person == person && $0.weekStartDate == weekStart }) {
+            existing.count += 1
+        } else {
+            let new = ChoreCount(choreName: name, person: person, count: 1)
+            context.insert(new)
+        }
+        _ = saveContext("incrementChore")
+    }
+
+    func decrementChore(name: String, person: String) {
+        let all = fetchChoreCounts()
+        let weekStart = Calendar.current.startOfDay(for: Calendar.current.date(from: Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date()))!)
+        if let existing = all.first(where: { $0.choreName == name && $0.person == person && $0.weekStartDate == weekStart }) {
+            existing.count = max(0, existing.count - 1)
+        }
+        _ = saveContext("decrementChore")
+    }
+
+    func resetWeeklyChoreCounts() {
+        guard let context = modelContext else { return }
+        let all = fetchChoreCounts()
+        for chore in all { context.delete(chore) }
+        _ = saveContext("resetChoreCounts")
+    }
+
+    // MARK: - Bills
+
+    func fetchBills(month: Int, year: Int) -> [BillEntry] {
+        let descriptor = FetchDescriptor<BillEntry>()
+        let all = fetchAll(BillEntry.self, descriptor: descriptor, operation: "fetchBills")
+        return all.filter { $0.month == month && $0.year == year }
+    }
+
+    func saveBill(_ bill: BillEntry) {
+        guard let context = modelContext else { return }
+        context.insert(bill)
+        _ = saveContext("saveBill")
+    }
+
+    func deleteBill(_ id: UUID) {
+        guard let context = modelContext else { return }
+        let all = fetchBills(month: 0, year: 0) // Fetch all, then filter
+        let descriptor = FetchDescriptor<BillEntry>()
+        let allBills = fetchAll(BillEntry.self, descriptor: descriptor, operation: "deleteBill")
+        if let match = allBills.first(where: { $0.uuid == id }) {
+            context.delete(match)
+            _ = saveContext("deleteBill")
+        }
+    }
+
+    func updateBills() {
+        _ = saveContext("updateBills")
+    }
+
     // MARK: - QA Utilities
 
     /// Debug utility for local QA resets. Removes all persisted records.
@@ -576,6 +732,7 @@ final class PersistenceService: @unchecked Sendable {
         let timeBlockDescriptor = FetchDescriptor<EATimeBlock>()
         fetchAll(EATimeBlock.self, descriptor: timeBlockDescriptor, operation: "resetAllData.fetchEATimeBlocks").forEach { context.delete($0) }
         fetchEAInboxItems().forEach { context.delete($0) }
+        fetchChoreCounts().forEach { context.delete($0) }
         if let profile = fetchUserProfile() {
             context.delete(profile)
         }

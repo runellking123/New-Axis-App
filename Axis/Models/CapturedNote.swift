@@ -3,24 +3,59 @@ import SwiftData
 
 @Model
 final class CapturedNote {
+    var title: String
     var content: String
     var transcribedFromVoice: Bool
     var classifiedModule: String
     var isProcessed: Bool
+    var isPinned: Bool
+    var color: String
+    @Attribute(originalName: "folder") var folder: String? = "Personal"
     var createdAt: Date
+    var updatedAt: Date
 
     init(
-        content: String,
+        title: String = "",
+        content: String = "",
         transcribedFromVoice: Bool = false,
-        classifiedModule: String = "commandCenter",
-        isProcessed: Bool = false
+        classifiedModule: String = "uncategorized",
+        isProcessed: Bool = false,
+        isPinned: Bool = false,
+        color: String = "yellow",
+        folder: String = "Personal"
     ) {
+        self.title = title
         self.content = content
         self.transcribedFromVoice = transcribedFromVoice
         self.classifiedModule = classifiedModule
         self.isProcessed = isProcessed
+        self.isPinned = isPinned
+        self.color = color
+        self.folder = folder
         self.createdAt = Date()
+        self.updatedAt = Date()
     }
+
+    var resolvedFolder: String {
+        folder ?? "Personal"
+    }
+
+    var displayTitle: String {
+        if !title.isEmpty { return title }
+        if let firstLine = content.components(separatedBy: .newlines).first, !firstLine.isEmpty {
+            return String(firstLine.prefix(50))
+        }
+        return "Untitled Note"
+    }
+
+    var preview: String {
+        let lines = content.components(separatedBy: .newlines)
+        let startIndex = title.isEmpty ? 1 : 0
+        let previewLines = lines.dropFirst(startIndex).prefix(3).joined(separator: " ")
+        return String(previewLines.prefix(120))
+    }
+
+    var noteColor: String { color }
 
     var moduleIcon: String {
         switch classifiedModule {

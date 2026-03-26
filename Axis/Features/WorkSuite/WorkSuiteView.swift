@@ -55,7 +55,9 @@ struct WorkSuiteView: View {
             }
             .sheet(isPresented: Binding(
                 get: { store.showAmbientMixer },
-                set: { if !$0 { store.send(.toggleAmbientMixer) } }
+                set: { newValue in
+                    if !newValue { store.send(.dismissAmbientMixer) }
+                }
             )) {
                 AmbientSoundMixerView(store: store)
             }
@@ -631,6 +633,7 @@ struct WorkSuiteView: View {
                     .font(.caption)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("New Project")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

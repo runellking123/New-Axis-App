@@ -30,6 +30,10 @@ struct ExploreReducer {
         var isLoadingSurpriseMe = false
         // Place detail
         var selectedPlaceId: UUID?
+        // Recently viewed
+        var recentlyViewed: [NearbyPlace] = []
+        var searchRadiusMeters: Double = 12000
+        var isLoadingMore: Bool = false
 
         enum StatFilter: String, Equatable {
             case favorites
@@ -44,6 +48,13 @@ struct ExploreReducer {
             var category: String
             var phoneNumber: String = ""
             var websiteURL: String = ""
+            var isVerified: Bool = false
+            var rating: Double = 0.0
+            var reviewCount: Int = 0
+            var todayHours: String = ""
+            var price: String = ""
+            var imageURL: String = ""
+            var yelpURL: String = ""
         }
 
         struct SurpriseResult: Equatable, Identifiable {
@@ -53,6 +64,13 @@ struct ExploreReducer {
             var address: String
             var latitude: Double
             var longitude: Double
+            var phoneNumber: String = ""
+            var websiteURL: String = ""
+            var isVerified: Bool = false
+            var rating: Double = 0.0
+            var reviewCount: Int = 0
+            var todayHours: String = ""
+            var price: String = ""
 
             var categoryIcon: String {
                 switch category {
@@ -62,6 +80,8 @@ struct ExploreReducer {
                 case "travel": return "airplane"
                 case "shopping": return "bag.fill"
                 case "coffee": return "cup.and.saucer.fill"
+                case "blackOwned": return "hand.raised.fill"
+                case "kids": return "figure.and.child.holdinghands"
                 default: return "mappin"
                 }
             }
@@ -73,6 +93,8 @@ struct ExploreReducer {
             case events = "Events"
             case activities = "Activities"
             case travel = "Travel"
+            case blackOwned = "Black-Owned"
+            case kids = "Kids"
 
             var icon: String {
                 switch self {
@@ -81,12 +103,16 @@ struct ExploreReducer {
                 case .events: return "ticket.fill"
                 case .activities: return "figure.hiking"
                 case .travel: return "airplane"
+                case .blackOwned: return "hand.raised.fill"
+                case .kids: return "figure.and.child.holdinghands"
                 }
             }
 
             var filterKey: String? {
                 switch self {
                 case .all: return nil
+                case .blackOwned: return "blackOwned"
+                case .kids: return "kids"
                 default: return rawValue.lowercased()
                 }
             }
@@ -112,6 +138,8 @@ struct ExploreReducer {
                 case "events": return "ticket.fill"
                 case "activities": return "figure.hiking"
                 case "travel": return "airplane"
+                case "blackOwned": return "hand.raised.fill"
+                case "kids": return "figure.and.child.holdinghands"
                 default: return "mappin"
                 }
             }
@@ -177,6 +205,8 @@ struct ExploreReducer {
         case statFilterTapped(State.StatFilter)
         case searchNearby
         case nearbyResultsLoaded([State.NearbyPlace])
+        case loadMoreNearby
+        case moreNearbyLoaded([State.NearbyPlace])
         case searchResultsLoaded([State.NearbyPlace])
         case addNearbyPlace(State.NearbyPlace)
         // Location bar
@@ -187,8 +217,14 @@ struct ExploreReducer {
         // Surprise Me from search
         case surpriseMeResultsLoaded([State.SurpriseResult])
         case saveSurpriseResult(State.SurpriseResult)
+        case surpriseResultsEnriched([State.SurpriseResult])
         // Internal: update location display name from GPS
         case locationDisplayNameUpdated(String)
+        // Yelp enrichment
+        case enrichWithYelp
+        case yelpEnriched([State.NearbyPlace])
+        // Recently viewed
+        case viewedPlace(State.NearbyPlace)
         // Place detail
         case selectPlace(UUID?)
         case updatePlaceRating(UUID, Int)
@@ -205,28 +241,33 @@ struct ExploreReducer {
             switch action {
             case .onAppear:
                 let persistence = PersistenceService.shared
-                // Clear old saved places to start fresh
-                persistence.deleteAllSavedPlaces()
-                state.places = []
+                // Load any saved places
+                let saved = persistence.fetchSavedPlaces()
+                state.places = saved.map { p in
+                    State.PlaceState(
+                        id: p.uuid, name: p.name, category: p.category,
+                        address: p.address, notes: p.notes, rating: p.rating,
+                        isVisited: p.isVisited, isFavorite: p.isFavorite
+                    )
+                }
                 return .run { send in
-                    // Request location permission and trigger a fresh GPS fix
+                    // Request location
                     await MainActor.run {
                         LocationService.shared.requestPermission()
                         LocationService.shared.requestLocation()
                     }
-                    // Wait up to 10 seconds for location to resolve
+                    // Wait up to 2 seconds for location
                     var location: CLLocation?
-                    for _ in 0..<20 {
+                    for _ in 0..<4 {
                         try? await Task.sleep(for: .milliseconds(500))
                         location = await MainActor.run { LocationService.shared.effectiveLocation }
                         if location != nil { break }
                     }
-                    // Update display name from resolved location
                     let name = await MainActor.run { LocationService.shared.currentLocationName }
                     if !name.isEmpty {
                         await send(.locationDisplayNameUpdated(name))
                     }
-                    // Now trigger nearby search
+                    // Search nearby — will show results even without location using default area
                     await send(.searchNearby)
                 }
 
@@ -258,7 +299,8 @@ struct ExploreReducer {
                                 address: item.placemark.title ?? "",
                                 category: Self.categorizeMapItem(item),
                                 phoneNumber: item.phoneNumber ?? "",
-                                websiteURL: item.url?.absoluteString ?? ""
+                                websiteURL: item.url?.absoluteString ?? "",
+                                isVerified: !(item.url == nil && (item.phoneNumber ?? "").isEmpty)
                             )
                         }
                         await send(.searchResultsLoaded(Array(results)))
@@ -390,7 +432,10 @@ struct ExploreReducer {
                                 category: Self.categorizeMapItem(item),
                                 address: item.placemark.title ?? "",
                                 latitude: item.placemark.coordinate.latitude,
-                                longitude: item.placemark.coordinate.longitude
+                                longitude: item.placemark.coordinate.longitude,
+                                phoneNumber: item.phoneNumber ?? "",
+                                websiteURL: item.url?.absoluteString ?? "",
+                                isVerified: !(item.url == nil && (item.phoneNumber ?? "").isEmpty)
                             )
                         }
                         await send(.surpriseMeResultsLoaded(Array(results)))
@@ -402,7 +447,24 @@ struct ExploreReducer {
             case let .surpriseMeResultsLoaded(results):
                 state.surpriseMeResults = results
                 state.isLoadingSurpriseMe = false
-                return .none
+                let locationName = state.locationDisplayName
+                return .run { send in
+                    let yelp = YelpService.shared
+                    let location = locationName.isEmpty ? "Marshall, TX" : locationName
+                    var enriched = results
+                    for i in 0..<enriched.count {
+                        let matches = await yelp.searchBusinesses(term: enriched[i].name, location: location, limit: 1)
+                        if let match = matches.first {
+                            enriched[i].rating = match.rating
+                            enriched[i].reviewCount = match.reviewCount
+                            enriched[i].todayHours = match.todayHours
+                            enriched[i].price = match.price
+                            if enriched[i].phoneNumber.isEmpty { enriched[i].phoneNumber = match.phone }
+                            // Don't overwrite real website with Yelp URL — keep them separate
+                        }
+                    }
+                    await send(.surpriseResultsEnriched(enriched))
+                }
 
             case .shuffleSurpriseMe:
                 state.isLoadingSurpriseMe = true
@@ -426,7 +488,10 @@ struct ExploreReducer {
                                 category: Self.categorizeMapItem(item),
                                 address: item.placemark.title ?? "",
                                 latitude: item.placemark.coordinate.latitude,
-                                longitude: item.placemark.coordinate.longitude
+                                longitude: item.placemark.coordinate.longitude,
+                                phoneNumber: item.phoneNumber ?? "",
+                                websiteURL: item.url?.absoluteString ?? "",
+                                isVerified: !(item.url == nil && (item.phoneNumber ?? "").isEmpty)
                             )
                         }
                         await send(.surpriseMeResultsLoaded(Array(results)))
@@ -463,16 +528,17 @@ struct ExploreReducer {
                             LocationService.shared.requestPermission()
                             LocationService.shared.requestLocation()
                         }
-                        // Retry up to 10 seconds waiting for location
-                        for _ in 0..<20 {
+                        // Retry up to 3 seconds waiting for location
+                        for _ in 0..<6 {
                             try? await Task.sleep(for: .milliseconds(500))
                             location = await MainActor.run { LocationService.shared.effectiveLocation }
                             if location != nil { break }
                         }
                     }
-                    guard let loc = location else {
-                        await send(.nearbyResultsLoaded([]))
-                        return
+                    // Default to Marshall, TX (Wiley University) if no GPS
+                    let loc = location ?? CLLocation(latitude: 32.5449, longitude: -94.3674)
+                    if location == nil {
+                        await send(.locationDisplayNameUpdated("Marshall, TX"))
                     }
                     let queries = Self.queriesForCategory(selectedCategory)
                     let forcedCategory = Self.fixedCategoryKey(for: selectedCategory)
@@ -502,14 +568,15 @@ struct ExploreReducer {
                                     address: address,
                                     category: forcedCategory ?? Self.categorizeMapItem(item),
                                     phoneNumber: item.phoneNumber ?? "",
-                                    websiteURL: item.url?.absoluteString ?? ""
+                                    websiteURL: item.url?.absoluteString ?? "",
+                                    isVerified: !(item.url == nil && (item.phoneNumber ?? "").isEmpty)
                                 ))
-                                if collected.count == 12 { break }
+                                if collected.count == 30 { break }
                             }
                         } catch {
                             continue
                         }
-                        if collected.count == 12 { break }
+                        if collected.count == 30 { break }
                     }
                     await send(.nearbyResultsLoaded(collected))
                 }
@@ -522,7 +589,63 @@ struct ExploreReducer {
                     if !locName.isEmpty {
                         await send(.locationDisplayNameUpdated(locName))
                     }
+                    await send(.enrichWithYelp)
                 }
+
+            case .loadMoreNearby:
+                guard !state.isLoadingMore else { return .none }
+                state.isLoadingMore = true
+                state.searchRadiusMeters += 15000
+                let selectedCategory = state.selectedCategory
+                let locationName = state.locationDisplayName
+                let radius = state.searchRadiusMeters
+                let existingNames = Set(state.nearbyResults.map { $0.name.lowercased() })
+                return .run { send in
+                    let location = await MainActor.run { LocationService.shared.effectiveLocation }
+                    let loc = location ?? CLLocation(latitude: 32.5449, longitude: -94.3674)
+                    let queries = Self.queriesForCategory(selectedCategory)
+                    let forcedCategory = Self.fixedCategoryKey(for: selectedCategory)
+                    let region = MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: radius, longitudinalMeters: radius)
+                    var collected: [State.NearbyPlace] = []
+
+                    for query in queries {
+                        let request = MKLocalSearch.Request()
+                        if !locationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            request.naturalLanguageQuery = "\(query) near \(locationName)"
+                        } else {
+                            request.naturalLanguageQuery = query
+                        }
+                        request.region = region
+                        let search = MKLocalSearch(request: request)
+                        do {
+                            let response = try await search.start()
+                            for item in response.mapItems {
+                                let name = item.name ?? "Unknown"
+                                guard !existingNames.contains(name.lowercased()) else { continue }
+                                collected.append(State.NearbyPlace(
+                                    name: name,
+                                    address: item.placemark.title ?? "",
+                                    category: forcedCategory ?? Self.categorizeMapItem(item),
+                                    phoneNumber: item.phoneNumber ?? "",
+                                    websiteURL: item.url?.absoluteString ?? "",
+                                    isVerified: !(item.url == nil && (item.phoneNumber ?? "").isEmpty)
+                                ))
+                                if collected.count == 15 { break }
+                            }
+                        } catch { continue }
+                        if collected.count == 15 { break }
+                    }
+                    await MainActor.run {
+                        // Append to existing results
+                    }
+                    // Use a new action to append
+                    await send(.moreNearbyLoaded(collected))
+                }
+
+            case let .moreNearbyLoaded(more):
+                state.nearbyResults.append(contentsOf: more)
+                state.isLoadingMore = false
+                return .none
 
             case let .searchResultsLoaded(results):
                 state.searchResults = results
@@ -576,8 +699,14 @@ struct ExploreReducer {
                     state.isUsingCustomLocation = true
                     state.locationBarText = ""
                     state.searchResults = []
-                    // Refresh nearby with new location
-                    return .send(.searchNearby)
+                    state.nearbyResults = []
+                    state.recentlyViewed = []
+                    state.searchRadiusMeters = 12000
+                    // Refresh nearby with new location after a brief delay for LocationService to update
+                    return .run { send in
+                        try? await Task.sleep(for: .milliseconds(200))
+                        await send(.searchNearby)
+                    }
                 }
                 return .none
 
@@ -585,6 +714,9 @@ struct ExploreReducer {
                 state.isUsingCustomLocation = false
                 state.locationBarText = ""
                 state.locationDisplayName = "Current Location"
+                state.nearbyResults = []
+                state.recentlyViewed = []
+                state.searchRadiusMeters = 12000
                 return .run { send in
                     await MainActor.run {
                         LocationService.shared.resetToCurrentLocation()
@@ -623,9 +755,63 @@ struct ExploreReducer {
                 HapticService.notification(.success)
                 return .none
 
+            case let .surpriseResultsEnriched(enriched):
+                state.surpriseMeResults = enriched
+                return .none
+
             case let .locationDisplayNameUpdated(name):
                 if !name.isEmpty {
                     state.locationDisplayName = name
+                }
+                return .none
+
+            // MARK: - Yelp Enrichment
+
+            case .enrichWithYelp:
+                let locationName = state.locationDisplayName
+                let currentResults = state.nearbyResults
+                guard !currentResults.isEmpty else { return .none }
+                return .run { send in
+                    let yelp = YelpService.shared
+                    let location = locationName.isEmpty ? "Marshall, TX" : locationName
+                    let toEnrich = Array(currentResults.prefix(10))
+                    // Parallel Yelp lookups
+                    let enrichedData = await withTaskGroup(of: (Int, YelpService.YelpBusiness?).self) { group in
+                        for (i, place) in toEnrich.enumerated() {
+                            group.addTask {
+                                let results = await yelp.searchBusinesses(term: place.name, location: location, limit: 1)
+                                return (i, results.first)
+                            }
+                        }
+                        var data: [(Int, YelpService.YelpBusiness?)] = []
+                        for await result in group { data.append(result) }
+                        return data
+                    }
+                    var enriched = currentResults
+                    for (i, match) in enrichedData {
+                        guard let match, i < enriched.count else { continue }
+                        enriched[i].rating = match.rating
+                        enriched[i].reviewCount = match.reviewCount
+                        enriched[i].todayHours = match.todayHours
+                        enriched[i].price = match.price
+                        if enriched[i].phoneNumber.isEmpty { enriched[i].phoneNumber = match.phone }
+                        enriched[i].imageURL = match.imageURL
+                        enriched[i].yelpURL = match.yelpURL
+                    }
+                    await send(.yelpEnriched(enriched))
+                }
+
+            case let .yelpEnriched(results):
+                state.nearbyResults = results
+                return .none
+
+            // MARK: - Recently Viewed
+
+            case let .viewedPlace(place):
+                state.recentlyViewed.removeAll { $0.id == place.id }
+                state.recentlyViewed.insert(place, at: 0)
+                if state.recentlyViewed.count > 5 {
+                    state.recentlyViewed = Array(state.recentlyViewed.prefix(5))
                 }
                 return .none
 
@@ -731,11 +917,15 @@ struct ExploreReducer {
         case .dining:
             return ["restaurants", "coffee shops", "brunch", "dessert"]
         case .events:
-            return ["live music", "theaters", "events", "museums"]
+            return ["live music tonight", "concerts", "comedy shows", "theater performances", "festivals", "events this week", "nightlife", "sports events"]
         case .activities:
             return ["parks", "fitness", "hiking", "activities"]
         case .travel:
             return ["hotels", "landmarks", "tourist attractions", "airports"]
+        case .blackOwned:
+            return ["Black owned restaurant", "Black owned bar", "Black owned business", "Black owned cafe", "Black owned shop", "African American owned"]
+        case .kids:
+            return ["children's museum", "playground", "trampoline park", "bowling alley", "arcade", "kids activities", "zoo", "aquarium", "skating rink", "miniature golf"]
         }
     }
 
@@ -746,6 +936,8 @@ struct ExploreReducer {
         case .events: return "events"
         case .activities: return "activities"
         case .travel: return "travel"
+        case .blackOwned: return "blackOwned"
+        case .kids: return "kids"
         }
     }
 

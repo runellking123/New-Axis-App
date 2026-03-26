@@ -279,6 +279,7 @@ struct WorkSuiteReducer {
         case skipBreak
         // Phase 1: Ambient Sounds
         case toggleAmbientMixer
+        case dismissAmbientMixer
         case setAmbientVolume(String, Float)
         case stopAllSounds
         case loadFocusProfile(UUID)
@@ -286,6 +287,7 @@ struct WorkSuiteReducer {
         case deleteFocusProfile(UUID)
         case newProfileNameChanged(String)
         case toggleSaveProfile
+        case dismissSaveProfile
     }
 
     @Dependency(\.continuousClock) var clock
@@ -639,6 +641,10 @@ struct WorkSuiteReducer {
                 state.showAmbientMixer.toggle()
                 return .none
 
+            case .dismissAmbientMixer:
+                state.showAmbientMixer = false
+                return .none
+
             case let .setAmbientVolume(sound, volume):
                 if volume <= 0 {
                     state.ambientSounds.removeValue(forKey: sound)
@@ -700,6 +706,10 @@ struct WorkSuiteReducer {
                 if state.showSaveProfile {
                     state.newProfileName = ""
                 }
+                return .none
+
+            case .dismissSaveProfile:
+                state.showSaveProfile = false
                 return .none
             }
         }

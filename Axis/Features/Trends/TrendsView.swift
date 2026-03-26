@@ -16,332 +16,177 @@ struct TrendsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Period selector
-                windowPicker
-
-                if store.isLoading {
-                    ProgressView("Crunching the numbers...")
-                        .padding(.top, 40)
-                } else if let data = store.trendData {
-                    // Metric cards grid
-                    metricGrid(data: data)
-
-                    // Focus trend chart
-                    if data.dailyFocusMinutes.contains(where: { $0 > 0 }) {
-                        trendChart(
-                            title: "Focus Time",
-                            icon: "timer",
-                            color: .blue,
-                            data: data.dailyFocusMinutes,
-                            value: data.focusHours,
-                            prevValue: Double(data.prevFocusMinutes),
-                            currentValue: Double(data.focusMinutes)
-                        )
-                    }
-
-                    // Priorities trend chart
-                    if data.dailyPrioritiesCompleted.contains(where: { $0 > 0 }) {
-                        trendChart(
-                            title: "Priorities Completed",
-                            icon: "checkmark.circle.fill",
-                            color: .green,
-                            data: data.dailyPrioritiesCompleted,
-                            value: "\(data.prioritiesCompleted)",
-                            prevValue: Double(data.prevPrioritiesCompleted),
-                            currentValue: Double(data.prioritiesCompleted)
-                        )
-                    }
-
-                    // Interactions trend chart
-                    if data.dailyInteractions.contains(where: { $0 > 0 }) {
-                        trendChart(
-                            title: "Social Interactions",
-                            icon: "person.2.fill",
-                            color: .purple,
-                            data: data.dailyInteractions,
-                            value: "\(data.interactionsLogged)",
-                            prevValue: Double(data.prevInteractionsLogged),
-                            currentValue: Double(data.interactionsLogged)
-                        )
-                    }
-
-                    // Insights section
-                    if !data.insights.isEmpty {
-                        insightsSection(insights: data.insights)
-                    }
-                } else {
-                    emptyState
-                }
+                newsCategoryPicker
+                newsContent
             }
             .padding(.horizontal)
             .padding(.bottom, 100)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("Trends")
-        .navigationBarTitleDisplayMode(.large)
-        .onAppear { store.send(.onAppear) }
-        .sheet(item: $selectedMetric) { metric in
-            MetricDetailView(
-                metricName: metric.name,
-                currentValue: metric.value,
-                unit: metric.unit,
-                color: metric.color
-            )
+        .scrollDismissesKeyboard(.interactively)
+        .navigationTitle("News")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("News")
+                    .font(.system(size: 18, weight: .bold, design: .serif))
+                    .foregroundStyle(Color.axisGold)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { store.send(.refreshNews) } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundStyle(Color.axisGold)
+                }
+                .disabled(store.isLoadingNews)
+            }
+        }
+        .onAppear {
+            store.send(.loadNews)
         }
     }
 
-    // MARK: - Window Picker
+    // MARK: - News Category Picker
 
-    private var windowPicker: some View {
-        HStack(spacing: 0) {
-            ForEach(TrendsReducer.State.WindowSize.allCases) { window in
-                Button {
-                    store.send(.windowChanged(window))
-                } label: {
-                    Text(window.rawValue)
-                        .font(.subheadline)
-                        .fontWeight(store.selectedWindow == window ? .bold : .regular)
-                        .foregroundStyle(store.selectedWindow == window ? .white : .primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(
-                            store.selectedWindow == window
-                                ? Color.axisGold
-                                : Color.clear
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: AxisTheme.chipRadius))
+    private var newsCategoryPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(TrendsReducer.State.NewsCategory.allCases, id: \.self) { category in
+                    Button { store.send(.newsCategoryChanged(category)) } label: {
+                        Text(category.rawValue)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(store.selectedNewsCategory == category ? Color.axisGold : Color(.systemGray5))
+                            .foregroundStyle(store.selectedNewsCategory == category ? .white : .secondary)
+                            .clipShape(.capsule)
+                    }
                 }
             }
-        }
-        .padding(4)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: AxisTheme.buttonRadius))
-    }
-
-    // MARK: - Metric Cards
-
-    private func metricGrid(data: TrendsReducer.State.TrendDataState) -> some View {
-        LazyVGrid(columns: [
-            GridItem(.flexible(), spacing: 12),
-            GridItem(.flexible(), spacing: 12)
-        ], spacing: 12) {
-            metricCard(
-                icon: "timer",
-                title: "Focus",
-                value: data.focusHours,
-                detail: "\(data.focusSessions) sessions",
-                color: .blue,
-                current: Double(data.focusMinutes),
-                previous: Double(data.prevFocusMinutes)
-            )
-
-            metricCard(
-                icon: "checkmark.circle.fill",
-                title: "Priorities",
-                value: "\(data.prioritiesCompleted)/\(data.prioritiesCreated)",
-                detail: completionRateText(data.completionRate),
-                color: data.completionRate >= 0.7 ? .green : .orange,
-                current: Double(data.prioritiesCompleted),
-                previous: Double(data.prevPrioritiesCompleted)
-            )
-
-            metricCard(
-                icon: "person.2.fill",
-                title: "Social",
-                value: "\(data.interactionsLogged)",
-                detail: "\(data.uniqueContactsReached) people",
-                color: .purple,
-                current: Double(data.interactionsLogged),
-                previous: Double(data.prevInteractionsLogged)
-            )
-
-            metricCard(
-                icon: "hands.clap.fill",
-                title: "Dad Wins",
-                value: "\(data.dadWinsCount)",
-                detail: data.dadWinsCount > 0 ? "Keep it up" : "Log a win",
-                color: Color.axisGold,
-                current: Double(data.dadWinsCount),
-                previous: Double(data.prevDadWinsCount)
-            )
-
-            if data.pomodorosCompleted > 0 {
-                metricCard(
-                    icon: "flame.fill",
-                    title: "Pomodoros",
-                    value: "\(data.pomodorosCompleted)",
-                    detail: "\(data.focusSessions) sessions",
-                    color: .red,
-                    current: Double(data.pomodorosCompleted),
-                    previous: 0
-                )
-            }
-
-            if data.placesVisited > 0 {
-                metricCard(
-                    icon: "mappin.and.ellipse",
-                    title: "Explored",
-                    value: "\(data.placesVisited)",
-                    detail: "new places",
-                    color: .teal,
-                    current: Double(data.placesVisited),
-                    previous: 0
-                )
-            }
+            .padding(.horizontal)
         }
     }
 
-    private func metricCard(
-        icon: String,
-        title: String,
-        value: String,
-        detail: String,
-        color: Color,
-        current: Double,
-        previous: Double
-    ) -> some View {
-        Button {
-            selectedMetric = MetricSelection(name: title, value: value, unit: detail, color: color)
-        } label: {
-            GlassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: icon)
-                            .font(.caption)
-                            .foregroundStyle(color)
-                        Text(title)
+    // MARK: - News Content
+
+    @ViewBuilder
+    private var newsContent: some View {
+        if store.isLoadingNews {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .tint(Color.axisGold)
+                        Text("Loading articles...")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Spacer()
-                        TrendIndicator(current: current, previous: previous)
                     }
-
-                    Text(value)
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    Text(detail)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Trend Chart Card
-
-    private func trendChart(
-        title: String,
-        icon: String,
-        color: Color,
-        data: [Double],
-        value: String,
-        prevValue: Double,
-        currentValue: Double
-    ) -> some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: icon)
-                        .foregroundStyle(color)
-                    Text(title)
-                        .font(.headline)
-                    Spacer()
-                    TrendIndicator(current: currentValue, previous: prevValue)
-                }
-
-                HStack(alignment: .bottom) {
-                    Text(value)
-                        .font(.title)
-                        .fontWeight(.bold)
-
-                    Spacer()
-
-                    MiniBarChartView(data: data, color: color)
-                        .frame(width: 120, height: 40)
-                }
-
-                // Day labels
-                HStack {
-                    Spacer()
-                    Text(dayRangeLabel)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private var dayRangeLabel: String {
-        let days = store.selectedWindow.days
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        let start = Calendar.current.date(byAdding: .day, value: -days, to: Date())!
-        return "\(formatter.string(from: start)) - \(formatter.string(from: Date()))"
-    }
-
-    // MARK: - Insights
-
-    private func insightsSection(insights: [TrendsReducer.State.TrendDataState.InsightState]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "lightbulb.fill")
-                    .foregroundStyle(Color.axisGold)
-                Text("Insights")
-                    .font(.headline)
-            }
-
-            ForEach(insights) { insight in
-                GlassCard {
-                    HStack(spacing: 10) {
-                        Image(systemName: insight.icon)
-                            .font(.callout)
-                            .foregroundStyle(insightColor(insight.category))
-                            .frame(width: 24)
-                        Text(insight.message)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else if store.newsArticles.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "newspaper")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text("No articles available")
                             .font(.subheadline)
-                            .foregroundStyle(.primary)
-                            .lineSpacing(3)
+                            .foregroundStyle(.secondary)
+                        Button("Refresh") { store.send(.refreshNews) }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color.axisGold)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    let startIndex = store.newsPage * store.articlesPerPage
+                    let endIndex = min(startIndex + store.articlesPerPage, store.newsArticles.count)
+                    let pageArticles = Array(store.newsArticles[startIndex..<endIndex])
+                    let totalPages = max(1, Int(ceil(Double(store.newsArticles.count) / Double(store.articlesPerPage))))
+
+                    ForEach(pageArticles) { article in
+                        Button { store.send(.openArticle(article.url)) } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(article.title)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(3)
+                                        .multilineTextAlignment(.leading)
+                                    HStack(spacing: 6) {
+                                        Text(article.source)
+                                            .font(.caption2)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Color.axisGold)
+                                        Circle()
+                                            .fill(.secondary.opacity(0.3))
+                                            .frame(width: 3, height: 3)
+                                        Text(article.publishedDate)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(14)
+                            .background(.ultraThinMaterial)
+                            .clipShape(.rect(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal)
+
+                    // Pagination controls
+                    HStack(spacing: 16) {
+                        Button {
+                            store.send(.previousNewsPage)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                Text("Previous")
+                            }
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(store.newsPage > 0 ? Color.axisGold : .gray)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(store.newsPage > 0 ? Color.axisGold.opacity(0.12) : Color(.systemGray5))
+                            .clipShape(Capsule())
+                        }
+                        .disabled(store.newsPage == 0)
+
+                        Text("Page \(store.newsPage + 1) of \(totalPages)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(minWidth: 80)
+
+                        Button {
+                            store.send(.nextNewsPage)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("Next")
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(store.newsPage < totalPages - 1 ? Color.axisGold : .gray)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(store.newsPage < totalPages - 1 ? Color.axisGold.opacity(0.12) : Color(.systemGray5))
+                            .clipShape(Capsule())
+                        }
+                        .disabled(store.newsPage >= totalPages - 1)
+                    }
+                    .padding(.top, 8)
+
+                    // Article count
+                    Text("\(store.newsArticles.count) articles loaded")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 4)
                 }
-            }
         }
     }
 
-    private func insightColor(_ category: String) -> Color {
-        switch category {
-        case "productivity": return .blue
-        case "social": return .purple
-        case "wellness": return .green
-        case "habits": return .orange
-        default: return Color.axisGold
-        }
-    }
-
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.axisGold.opacity(0.5))
-            Text("No trend data yet")
-                .font(.title3)
-                .fontWeight(.semibold)
-            Text("Use AXIS for a few days and trends will appear here as your data grows.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-        }
-        .padding(.top, 60)
-    }
-
-    private func completionRateText(_ rate: Double) -> String {
-        let pct = Int(rate * 100)
-        if pct >= 80 { return "\(pct)% done" }
-        if pct >= 50 { return "\(pct)% done" }
-        return "\(pct)% — room to grow"
-    }
-}
+    // Removed old trend charts/metrics — News tab is now news-only

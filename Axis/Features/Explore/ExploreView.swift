@@ -4,6 +4,9 @@ import UIKit
 
 struct ExploreView: View {
     @Bindable var store: StoreOf<ExploreReducer>
+    @State private var selectedNearby: ExploreReducer.State.NearbyPlace?
+    @State private var placeDescription = ""
+    @State private var isLoadingDescription = false
 
     var body: some View {
         NavigationStack {
@@ -31,6 +34,250 @@ struct ExploreView: View {
                 }
             )) {
                 surpriseMeSheet
+            }
+            .sheet(item: $selectedNearby) { place in
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Header
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: categoryIcon(place.category))
+                                        .font(.title2)
+                                        .foregroundStyle(.orange)
+                                    Text(place.name)
+                                        .font(.title3)
+                                        .fontWeight(.bold)
+                                }
+                                HStack(spacing: 8) {
+                                    Text(place.category.capitalized)
+                                        .font(.caption)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(.orange.opacity(0.15))
+                                        .foregroundStyle(.orange)
+                                        .clipShape(.capsule)
+                                    if place.isVerified {
+                                        HStack(spacing: 2) {
+                                            Image(systemName: "checkmark.seal.fill")
+                                                .font(.caption2)
+                                                .foregroundStyle(.green)
+                                            Text("Verified")
+                                                .font(.caption2)
+                                                .foregroundStyle(.green)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Yelp Rating
+                            if place.rating > 0 {
+                                HStack(spacing: 6) {
+                                    HStack(spacing: 2) {
+                                        ForEach(1...5, id: \.self) { star in
+                                            Image(systemName: Double(star) <= place.rating ? "star.fill" : (Double(star) - 0.5 <= place.rating ? "star.leadinghalf.filled" : "star"))
+                                                .font(.caption)
+                                                .foregroundStyle(Double(star) <= place.rating ? .orange : .gray.opacity(0.3))
+                                        }
+                                    }
+                                    Text(String(format: "%.1f", place.rating))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.orange)
+                                    Text("(\(place.reviewCount) reviews)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    if !place.price.isEmpty {
+                                        Text(place.price)
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(.green)
+                                    }
+                                }
+                            }
+
+                            // Hours
+                            if !place.todayHours.isEmpty {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "clock.fill")
+                                        .foregroundStyle(.green)
+                                    VStack(alignment: .leading) {
+                                        Text("Today's Hours")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(place.todayHours)
+                                            .font(.subheadline)
+                                    }
+                                }
+                            }
+
+                            // Address
+                            if !place.address.isEmpty {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "mappin.circle.fill")
+                                        .foregroundStyle(.red)
+                                    Text(place.address)
+                                        .font(.subheadline)
+                                }
+                            }
+
+                            // Phone
+                            if !place.phoneNumber.isEmpty {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "phone.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Link(place.phoneNumber, destination: URL(string: "tel:\(place.phoneNumber.filter(\.isNumber))")!)
+                                        .font(.subheadline)
+                                }
+                            }
+
+                            // Website
+                            if !place.websiteURL.isEmpty {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "globe")
+                                        .foregroundStyle(.blue)
+                                    Link("Visit Website", destination: URL(string: place.websiteURL)!)
+                                        .font(.subheadline)
+                                }
+                            }
+
+                            // Yelp Link
+                            if !place.yelpURL.isEmpty, let url = URL(string: place.yelpURL) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "star.circle.fill")
+                                        .foregroundStyle(.red)
+                                    Link("View on Yelp", destination: url)
+                                        .font(.subheadline)
+                                }
+                            }
+
+                            // Google Search fallback if no website
+                            if place.websiteURL.isEmpty && place.yelpURL.isEmpty {
+                                let query = "\(place.name) \(place.address)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                HStack(spacing: 8) {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundStyle(.blue)
+                                    Link("Search on Google", destination: URL(string: "https://www.google.com/search?q=\(query)")!)
+                                        .font(.subheadline)
+                                }
+                            }
+
+                            // AI Description
+                            if isLoadingDescription {
+                                HStack {
+                                    ProgressView().scaleEffect(0.7)
+                                    Text("Loading description...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else if !placeDescription.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("About")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.axisGold)
+                                    Text(placeDescription)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Divider()
+
+                            // Actions
+                            VStack(spacing: 12) {
+                                Button {
+                                    store.send(.addNearbyPlace(place))
+                                    selectedNearby = nil
+                                } label: {
+                                    Label("Save to My Places", systemImage: "star.circle.fill")
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.orange.opacity(0.15))
+                                        .foregroundStyle(.orange)
+                                        .clipShape(.rect(cornerRadius: 12))
+                                }
+
+                                if !place.address.isEmpty {
+                                    Button {
+                                        let query = place.address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                        if let url = URL(string: "maps://?q=\(query)") {
+                                            UIApplication.shared.open(url)
+                                        }
+                                    } label: {
+                                        Label("Get Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 12)
+                                            .background(Color.blue.opacity(0.15))
+                                            .foregroundStyle(.blue)
+                                            .clipShape(.rect(cornerRadius: 12))
+                                    }
+
+                                    // Order Food
+                                    if place.category == "dining" || place.category == "coffee" {
+                                        Button {
+                                            let encoded = place.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                            if let ue = URL(string: "ubereats://search?q=\(encoded)"), UIApplication.shared.canOpenURL(ue) {
+                                                UIApplication.shared.open(ue)
+                                            } else if let dd = URL(string: "doordash://search?query=\(encoded)"), UIApplication.shared.canOpenURL(dd) {
+                                                UIApplication.shared.open(dd)
+                                            } else if let web = URL(string: "https://www.ubereats.com/search?q=\(encoded)") {
+                                                UIApplication.shared.open(web)
+                                            }
+                                        } label: {
+                                            Label("Order Food", systemImage: "bag.fill")
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 12)
+                                                .background(Color.green.opacity(0.15))
+                                                .foregroundStyle(.green)
+                                                .clipShape(.rect(cornerRadius: 12))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .task(id: selectedNearby?.id) {
+                        guard let place = selectedNearby else { return }
+                        isLoadingDescription = true
+                        placeDescription = ""
+                        let key = MultiProviderChatService.shared.anthropicAPIKey
+                        guard !key.isEmpty else { isLoadingDescription = false; return }
+                        let url = URL(string: "https://api.anthropic.com/v1/messages")!
+                        var request = URLRequest(url: url)
+                        request.httpMethod = "POST"
+                        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        request.setValue(key, forHTTPHeaderField: "x-api-key")
+                        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+                        request.timeoutInterval = 8
+                        let body: [String: Any] = [
+                            "model": "claude-sonnet-4-20250514",
+                            "max_tokens": 80,
+                            "messages": [["role": "user", "content": "In 1-2 sentences, describe this place: \(place.name) at \(place.address). Category: \(place.category). Be factual and concise."]]
+                        ]
+                        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+                        do {
+                            let (data, _) = try await URLSession.shared.data(for: request)
+                            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let content = json["content"] as? [[String: Any]],
+                               let text = content.first?["text"] as? String {
+                                placeDescription = text
+                            }
+                        } catch {}
+                        isLoadingDescription = false
+                    }
+                    .navigationTitle("Place Details")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { selectedNearby = nil }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationCornerRadius(24)
+                .presentationBackground(.ultraThinMaterial)
             }
             .navigationDestination(isPresented: Binding(
                 get: { store.selectedPlaceId != nil },
@@ -69,9 +316,11 @@ struct ExploreView: View {
 
             // City search field
             HStack(spacing: 4) {
-                TextField("Search city...", text: $store.locationBarText.sending(\.locationBarTextChanged))
-                    .font(.caption)
-                    .frame(width: 100)
+                TextField("Search a city, address, or business...", text: $store.locationBarText.sending(\.locationBarTextChanged))
+                    .font(.body)
+                    .textContentType(.fullStreetAddress)
+                    .autocorrectionDisabled(false)
+                    .frame(width: 180)
                     .onSubmit {
                         store.send(.locationSearchSubmitted)
                     }
@@ -82,7 +331,7 @@ struct ExploreView: View {
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 14)
             .background(.ultraThinMaterial)
             .clipShape(Capsule())
 
@@ -136,7 +385,8 @@ struct ExploreView: View {
 
                     ForEach(store.searchResults) { result in
                         Button {
-                            store.send(.addNearbyPlace(result))
+                            store.send(.viewedPlace(result))
+                            selectedNearby = result
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: categoryIcon(result.category))
@@ -152,6 +402,16 @@ struct ExploreView: View {
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
+                                    if !result.todayHours.isEmpty {
+                                        HStack(spacing: 2) {
+                                            Image(systemName: "clock")
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(.green)
+                                            Text(result.todayHours)
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
                                 }
                                 Spacer()
                                 Image(systemName: "plus.circle")
@@ -186,24 +446,27 @@ struct ExploreView: View {
                                 .font(.caption)
                                 .fontWeight(.medium)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
                         .background(
                             store.selectedCategory == category
-                                ? Color.orange.opacity(0.2)
-                                : Color(.systemGray5)
+                                ? Color.orange
+                                : Color(.secondarySystemGroupedBackground)
                         )
                         .foregroundStyle(
                             store.selectedCategory == category
-                                ? .orange
-                                : .secondary
+                                ? .white
+                                : .primary
                         )
                         .clipShape(Capsule())
+                        .shadow(color: store.selectedCategory == category ? .orange.opacity(0.3) : .clear, radius: 4, y: 2)
+                        .scaleEffect(store.selectedCategory == category ? 1.05 : 1.0)
                     }
                 }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: store.selectedCategory)
         }
     }
 
@@ -212,10 +475,16 @@ struct ExploreView: View {
             VStack(spacing: 16) {
                 statsRow
                 surpriseMeButton
+                nearMeNowButton
 
                 // Nearby places
                 if !store.nearbyResults.isEmpty {
                     nearbySection
+                }
+
+                // Recently Viewed
+                if !store.recentlyViewed.isEmpty {
+                    recentlyViewedSection
                 }
 
                 placesSection
@@ -290,6 +559,7 @@ struct ExploreView: View {
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundStyle(isActive ? .white : .primary)
+                        .contentTransition(.numericText())
                     Text(title)
                         .font(.caption2)
                         .foregroundStyle(isActive ? .white.opacity(0.8) : .secondary)
@@ -330,7 +600,38 @@ struct ExploreView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle())
+    }
+
+    // MARK: - Near Me Now
+
+    private var nearMeNowButton: some View {
+        Button {
+            store.send(.useMyLocation)
+            store.send(.searchNearby)
+        } label: {
+            GlassCard {
+                HStack {
+                    Image(systemName: "location.viewfinder")
+                        .font(.title3)
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Near Me Now")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                        Text("Find places at your current GPS location")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .buttonStyle(ScaleButtonStyle())
     }
 
     private var surpriseMeSheet: some View {
@@ -379,12 +680,78 @@ struct ExploreView: View {
                                     }
 
                                     if !result.address.isEmpty {
-                                        Text(result.address)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "mappin.circle.fill")
+                                                .foregroundStyle(.red)
+                                                .font(.caption)
+                                            Text(result.address)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
                                     }
 
-                                    HStack(spacing: 8) {
+                                    if !result.phoneNumber.isEmpty {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "phone.circle.fill")
+                                                .foregroundStyle(.green)
+                                                .font(.caption)
+                                            Link(result.phoneNumber, destination: URL(string: "tel:\(result.phoneNumber.filter(\.isNumber))")!)
+                                                .font(.caption)
+                                        }
+                                    }
+
+                                    if !result.websiteURL.isEmpty {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "globe")
+                                                .foregroundStyle(.blue)
+                                                .font(.caption)
+                                            Link("Visit Website", destination: URL(string: result.websiteURL)!)
+                                                .font(.caption)
+                                        }
+                                    }
+
+                                    // Rating + Hours + Price
+                                    if result.rating > 0 {
+                                        HStack(spacing: 4) {
+                                            ForEach(1...5, id: \.self) { star in
+                                                Image(systemName: Double(star) <= result.rating ? "star.fill" : "star")
+                                                    .font(.system(size: 10))
+                                                    .foregroundStyle(Double(star) <= result.rating ? .orange : .gray.opacity(0.3))
+                                            }
+                                            Text("\(result.rating, specifier: "%.1f") (\(result.reviewCount))")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            if !result.price.isEmpty {
+                                                Text("• \(result.price)")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.green)
+                                            }
+                                        }
+                                    }
+
+                                    if !result.todayHours.isEmpty {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "clock.fill")
+                                                .font(.caption2)
+                                                .foregroundStyle(.green)
+                                            Text(result.todayHours)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+
+                                    if result.isVerified {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "checkmark.seal.fill")
+                                                .foregroundStyle(.green)
+                                                .font(.caption2)
+                                            Text("Verified")
+                                                .font(.caption2)
+                                                .foregroundStyle(.green)
+                                        }
+                                    }
+
+                                    HStack(spacing: 6) {
                                         Button {
                                             store.send(.saveSurpriseResult(result))
                                         } label: {
@@ -416,6 +783,33 @@ struct ExploreView: View {
                                             .foregroundStyle(.orange)
                                             .clipShape(RoundedRectangle(cornerRadius: 8))
                                         }
+
+                                        // Order Food deep link
+                                        if result.category == "dining" || result.category == "coffee" {
+                                            Button {
+                                                let encoded = result.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                                // Try Uber Eats first, then DoorDash, then web
+                                                if let ue = URL(string: "ubereats://search?q=\(encoded)"), UIApplication.shared.canOpenURL(ue) {
+                                                    UIApplication.shared.open(ue)
+                                                } else if let dd = URL(string: "doordash://search?query=\(encoded)"), UIApplication.shared.canOpenURL(dd) {
+                                                    UIApplication.shared.open(dd)
+                                                } else if let web = URL(string: "https://www.ubereats.com/search?q=\(encoded)") {
+                                                    UIApplication.shared.open(web)
+                                                }
+                                            } label: {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "bag.fill")
+                                                    Text("Order")
+                                                        .fontWeight(.medium)
+                                                }
+                                                .font(.caption)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 8)
+                                                .background(Color.green.opacity(0.15))
+                                                .foregroundStyle(.green)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -441,6 +835,8 @@ struct ExploreView: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationCornerRadius(24)
+        .presentationBackground(.ultraThinMaterial)
     }
 
     // MARK: - Nearby Section
@@ -449,12 +845,29 @@ struct ExploreView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "location.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.axisGold)
                 Text("Nearby")
                     .font(.headline)
                 Spacer()
-                if store.isSearchingNearby {
-                    ProgressView()
+                Text("\(store.nearbyResults.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+            }
+
+            if store.isSearchingNearby {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.systemGray5))
+                                .frame(width: 140, height: 100)
+                                .shimmer()
+                        }
+                    }
                 }
             }
 
@@ -462,7 +875,8 @@ struct ExploreView: View {
                 HStack(spacing: 10) {
                     ForEach(store.nearbyResults) { nearby in
                         Button {
-                            store.send(.addNearbyPlace(nearby))
+                            store.send(.viewedPlace(nearby))
+                            selectedNearby = nearby
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Image(systemName: categoryIcon(nearby.category))
@@ -477,15 +891,144 @@ struct ExploreView: View {
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
+                                if nearby.isVerified {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "checkmark.seal.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.green)
+                                        Text("Verified")
+                                            .font(.caption2)
+                                            .foregroundStyle(.green)
+                                    }
+                                }
+                                if nearby.rating > 0 {
+                                    HStack(spacing: 2) {
+                                        ForEach(1...5, id: \.self) { star in
+                                            Image(systemName: Double(star) <= nearby.rating ? "star.fill" : (Double(star) - 0.5 <= nearby.rating ? "star.leadinghalf.filled" : "star"))
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(Double(star) <= nearby.rating ? .orange : .gray.opacity(0.3))
+                                        }
+                                        Text("(\(nearby.reviewCount))")
+                                            .font(.system(size: 8))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                if !nearby.todayHours.isEmpty {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "clock")
+                                            .font(.system(size: 8))
+                                            .foregroundStyle(.green)
+                                        Text(nearby.todayHours)
+                                            .font(.system(size: 8))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                if !nearby.price.isEmpty {
+                                    Text(nearby.price)
+                                        .font(.caption2)
+                                        .foregroundStyle(.green)
+                                }
                             }
                             .frame(width: 140, alignment: .leading)
                             .padding(10)
                             .background(.ultraThinMaterial)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(ScaleButtonStyle())
+                    }
+
+                    // Load More button
+                    if !store.nearbyResults.isEmpty {
+                        Button {
+                            store.send(.loadMoreNearby)
+                        } label: {
+                            if store.isLoadingMore {
+                                ProgressView()
+                                    .frame(width: 100, height: 60)
+                            } else {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "arrow.clockwise.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(.orange)
+                                    Text("Load More")
+                                        .font(.caption2)
+                                        .foregroundStyle(.orange)
+                                }
+                                .frame(width: 100, height: 60)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                        .buttonStyle(ScaleButtonStyle())
                     }
                 }
+                .scrollTargetLayout()
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+            .scrollTargetBehavior(.viewAligned)
+        }
+        .animation(.easeInOut(duration: 0.3), value: store.nearbyResults.count)
+    }
+
+    // MARK: - Recently Viewed
+
+    private var recentlyViewedSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(Color.axisGold)
+                Text("Recently Viewed")
+                    .font(.headline)
+                Spacer()
+                Text("\(store.recentlyViewed.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+            }
+            ForEach(store.recentlyViewed) { place in
+                Button {
+                    selectedNearby = place
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: categoryIcon(place.category))
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(place.name)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.primary)
+                            Text(place.address)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            if !place.todayHours.isEmpty {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "clock")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.green)
+                                    Text(place.todayHours)
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        Spacer()
+                        if place.isVerified {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    .padding(10)
+                    .background(.ultraThinMaterial)
+                    .clipShape(.rect(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -495,6 +1038,8 @@ struct ExploreView: View {
     private var placesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
+                Image(systemName: store.filteredPlaces.isEmpty ? "sparkles" : "mappin.and.ellipse")
+                    .foregroundStyle(Color.axisGold)
                 Text(store.filteredPlaces.isEmpty ? "Recommendations" : "Places")
                     .font(.headline)
                 Spacer()
@@ -534,11 +1079,12 @@ struct ExploreView: View {
             } else if store.filteredPlaces.isEmpty {
                 ForEach(filteredNearbyRecommendations) { nearby in
                     Button {
-                        store.send(.addNearbyPlace(nearby))
+                        store.send(.viewedPlace(nearby))
+                        selectedNearby = nearby
                     } label: {
                         recommendationCard(nearby)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ScaleButtonStyle())
                 }
             } else {
                 ForEach(store.filteredPlaces) { place in
@@ -547,7 +1093,7 @@ struct ExploreView: View {
                     } label: {
                         placeCard(place)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ScaleButtonStyle())
                 }
             }
         }
@@ -566,30 +1112,71 @@ struct ExploreView: View {
 
     private func recommendationCard(_ nearby: ExploreReducer.State.NearbyPlace) -> some View {
         GlassCard {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.orange.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: categoryIcon(nearby.category))
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.orange.opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: categoryIcon(nearby.category))
+                            .foregroundStyle(.orange)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text(nearby.name)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.primary)
+                            if nearby.isVerified {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                        Text(nearby.address)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "plus.circle.fill")
                         .foregroundStyle(.orange)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(nearby.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-                    Text(nearby.address)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                // Rating + Hours + Price
+                HStack(spacing: 12) {
+                    if nearby.rating > 0 {
+                        HStack(spacing: 2) {
+                            ForEach(1...5, id: \.self) { star in
+                                Image(systemName: Double(star) <= nearby.rating ? "star.fill" : "star")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(Double(star) <= nearby.rating ? .orange : .gray.opacity(0.3))
+                            }
+                            Text("\(nearby.reviewCount)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if !nearby.price.isEmpty {
+                        Text(nearby.price)
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
                 }
 
-                Spacer()
-
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(.orange)
+                if !nearby.todayHours.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                        Text(nearby.todayHours)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }
@@ -627,20 +1214,19 @@ struct ExploreView: View {
 
                     Spacer()
 
+                    // Star ratings
+                    HStack(spacing: 2) {
+                        ForEach(1...5, id: \.self) { star in
+                            Image(systemName: star <= place.rating ? "star.fill" : "star")
+                                .font(.caption2)
+                                .foregroundStyle(star <= place.rating ? .orange : .gray.opacity(0.3))
+                        }
+                    }
+
                     // Chevron for drill-down
                     Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    if place.rating > 0 {
-                        HStack(spacing: 1) {
-                            ForEach(1...5, id: \.self) { star in
-                                Image(systemName: star <= place.rating ? "star.fill" : "star")
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(star <= place.rating ? .orange : .secondary.opacity(0.3))
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -652,6 +1238,8 @@ struct ExploreView: View {
         case "events": return "ticket.fill"
         case "activities": return "figure.hiking"
         case "travel": return "airplane"
+        case "blackOwned": return "hand.raised.fill"
+        case "kids": return "figure.and.child.holdinghands"
         default: return "mappin"
         }
     }
@@ -679,6 +1267,8 @@ struct ExploreView: View {
                         Label("Events", systemImage: "ticket.fill").tag("events")
                         Label("Activities", systemImage: "figure.hiking").tag("activities")
                         Label("Travel", systemImage: "airplane").tag("travel")
+                        Label("Black-Owned", systemImage: "hand.raised.fill").tag("blackOwned")
+                        Label("Kids", systemImage: "figure.and.child.holdinghands").tag("kids")
                     }
                 }
 
@@ -701,5 +1291,16 @@ struct ExploreView: View {
             }
         }
         .presentationDetents([.medium])
+    }
+}
+
+// MARK: - Scale Button Style
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }

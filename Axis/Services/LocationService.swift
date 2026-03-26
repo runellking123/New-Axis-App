@@ -21,18 +21,23 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = 100 // Update every 100m
         authorizationStatus = manager.authorizationStatus
         currentLocation = manager.location
         if let currentLocation {
             reverseGeocode(currentLocation)
+        }
+        // Auto-start if already authorized
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            manager.startUpdatingLocation()
         }
     }
 
     func requestPermission() {
         authorizationStatus = manager.authorizationStatus
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
-            requestLocation()
+            manager.startUpdatingLocation()
             return
         }
         manager.requestWhenInUseAuthorization()
@@ -43,7 +48,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             requestPermission()
             return
         }
-        manager.requestLocation()
+        // Use startUpdatingLocation for reliability, then stop after first fix
+        manager.startUpdatingLocation()
     }
 
     /// Forward geocode a city/address query and set it as the custom location
@@ -104,6 +110,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             if !self.isUsingCustomLocation, let location = locations.last {
                 self.reverseGeocode(location)
             }
+            // Stop continuous updates after getting a good fix to save battery
+            manager.stopUpdatingLocation()
         }
     }
 
@@ -111,13 +119,22 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         #if DEBUG
         print("[LocationService] Location error: \(error.localizedDescription)")
         #endif
+        // On failure, try requestLocation() as fallback
+        let code = (error as NSError).code
+        if code == CLError.locationUnknown.rawValue {
+            // Transient error, keep trying
+            return
+        }
+        Task { @MainActor in
+            manager.stopUpdatingLocation()
+        }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
             self.authorizationStatus = manager.authorizationStatus
             if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
-                manager.requestLocation()
+                manager.startUpdatingLocation()
             }
         }
     }

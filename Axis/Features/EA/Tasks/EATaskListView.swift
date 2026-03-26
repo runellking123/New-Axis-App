@@ -33,6 +33,12 @@ struct EATaskListView: View {
             .navigationTitle("Tasks")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(store.isSelectMode ? "Done" : "Select") {
+                        store.send(.toggleSelectMode)
+                    }
+                    .foregroundStyle(Color.axisGold)
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 12) {
                         Menu {
@@ -165,9 +171,17 @@ struct EATaskListView: View {
     // MARK: - Task List
 
     private var taskList: some View {
-        List {
-            ForEach(store.filteredTasks) { task in
-                taskRow(task)
+        VStack(spacing: 0) {
+            List {
+                ForEach(store.filteredTasks) { task in
+                    HStack(spacing: 12) {
+                        if store.isSelectMode {
+                            Image(systemName: store.selectedTaskIds.contains(task.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(store.selectedTaskIds.contains(task.id) ? Color.axisGold : .secondary)
+                                .onTapGesture { store.send(.toggleTaskSelection(task.id)) }
+                        }
+                        taskRow(task)
+                    }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) { store.send(.deleteTask(task.id)) } label: {
                             Label("Delete", systemImage: "trash")
@@ -179,9 +193,37 @@ struct EATaskListView: View {
                         }
                         .tint(.green)
                     }
+                }
+            }
+            .listStyle(.plain)
+
+            if store.isSelectMode {
+                batchActionBar
             }
         }
-        .listStyle(.plain)
+    }
+
+    private var batchActionBar: some View {
+        HStack {
+            Button { store.send(.selectAll) } label: {
+                Text("All").font(.caption)
+            }
+            Spacer()
+            Text("\(store.selectedTaskIds.count) selected")
+                .font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Button { store.send(.batchComplete) } label: {
+                Label("Complete", systemImage: "checkmark.circle")
+                    .font(.caption)
+            }
+            .tint(.green)
+            Button(role: .destructive) { store.send(.batchDelete) } label: {
+                Label("Delete", systemImage: "trash")
+                    .font(.caption)
+            }
+        }
+        .padding()
+        .background(.bar)
     }
 
     private func taskRow(_ task: EATaskReducer.State.TaskState) -> some View {
