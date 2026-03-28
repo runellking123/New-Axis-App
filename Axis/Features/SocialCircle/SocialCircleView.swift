@@ -95,7 +95,7 @@ struct SocialCircleView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 100)
                 }
-                .scrollDismissesKeyboard(.interactively)
+                .scrollDismissesKeyboard(.immediately)
             }
             .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
@@ -779,7 +779,6 @@ struct SocialCircleView: View {
         .presentationDetents([.large])
     }
 }
-
 
 #Preview {
     SocialCircleView(

@@ -304,3 +304,17 @@ struct WeatherDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
+
+#Preview {
+    WeatherDetailView(
+        weather: WeatherService.WeatherData(
+            temperature: 72, condition: "Partly Cloudy", icon: "cloud.sun.fill",
+            humidity: 55, feelsLike: 74, location: "Dallas, TX",
+            actionableNote: "Nice day", windSpeed: 8, windDirection: "SE",
+            uvIndex: 5, visibility: 10, pressure: 1013, dewPoint: 58,
+            cloudCover: 40, sunrise: nil, sunset: nil, highTemp: 78, lowTemp: 62
+        ),
+        hourly: [],
+        daily: []
+    )
+}

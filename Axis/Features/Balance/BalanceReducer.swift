@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import UIKit
 
 @Reducer
 struct BalanceReducer {
@@ -29,6 +30,26 @@ struct BalanceReducer {
         var waterGoal: Int = 8
         var moodToday: Int = 0  // 0=not set, 1-5 scale
         var sleepGoalHours: Double = 7.0
+
+        // Energy check-ins
+        var todayCheckIns: [CheckInState] = []
+        var weeklyEnergyAverages: [Double] = []  // 7 days
+        var showCheckIn: Bool = false
+        var checkInLevel: Int = 5
+        var checkInNote: String = ""
+
+        struct CheckInState: Equatable, Identifiable {
+            let id: UUID
+            var level: Int
+            var note: String
+            var timestamp: Date
+            var timeLabel: String
+        }
+
+        var todayAverageEnergy: Double {
+            guard !todayCheckIns.isEmpty else { return Double(energyScore) }
+            return Double(todayCheckIns.reduce(0) { $0 + $1.level }) / Double(todayCheckIns.count)
+        }
 
         enum Section: String, CaseIterable, Equatable {
             case dashboard = "Dashboard"
@@ -167,6 +188,15 @@ struct BalanceReducer {
         case addWater
         case setMood(Int)
         case sleepGoalChanged(Double)
+        // Energy check-ins
+        case showCheckInSheet
+        case dismissCheckIn
+        case checkInLevelChanged(Int)
+        case checkInNoteChanged(String)
+        case submitCheckIn
+        case checkInsLoaded([State.CheckInState])
+        case weeklyAveragesLoaded([Double])
+        case exportData
     }
 
     @Dependency(\.axisHealth) var health
@@ -186,6 +216,27 @@ struct BalanceReducer {
                 state.sleepGoalHours = UserDefaults.standard.double(forKey: "axis_sleep_goal")
                 if state.sleepGoalHours == 0 { state.sleepGoalHours = 7.0 }
                 state.isSyncingHealth = true
+                // Load today's check-ins
+                let today = Date()
+                let fetched = PersistenceService.shared.fetchEnergyCheckIns(for: today)
+                let tf = DateFormatter()
+                tf.dateFormat = "h:mm a"
+                state.todayCheckIns = fetched.map { c in
+                    State.CheckInState(id: c.uuid, level: c.level, note: c.note, timestamp: c.timestamp, timeLabel: tf.string(from: c.timestamp))
+                }
+                // Load weekly averages
+                let cal = Calendar.current
+                var averages: [Double] = []
+                for i in (0..<7).reversed() {
+                    let day = cal.date(byAdding: .day, value: -i, to: cal.startOfDay(for: today))!
+                    let dayCheckIns = PersistenceService.shared.fetchEnergyCheckIns(for: day)
+                    if dayCheckIns.isEmpty {
+                        averages.append(0)
+                    } else {
+                        averages.append(Double(dayCheckIns.reduce(0) { $0 + $1.level }) / Double(dayCheckIns.count))
+                    }
+                }
+                state.weeklyEnergyAverages = averages
                 return .send(.requestHealthAccess)
 
             case .requestHealthAccess:
@@ -332,6 +383,82 @@ struct BalanceReducer {
             case let .sleepGoalChanged(hours):
                 state.sleepGoalHours = hours
                 UserDefaults.standard.set(hours, forKey: "axis_sleep_goal")
+                return .none
+
+            case .showCheckInSheet:
+                state.checkInLevel = 5
+                state.checkInNote = ""
+                state.showCheckIn = true
+                return .none
+
+            case .dismissCheckIn:
+                state.showCheckIn = false
+                return .none
+
+            case let .checkInLevelChanged(level):
+                state.checkInLevel = level
+                return .none
+
+            case let .checkInNoteChanged(note):
+                state.checkInNote = note
+                return .none
+
+            case .submitCheckIn:
+                let checkIn = EnergyCheckIn(level: state.checkInLevel, note: state.checkInNote)
+                PersistenceService.shared.saveEnergyCheckIn(checkIn)
+                state.showCheckIn = false
+                haptics.notificationSuccess()
+                // Reload
+                let today = Date()
+                let fetched = PersistenceService.shared.fetchEnergyCheckIns(for: today)
+                let tf = DateFormatter()
+                tf.dateFormat = "h:mm a"
+                state.todayCheckIns = fetched.map { c in
+                    State.CheckInState(id: c.uuid, level: c.level, note: c.note, timestamp: c.timestamp, timeLabel: tf.string(from: c.timestamp))
+                }
+                return .none
+
+            case let .checkInsLoaded(checkIns):
+                state.todayCheckIns = checkIns
+                return .none
+
+            case let .weeklyAveragesLoaded(averages):
+                state.weeklyEnergyAverages = averages
+                return .none
+
+            case .exportData:
+                var csv = "AXIS Balance & Energy Report\n"
+                csv += "Generated: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .short))\n\n"
+
+                // Today's check-ins
+                csv += "Today's Energy Check-Ins\n"
+                csv += "Time,Level,Note\n"
+                for c in state.todayCheckIns {
+                    csv += "\(c.timeLabel),\(c.level),\"\(c.note)\"\n"
+                }
+                csv += "\nAverage Energy: \(String(format: "%.1f", state.todayAverageEnergy))\n"
+
+                // HealthKit
+                csv += "\nHealthKit Data\n"
+                csv += "Sleep Hours,\(String(format: "%.1f", state.sleepHours))\n"
+                csv += "Steps,\(state.stepsToday)\n"
+                csv += "Active Calories,\(state.activeCalories)\n"
+                csv += "Heart Rate,\(String(format: "%.0f", state.heartRate))\n"
+                csv += "Stand Hours,\(state.standHours)\n"
+
+                // Mood & Water
+                let moods = ["", "Rough", "Low", "Okay", "Good", "Great"]
+                csv += "\nMood Today,\(state.moodToday > 0 && state.moodToday < moods.count ? moods[state.moodToday] : "Not Set")\n"
+                csv += "Water Glasses,\(state.waterGlasses)/\(state.waterGoal)\n"
+
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("AXIS_Balance_Report.csv")
+                try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let vc = scene.windows.first?.rootViewController {
+                    var top = vc
+                    while let p = top.presentedViewController { top = p }
+                    top.present(UIActivityViewController(activityItems: [tempURL], applicationActivities: nil), animated: true)
+                }
                 return .none
             }
         }

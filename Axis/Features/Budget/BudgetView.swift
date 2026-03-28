@@ -34,6 +34,12 @@ struct BudgetView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 12) {
                         Button {
+                            store.send(.showScanBillSheet)
+                        } label: {
+                            Image(systemName: "camera.fill")
+                                .foregroundStyle(.green)
+                        }
+                        Button {
                             store.send(.exportBills)
                         } label: {
                             Image(systemName: "square.and.arrow.up")
@@ -53,6 +59,12 @@ struct BudgetView: View {
                 set: { if !$0 { store.send(.dismissAddBill) } }
             )) {
                 addBillSheet
+            }
+            .sheet(isPresented: Binding(
+                get: { store.showScanBill },
+                set: { if !$0 { store.send(.dismissScanBill) } }
+            )) {
+                BillScannerSheet(store: store)
             }
             .onAppear {
                 store.send(.onAppear)
@@ -340,7 +352,7 @@ struct BudgetView: View {
                     }
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("New Bill")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -358,6 +370,136 @@ struct BudgetView: View {
     }
 }
 
+// MARK: - Bill Scanner Sheet
+
+struct BillScannerSheet: View {
+    @Bindable var store: StoreOf<BudgetReducer>
+    @State private var showImagePicker = false
+    @State private var showCamera = false
+    @State private var selectedImage: UIImage?
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                if store.isScanning {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .tint(.green)
+                        Text("Scanning bill...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxHeight: .infinity)
+                } else if let image = selectedImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 300)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    Button {
+                        if let data = image.jpegData(compressionQuality: 0.8) {
+                            store.send(.scanImage(data))
+                        }
+                    } label: {
+                        Label("Scan This Bill", systemImage: "doc.text.viewfinder")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(.green)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                } else {
+                    Spacer()
+                    Image(systemName: "doc.text.viewfinder")
+                        .font(.system(size: 60))
+                        .foregroundStyle(.green.opacity(0.5))
+                    Text("Scan a Bill")
+                        .font(.title2.bold())
+                    Text("Take a photo or choose from your library")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    HStack(spacing: 16) {
+                        Button {
+                            showCamera = true
+                        } label: {
+                            Label("Camera", systemImage: "camera.fill")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.white)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(.green)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+
+                        Button {
+                            showImagePicker = true
+                        } label: {
+                            Label("Photos", systemImage: "photo.on.rectangle")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.green)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(.green.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+                    Spacer()
+                }
+            }
+            .padding()
+            .navigationTitle("Scan Bill")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { store.send(.dismissScanBill) }
+                }
+            }
+            .sheet(isPresented: $showImagePicker) {
+                BillImagePicker(image: $selectedImage, sourceType: .photoLibrary)
+            }
+            .sheet(isPresented: $showCamera) {
+                BillImagePicker(image: $selectedImage, sourceType: .camera)
+            }
+        }
+    }
+}
+
+// MARK: - Image Picker
+
+struct BillImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    let sourceType: UIImagePickerController.SourceType
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = sourceType
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: BillImagePicker
+        init(_ parent: BillImagePicker) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let img = info[.originalImage] as? UIImage {
+                parent.image = img
+            }
+            picker.dismiss(animated: true)
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+        }
+    }
+}
 
 #Preview {
     BudgetView(

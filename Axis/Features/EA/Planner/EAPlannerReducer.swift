@@ -70,6 +70,8 @@ struct EAPlannerReducer {
         case replan
         case planGenerated(State.DailyPlanState)
         case tapBlock(UUID)
+        case deleteBlock(UUID)
+        case convertBlockToTask(UUID)
         case switchView(State.PlanView)
         case selectDate(Date)
         case weekSummariesLoaded([State.WeekDaySummary])
@@ -299,6 +301,37 @@ struct EAPlannerReducer {
                 return .none
 
             case .tapBlock:
+                return .none
+
+            case let .deleteBlock(blockId):
+                // Remove from in-memory plan
+                state.dailyPlan?.timeBlocks.removeAll { $0.id == blockId }
+                // Remove from persistence
+                if let planModel = persistence.fetchEADailyPlan(state.selectedDate) {
+                    let persisted = persistence.fetchEATimeBlocks(planModel.uuid)
+                    if let match = persisted.first(where: { $0.uuid == blockId }) {
+                        persistence.deleteEATimeBlock(match)
+                    }
+                }
+                return .none
+
+            case let .convertBlockToTask(blockId):
+                guard let block = state.dailyPlan?.timeBlocks.first(where: { $0.id == blockId }) else {
+                    return .none
+                }
+                let task = EATask(
+                    title: block.title,
+                    taskDescription: block.aiReasoning,
+                    deadline: block.endTime,
+                    priority: "medium",
+                    energyLevel: block.blockType == "focusBlock" ? "deepWork" : "lightWork",
+                    status: "inbox",
+                    category: "personal",
+                    estimatedMinutes: block.durationMinutes,
+                    scheduledStart: block.startTime,
+                    scheduledEnd: block.endTime
+                )
+                persistence.saveEATask(task)
                 return .none
 
             case let .switchView(view):

@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import UIKit
+import Vision
 
 @Reducer
 struct BudgetReducer {
@@ -11,6 +12,9 @@ struct BudgetReducer {
         var selectedYear: Int = Calendar.current.component(.year, from: Date())
         var monthlyIncome: Double = 0
         var showAddBill: Bool = false
+        var showScanBill: Bool = false
+        var isScanning: Bool = false
+        var scanResult: String = ""
         var newBillName: String = ""
         var newBillAmount: Double = 0
         var newBillDueDay: Int = 1
@@ -113,6 +117,11 @@ struct BudgetReducer {
         case newBillAmountChanged(Double)
         case newBillDueDayChanged(Int)
         case newBillCategoryChanged(String)
+        // Bill scanning
+        case showScanBillSheet
+        case dismissScanBill
+        case scanImage(Data)
+        case scanCompleted(name: String, amount: Double, dueDay: Int, category: String)
     }
 
     var body: some ReducerOf<Self> {
@@ -254,7 +263,167 @@ struct BudgetReducer {
             case let .newBillCategoryChanged(cat):
                 state.newBillCategory = cat
                 return .none
+
+            case .showScanBillSheet:
+                state.showScanBill = true
+                state.isScanning = false
+                state.scanResult = ""
+                return .none
+
+            case .dismissScanBill:
+                state.showScanBill = false
+                return .none
+
+            case let .scanImage(imageData):
+                state.isScanning = true
+                return .run { send in
+                    let result = await Self.performOCR(imageData: imageData)
+                    await send(.scanCompleted(
+                        name: result.name,
+                        amount: result.amount,
+                        dueDay: result.dueDay,
+                        category: result.category
+                    ))
+                }
+
+            case let .scanCompleted(name, amount, dueDay, category):
+                state.isScanning = false
+                state.showScanBill = false
+                // Pre-fill the add bill form
+                state.newBillName = name
+                state.newBillAmount = amount
+                state.newBillDueDay = dueDay
+                state.newBillCategory = category
+                state.showAddBill = true
+                return .none
             }
         }
+    }
+
+    // MARK: - OCR Bill Scanning
+
+    private static func performOCR(imageData: Data) async -> (name: String, amount: Double, dueDay: Int, category: String) {
+        guard let image = UIImage(data: imageData),
+              let cgImage = image.cgImage else {
+            return ("", 0, 1, "other")
+        }
+
+        let text = await withCheckedContinuation { continuation in
+            let request = VNRecognizeTextRequest { request, _ in
+                let observations = request.results as? [VNRecognizedTextObservation] ?? []
+                let lines = observations.compactMap { $0.topCandidates(1).first?.string }
+                continuation.resume(returning: lines.joined(separator: "\n"))
+            }
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+
+            let handler = VNImageRequestHandler(cgImage: cgImage)
+            try? handler.perform([request])
+        }
+
+        return parseBillText(text)
+    }
+
+    private static func parseBillText(_ text: String) -> (name: String, amount: Double, dueDay: Int, category: String) {
+        let lines = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+        var name = ""
+        var amount: Double = 0
+        var dueDay = 1
+        var category = "other"
+
+        // Find the largest dollar amount (likely the total/amount due)
+        let amountPattern = try? NSRegularExpression(pattern: "\\$([0-9,]+\\.?\\d{0,2})")
+        var amounts: [(Double, String)] = []
+        for line in lines {
+            let nsLine = line as NSString
+            let matches = amountPattern?.matches(in: line, range: NSRange(location: 0, length: nsLine.length)) ?? []
+            for match in matches {
+                let numStr = nsLine.substring(with: match.range(at: 1)).replacingOccurrences(of: ",", with: "")
+                if let val = Double(numStr), val > 0 {
+                    amounts.append((val, line))
+                }
+            }
+        }
+
+        // Use keywords to find the "amount due" or "total" line, otherwise largest amount
+        let amountKeywords = ["amount due", "total due", "total amount", "balance due", "pay this amount", "minimum due", "current charges", "total"]
+        for keyword in amountKeywords {
+            for (val, line) in amounts {
+                if line.lowercased().contains(keyword) {
+                    amount = val
+                    break
+                }
+            }
+            if amount > 0 { break }
+        }
+        if amount == 0, let largest = amounts.max(by: { $0.0 < $1.0 }) {
+            amount = largest.0
+        }
+
+        // Find due date
+        let datePatterns = [
+            "due\\s*(?:date)?\\s*:?\\s*(\\d{1,2})[/\\-](\\d{1,2})",
+            "(\\d{1,2})[/\\-](\\d{1,2})[/\\-](\\d{2,4})",
+        ]
+        for pattern in datePatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                for line in lines {
+                    let nsLine = line as NSString
+                    if let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: nsLine.length)) {
+                        let dayStr = nsLine.substring(with: match.range(at: match.numberOfRanges > 2 ? 2 : 1))
+                        if let day = Int(dayStr), day >= 1, day <= 31 {
+                            dueDay = day
+                            break
+                        }
+                    }
+                }
+            }
+            if dueDay > 1 { break }
+        }
+
+        // Extract company/bill name from first few lines
+        let nameKeywords = ["statement", "bill", "invoice", "account"]
+        for line in lines.prefix(10) {
+            let lower = line.lowercased()
+            if lower.contains("$") || lower.count < 3 { continue }
+            for keyword in nameKeywords {
+                if lower.contains(keyword) {
+                    name = line.replacingOccurrences(of: "(?i)statement|bill|invoice|account|summary|for", with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+                    break
+                }
+            }
+            if !name.isEmpty { break }
+        }
+        if name.isEmpty {
+            // Use first substantial line as name
+            for line in lines.prefix(5) {
+                if line.count > 3 && !line.contains("$") && !line.lowercased().contains("page") {
+                    name = String(line.prefix(40))
+                    break
+                }
+            }
+        }
+
+        // Guess category
+        let lower = text.lowercased()
+        if lower.contains("electric") || lower.contains("gas") || lower.contains("water") || lower.contains("sewer") || lower.contains("utility") {
+            category = "utilities"
+        } else if lower.contains("mortgage") || lower.contains("rent") || lower.contains("lease") || lower.contains("hoa") {
+            category = "housing"
+        } else if lower.contains("insurance") || lower.contains("geico") || lower.contains("state farm") || lower.contains("allstate") {
+            category = "insurance"
+        } else if lower.contains("t-mobile") || lower.contains("verizon") || lower.contains("at&t") || lower.contains("sprint") || lower.contains("phone") || lower.contains("wireless") {
+            category = "phone"
+        } else if lower.contains("netflix") || lower.contains("hulu") || lower.contains("spotify") || lower.contains("disney") || lower.contains("subscription") {
+            category = "subscriptions"
+        } else if lower.contains("car") || lower.contains("auto") || lower.contains("toyota") || lower.contains("honda") || lower.contains("ford") {
+            category = "transportation"
+        } else if lower.contains("visa") || lower.contains("mastercard") || lower.contains("credit") || lower.contains("loan") || lower.contains("payment") {
+            category = "debt"
+        } else if lower.contains("daycare") || lower.contains("childcare") || lower.contains("tuition") {
+            category = "childcare"
+        }
+
+        return (name, amount, dueDay, category)
     }
 }

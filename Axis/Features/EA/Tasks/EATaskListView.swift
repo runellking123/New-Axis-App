@@ -1,5 +1,7 @@
 import ComposableArchitecture
+import EventKit
 import SwiftUI
+import UIKit
 
 struct EATaskListView: View {
     @Bindable var store: StoreOf<EATaskReducer>
@@ -29,7 +31,7 @@ struct EATaskListView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Tasks")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -188,8 +190,17 @@ struct EATaskListView: View {
                         }
                     }
                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        Button { store.send(.completeTask(task.id)) } label: {
-                            Label("Done", systemImage: "checkmark")
+                        Button {
+                            if task.status == "completed" {
+                                store.send(.updateTaskStatus(task.id, "inbox"))
+                            } else {
+                                store.send(.completeTask(task.id))
+                            }
+                        } label: {
+                            Label(
+                                task.status == "completed" ? "Reopen" : "Done",
+                                systemImage: task.status == "completed" ? "arrow.uturn.backward" : "checkmark"
+                            )
                         }
                         .tint(.green)
                     }
@@ -280,21 +291,87 @@ struct EATaskListView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            // Edit
             Button {
-                store.send(.completeTask(task.id))
+                store.send(.showAddTaskSheet)
             } label: {
-                Label("Mark Complete", systemImage: "checkmark.circle")
+                Label("Edit", systemImage: "pencil")
             }
+
+            // Mark Complete / Reopen
             Button {
-                store.send(.updateTaskStatus(task.id, "inProgress"))
+                if task.status == "completed" {
+                    store.send(.updateTaskStatus(task.id, "inbox"))
+                } else {
+                    store.send(.completeTask(task.id))
+                }
             } label: {
-                Label("Move to In Progress", systemImage: "play.circle")
+                Label(
+                    task.status == "completed" ? "Reopen" : "Mark Complete",
+                    systemImage: "checkmark.circle"
+                )
             }
+
+            // Change Priority submenu
+            Menu {
+                Button {
+                    store.send(.updateTaskPriority(task.id, "critical"))
+                } label: {
+                    Label("Critical", systemImage: task.priority == "critical" ? "checkmark" : "circle.fill")
+                        .foregroundStyle(.red)
+                }
+                Button {
+                    store.send(.updateTaskPriority(task.id, "high"))
+                } label: {
+                    Label("High", systemImage: task.priority == "high" ? "checkmark" : "circle.fill")
+                        .foregroundStyle(.orange)
+                }
+                Button {
+                    store.send(.updateTaskPriority(task.id, "medium"))
+                } label: {
+                    Label("Medium", systemImage: task.priority == "medium" ? "checkmark" : "circle.fill")
+                        .foregroundStyle(.yellow)
+                }
+                Button {
+                    store.send(.updateTaskPriority(task.id, "low"))
+                } label: {
+                    Label("Low", systemImage: task.priority == "low" ? "checkmark" : "circle.fill")
+                        .foregroundStyle(.green)
+                }
+            } label: {
+                Label("Change Priority", systemImage: "flag")
+            }
+
+            Divider()
+
+            // Text Details (Messages)
             Button {
-                store.send(.updateTaskStatus(task.id, "inbox"))
+                let text = taskPlainText(task)
+                if let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                   let url = URL(string: "sms:&body=\(encoded)") {
+                    UIApplication.shared.open(url)
+                }
             } label: {
-                Label("Move to Inbox", systemImage: "tray")
+                Label("Text Details", systemImage: "message")
             }
+
+            // Copy Details
+            Button {
+                UIPasteboard.general.string = taskPlainText(task)
+            } label: {
+                Label("Copy Details", systemImage: "doc.on.doc")
+            }
+
+            // Add to Calendar
+            Button {
+                addTaskToCalendar(task)
+            } label: {
+                Label("Add to Calendar", systemImage: "calendar.badge.plus")
+            }
+
+            Divider()
+
+            // Delete
             Button(role: .destructive) {
                 store.send(.deleteTask(task.id))
             } label: {
@@ -460,6 +537,49 @@ struct EATaskListView: View {
         }
     }
 
+    // MARK: - Context Menu Helpers
+
+    private func taskPlainText(_ task: EATaskReducer.State.TaskState) -> String {
+        var lines: [String] = [task.title]
+
+        var details: [String] = []
+        details.append("Priority: \(task.priority.capitalized)")
+        if let deadline = task.deadline {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE, MMMM d"
+            details.append("Due: \(formatter.string(from: deadline))")
+        }
+        lines.append(details.joined(separator: " | "))
+
+        lines.append("Category: \(task.category.capitalized)")
+
+        return lines.joined(separator: "\n")
+    }
+
+    private func addTaskToCalendar(_ task: EATaskReducer.State.TaskState) {
+        let eventStore = EKEventStore()
+        eventStore.requestFullAccessToEvents { granted, error in
+            guard granted, error == nil else { return }
+            let event = EKEvent(eventStore: eventStore)
+            event.title = task.title
+            event.notes = "Priority: \(task.priority.capitalized)\nCategory: \(task.category.capitalized)"
+            if let deadline = task.deadline {
+                event.startDate = deadline
+                event.endDate = Calendar.current.date(byAdding: .minute, value: task.estimatedMinutes ?? 30, to: deadline) ?? deadline.addingTimeInterval(1800)
+            } else {
+                let start = Date()
+                event.startDate = start
+                event.endDate = Calendar.current.date(byAdding: .minute, value: task.estimatedMinutes ?? 30, to: start) ?? start.addingTimeInterval(1800)
+            }
+            event.calendar = eventStore.defaultCalendarForNewEvents
+            do {
+                try eventStore.save(event, span: .thisEvent)
+            } catch {
+                // Calendar save failed silently
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func priorityColor(_ priority: String) -> Color {
@@ -488,7 +608,6 @@ private struct IdentifiableTask: Identifiable {
         self.task = task
     }
 }
-
 
 #Preview {
     EATaskListView(

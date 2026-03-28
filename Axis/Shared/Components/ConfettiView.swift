@@ -1,10 +1,5 @@
 import SwiftUI
 
-#Preview {
-    ConfettiView()
-        .frame(height: 300)
-}
-
 struct ConfettiView: View {
     @State private var particles: [ConfettiParticle] = []
     @State private var isAnimating = false
@@ -63,4 +58,9 @@ struct ConfettiView: View {
             particles.removeAll()
         }
     }
+}
+
+#Preview {
+    ConfettiView()
+        .frame(height: 300)
 }

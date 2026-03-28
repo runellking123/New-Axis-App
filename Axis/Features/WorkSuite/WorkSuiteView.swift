@@ -633,7 +633,7 @@ struct WorkSuiteView: View {
                     .font(.caption)
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("New Project")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -650,7 +650,6 @@ struct WorkSuiteView: View {
         .presentationDetents([.medium])
     }
 }
-
 
 #Preview {
     WorkSuiteView(

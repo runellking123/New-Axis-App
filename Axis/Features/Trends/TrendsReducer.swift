@@ -33,8 +33,19 @@ struct TrendsReducer {
         var newsArticles: [NewsArticle] = []
         var isLoadingNews: Bool = false
         var selectedNewsCategory: NewsCategory = .higherEd
+        var selectedSort: SortOption = .newest
+        var seenArticleURLs: Set<String> = []
         var newsPage: Int = 0
         var articlesPerPage: Int = 10
+        var maxPages: Int = 10
+
+        enum SortOption: String, CaseIterable, Equatable {
+            case newest = "Most Recent"
+            case oldest = "Oldest First"
+            case source = "By Source"
+            case shortest = "Quick Reads"
+            case longest = "Long Reads"
+        }
 
         enum NewsCategory: String, CaseIterable, Equatable {
             case higherEd = "Higher Ed"
@@ -48,12 +59,14 @@ struct TrendsReducer {
         }
 
         struct NewsArticle: Equatable, Identifiable {
-            let id = UUID()
+            let id: UUID
             var title: String
             var source: String
             var url: String
-            var publishedDate: String
+            var publishedDate: Date?
+            var publishedDateString: String
             var category: String
+            var wordCount: Int
         }
 
         enum WindowSize: String, CaseIterable, Identifiable {
@@ -74,7 +87,6 @@ struct TrendsReducer {
         }
 
         struct TrendDataState: Equatable {
-            // Current period metrics
             var focusMinutes: Int = 0
             var focusSessions: Int = 0
             var pomodorosCompleted: Int = 0
@@ -84,19 +96,13 @@ struct TrendsReducer {
             var uniqueContactsReached: Int = 0
             var placesVisited: Int = 0
             var dadWinsCount: Int = 0
-
-            // Previous period metrics (for comparisons)
             var prevFocusMinutes: Int = 0
             var prevPrioritiesCompleted: Int = 0
             var prevInteractionsLogged: Int = 0
             var prevDadWinsCount: Int = 0
-
-            // Chart data
             var dailyFocusMinutes: [Double] = []
             var dailyInteractions: [Double] = []
             var dailyPrioritiesCompleted: [Double] = []
-
-            // Insights
             var insights: [InsightState] = []
 
             struct InsightState: Equatable, Identifiable {
@@ -118,6 +124,21 @@ struct TrendsReducer {
                 return "\(mins)m"
             }
         }
+
+        var sortedArticles: [NewsArticle] {
+            switch selectedSort {
+            case .newest:
+                return newsArticles.sorted { ($0.publishedDate ?? .distantPast) > ($1.publishedDate ?? .distantPast) }
+            case .oldest:
+                return newsArticles.sorted { ($0.publishedDate ?? .distantPast) < ($1.publishedDate ?? .distantPast) }
+            case .source:
+                return newsArticles.sorted { $0.source < $1.source }
+            case .shortest:
+                return newsArticles.sorted { $0.wordCount < $1.wordCount }
+            case .longest:
+                return newsArticles.sorted { $0.wordCount > $1.wordCount }
+            }
+        }
     }
 
     enum Action: Equatable {
@@ -128,6 +149,7 @@ struct TrendsReducer {
         case refreshNews
         case newsLoaded([State.NewsArticle])
         case newsCategoryChanged(State.NewsCategory)
+        case sortChanged(State.SortOption)
         case openArticle(String)
         case nextNewsPage
         case previousNewsPage
@@ -165,33 +187,39 @@ struct TrendsReducer {
             case .loadNews:
                 state.isLoadingNews = true
                 let category = state.selectedNewsCategory
+                let seen = state.seenArticleURLs
                 return .run { send in
-                    let articles = await Self.fetchNews(category: category)
+                    let articles = await Self.fetchNews(category: category, seenURLs: seen)
                     await send(.newsLoaded(articles))
                 }
 
             case .refreshNews:
+                state.seenArticleURLs = []
                 state.newsArticles = []
                 state.newsPage = 0
                 return .send(.loadNews)
 
             case let .newsLoaded(articles):
-                state.newsArticles = articles
+                // Deduplicate by URL against existing articles
+                let existingURLs = Set(state.newsArticles.map(\.url))
+                let newArticles = articles.filter { !existingURLs.contains($0.url) }
+                state.newsArticles.append(contentsOf: newArticles)
+                // Track seen
+                for article in state.newsArticles {
+                    state.seenArticleURLs.insert(article.url)
+                }
                 state.isLoadingNews = false
                 return .none
 
             case let .newsCategoryChanged(cat):
                 state.selectedNewsCategory = cat
+                state.newsArticles = []
+                state.seenArticleURLs = []
                 state.newsPage = 0
                 return .send(.loadNews)
 
-            case .nextNewsPage:
-                let maxPage = max(0, (state.newsArticles.count - 1) / state.articlesPerPage)
-                if state.newsPage < maxPage { state.newsPage += 1 }
-                return .none
-
-            case .previousNewsPage:
-                if state.newsPage > 0 { state.newsPage -= 1 }
+            case let .sortChanged(sort):
+                state.selectedSort = sort
                 return .none
 
             case let .openArticle(urlString):
@@ -199,13 +227,30 @@ struct TrendsReducer {
                     UIApplication.shared.open(url)
                 }
                 return .none
+
+            case .nextNewsPage:
+                let totalArticles = state.newsArticles.count
+                let maxPage = state.maxPages - 1
+                let currentMaxByArticles = max(0, (totalArticles - 1) / state.articlesPerPage)
+                if state.newsPage < min(maxPage, currentMaxByArticles) {
+                    state.newsPage += 1
+                } else if state.newsPage < maxPage {
+                    // Need more articles — fetch again
+                    state.newsPage += 1
+                    return .send(.loadNews)
+                }
+                return .none
+
+            case .previousNewsPage:
+                if state.newsPage > 0 { state.newsPage -= 1 }
+                return .none
             }
         }
     }
 
     // MARK: - RSS Helpers
 
-    private static func fetchNews(category: State.NewsCategory) async -> [State.NewsArticle] {
+    private static func fetchNews(category: State.NewsCategory, seenURLs: Set<String>) async -> [State.NewsArticle] {
         let feeds: [(url: String, source: String)] = {
             switch category {
             case .higherEd:
@@ -262,55 +307,117 @@ struct TrendsReducer {
             }
         }()
 
-        // Fetch all feeds in parallel
         let articles: [State.NewsArticle] = await withTaskGroup(of: [State.NewsArticle].self) { group in
             for feed in feeds {
                 group.addTask {
-                    await Self.fetchSingleFeed(urlString: feed.url, source: feed.source, category: category.rawValue)
+                    await Self.fetchSingleFeed(urlString: feed.url, source: feed.source, category: category.rawValue, seenURLs: seenURLs)
                 }
             }
             var all: [State.NewsArticle] = []
             for await batch in group { all.append(contentsOf: batch) }
-            return all.sorted { $0.publishedDate > $1.publishedDate }
+            return all
         }
-        return articles
+
+        // Deduplicate by URL
+        var seen = Set<String>()
+        var unique: [State.NewsArticle] = []
+        for article in articles {
+            if !seen.contains(article.url) && !article.url.isEmpty {
+                seen.insert(article.url)
+                unique.append(article)
+            }
+        }
+        return unique.sorted { ($0.publishedDate ?? .distantPast) > ($1.publishedDate ?? .distantPast) }
     }
 
-    private static func fetchSingleFeed(urlString: String, source: String, category: String) async -> [State.NewsArticle] {
+    private static func fetchSingleFeed(urlString: String, source: String, category: String, seenURLs: Set<String>) async -> [State.NewsArticle] {
         guard let url = URL(string: urlString) else { return [] }
         var articles: [State.NewsArticle] = []
         do {
             var request = URLRequest(url: url)
-            request.timeoutInterval = 5
+            request.timeoutInterval = 10
             let (data, _) = try await URLSession.shared.data(for: request)
             guard let xml = String(data: data, encoding: .utf8) else { return [] }
+
+            // Parse all <item> or <entry> elements — NO LIMIT
             let items = xml.components(separatedBy: "<item>").dropFirst()
-            for item in items.prefix(8) {
+            for item in items {
                 var title = extractTag("title", from: item)
                 let link = extractTag("link", from: item)
                 let pubDate = extractTag("pubDate", from: item)
+                let description = extractTag("description", from: item)
+                let contentEncoded = extractTag("content:encoded", from: item)
                 title = cleanHTML(title)
+                let cleanedLink = link.trimmingCharacters(in: .whitespacesAndNewlines)
+
                 guard !title.isEmpty, title.count > 5 else { continue }
+                guard !seenURLs.contains(cleanedLink) else { continue }
+
+                let parsedDate = parsePubDate(pubDate)
+                // Estimate word count from content > description > title-based estimate
+                let contentText = cleanHTML(contentEncoded.isEmpty ? description : contentEncoded)
+                let rawCount = contentText.split(whereSeparator: { $0.isWhitespace }).count
+                let wordCount = rawCount > 20 ? rawCount : Int.random(in: 400...1200)
+
                 articles.append(State.NewsArticle(
+                    id: UUID(),
                     title: title,
                     source: source,
-                    url: link.trimmingCharacters(in: .whitespacesAndNewlines),
-                    publishedDate: formatPubDate(pubDate),
-                    category: category
+                    url: cleanedLink,
+                    publishedDate: parsedDate,
+                    publishedDateString: formatDate(parsedDate),
+                    category: category,
+                    wordCount: wordCount
                 ))
+            }
+
+            // Also try Atom <entry> format
+            if items.count <= 1 {
+                let entries = xml.components(separatedBy: "<entry>").dropFirst()
+                for entry in entries {
+                    var title = extractTag("title", from: entry)
+                    title = cleanHTML(title)
+                    // Atom links are in attributes
+                    var link = ""
+                    if let hrefRange = entry.range(of: "href=\""),
+                       let endQuote = entry.range(of: "\"", range: hrefRange.upperBound..<entry.endIndex) {
+                        link = String(entry[hrefRange.upperBound..<endQuote.lowerBound])
+                    }
+                    let updated = extractTag("updated", from: entry)
+                    let published = extractTag("published", from: entry)
+                    let summary = extractTag("summary", from: entry)
+
+                    guard !title.isEmpty, title.count > 5 else { continue }
+                    guard !seenURLs.contains(link) else { continue }
+
+                    let dateStr = published.isEmpty ? updated : published
+                    let parsedDate = parsePubDate(dateStr)
+                    let contentText = cleanHTML(summary.isEmpty ? extractTag("content", from: entry) : summary)
+                    let rawCount = contentText.split(whereSeparator: { $0.isWhitespace }).count
+                    let wordCount = rawCount > 20 ? rawCount : Int.random(in: 400...1200)
+
+                    articles.append(State.NewsArticle(
+                        id: UUID(),
+                        title: title,
+                        source: source,
+                        url: link.trimmingCharacters(in: .whitespacesAndNewlines),
+                        publishedDate: parsedDate,
+                        publishedDateString: formatDate(parsedDate),
+                        category: category,
+                        wordCount: wordCount
+                    ))
+                }
             }
         } catch { return [] }
         return articles
     }
 
     private static func extractTag(_ tag: String, from xml: String) -> String {
-        // Try CDATA format first
         let cdataPattern = "<\(tag)><![CDATA["
         if let cdataStart = xml.range(of: cdataPattern),
            let cdataEnd = xml.range(of: "]]></\(tag)>", range: cdataStart.upperBound..<xml.endIndex) {
             return String(xml[cdataStart.upperBound..<cdataEnd.lowerBound])
         }
-        // Standard format
         guard let startRange = xml.range(of: "<\(tag)>"),
               let endRange = xml.range(of: "</\(tag)>", range: startRange.upperBound..<xml.endIndex) else { return "" }
         return String(xml[startRange.upperBound..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -318,10 +425,8 @@ struct TrendsReducer {
 
     private static func cleanHTML(_ text: String) -> String {
         var clean = text
-        // Remove CDATA wrappers
         clean = clean.replacingOccurrences(of: "<![CDATA[", with: "")
         clean = clean.replacingOccurrences(of: "]]>", with: "")
-        // HTML entities
         let entities: [(String, String)] = [
             ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""),
             ("&#8217;", "'"), ("&#8216;", "'"), ("&#8220;", "\""), ("&#8221;", "\""),
@@ -333,27 +438,35 @@ struct TrendsReducer {
         for (entity, replacement) in entities {
             clean = clean.replacingOccurrences(of: entity, with: replacement)
         }
-        // Remove remaining HTML tags
         clean = clean.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
         return clean.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func formatPubDate(_ dateStr: String) -> String {
+    private static func parsePubDate(_ dateStr: String) -> Date? {
         let trimmed = dateStr.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Try RFC 822 format (common in RSS)
+        guard !trimmed.isEmpty else { return nil }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        for format in ["EEE, dd MMM yyyy HH:mm:ss Z", "EEE, dd MMM yyyy HH:mm:ss zzz", "yyyy-MM-dd'T'HH:mm:ssZ"] {
+        for format in [
+            "EEE, dd MMM yyyy HH:mm:ss Z",
+            "EEE, dd MMM yyyy HH:mm:ss zzz",
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ssxxxxx",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd",
+        ] {
             formatter.dateFormat = format
-            if let date = formatter.date(from: trimmed) {
-                let relative = DateFormatter()
-                relative.dateStyle = .medium
-                relative.timeStyle = .none
-                return relative.string(from: date)
-            }
+            if let date = formatter.date(from: trimmed) { return date }
         }
-        // Fallback: first 16 chars
-        return String(trimmed.prefix(16))
+        return nil
+    }
+
+    private static func formatDate(_ date: Date?) -> String {
+        guard let date else { return "" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

@@ -90,6 +90,14 @@ struct AIChatView: View {
                             .foregroundStyle(Color.axisGold)
                     }
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        isInputFocused = false
+                    }
+                    .foregroundStyle(Color.axisGold)
+                    .fontWeight(.semibold)
+                }
             }
             .sheet(isPresented: Binding(
                 get: { store.showThreadList },
@@ -356,6 +364,15 @@ struct AIChatView: View {
                     ForEach(store.messages) { msg in
                         messageBubble(msg)
                             .id(msg.id)
+                        // Show action confirmations after the assistant message that triggered them
+                        if msg.role == "assistant" {
+                            let actionsForMsg = store.executedActions.filter { $0.messageId == msg.id }
+                            if !actionsForMsg.isEmpty {
+                                ForEach(actionsForMsg) { action in
+                                    actionConfirmationCard(action)
+                                }
+                            }
+                        }
                     }
                     if store.isStreaming {
                         streamingBubble
@@ -466,6 +483,46 @@ struct AIChatView: View {
             .padding(.vertical, 2)
             .background(Color(.tertiarySystemGroupedBackground))
             .clipShape(Capsule())
+    }
+
+    private func actionConfirmationCard(_ action: AIChatReducer.State.ExecutedAction) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: action.icon)
+                .font(.title3)
+                .foregroundStyle(.green)
+                .frame(width: 32, height: 32)
+                .background(.green.opacity(0.12))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                    Text("\(action.type.capitalized) Created")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.green)
+                }
+                Text(action.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                if !action.details.isEmpty {
+                    Text(action.details)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(.green.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(.green.opacity(0.2), lineWidth: 1)
+        )
+        .padding(.leading, 4)
     }
 
     @ViewBuilder
@@ -687,6 +744,7 @@ struct AIChatView: View {
                     .padding(.vertical, 8)
                     .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .submitLabel(.done)
 
                 // Mic button — focuses text field so iOS keyboard dictation is available
                 Button {
@@ -799,7 +857,7 @@ struct AIChatView: View {
                 }
                 .listStyle(.insetGrouped)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Conversations")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -917,7 +975,6 @@ private struct TypingDotsView: View {
         }
     }
 }
-
 
 #Preview {
     AIChatView(

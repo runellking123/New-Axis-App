@@ -35,7 +35,7 @@ struct SettingsView: View {
                     .foregroundStyle(Color.axisGold)
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .onAppear { store.send(.onAppear) }
         }
     }
@@ -388,7 +388,6 @@ struct SettingsView: View {
         }
     }
 }
-
 
 #Preview {
     SettingsView(

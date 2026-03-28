@@ -64,12 +64,15 @@ struct AxisApp: App {
             ChoreCount.self,
             // Budget & Bills
             BillEntry.self,
-            // Voice Memos, Travel, Clipboard
+            // Voice Memos
             VoiceMemo.self,
+            // Clipboard
             ClipboardItem.self,
-            TripActivity.self,
-            TripExpense.self,
+            // Energy Check-ins
             EnergyCheckIn.self,
+            // Travel Expenses & Activities
+            TripExpense.self,
+            TripActivity.self,
         ])
         do {
             container = try ModelContainer(for: schema)

@@ -142,7 +142,6 @@ struct EventDetailView: View {
     }
 }
 
-
 #Preview {
     EventDetailView(
         store: Store(initialState: FamilyHQReducer.State()) {

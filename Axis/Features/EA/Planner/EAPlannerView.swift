@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import SwiftUI
+import UIKit
 
 struct EAPlannerView: View {
     @Bindable var store: StoreOf<EAPlannerReducer>
@@ -43,7 +44,7 @@ struct EAPlannerView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Planner")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -150,6 +151,47 @@ struct EAPlannerView: View {
                                 }
 
                                 timeBlockRow(block)
+                                    .contextMenu {
+                                        Button {
+                                            store.send(.showAddBlockSheet)
+                                        } label: {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+
+                                        Button {
+                                            store.send(.convertBlockToTask(block.id))
+                                        } label: {
+                                            Label("Convert to Task", systemImage: "checklist")
+                                        }
+
+                                        Button {
+                                            openMessagesWithBlockDetails(block)
+                                        } label: {
+                                            Label("Text Details", systemImage: "message")
+                                        }
+
+                                        Button {
+                                            copyBlockDetails(block)
+                                        } label: {
+                                            Label("Copy Details", systemImage: "doc.on.doc")
+                                        }
+
+                                        Divider()
+
+                                        Button(role: .destructive) {
+                                            store.send(.deleteBlock(block.id))
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            store.send(.deleteBlock(block.id))
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                        .tint(.red)
+                                    }
                             }
                         }
                         .padding(.top, 4)
@@ -365,6 +407,31 @@ struct EAPlannerView: View {
         .presentationDetents([.medium])
     }
 
+    // MARK: - Block Actions
+
+    private func blockDetailsText(_ block: EAPlannerReducer.State.TimeBlockState) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "EEEE, MMMM d"
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mm a"
+
+        let dateLine = "\(dateFormatter.string(from: block.startTime)) at \(timeFormatter.string(from: block.startTime)) - \(timeFormatter.string(from: block.endTime))"
+        let typeLine = "Type: \(blockTypeLabel(block.blockType))"
+
+        return "\(block.title)\n\(dateLine)\n\(typeLine)"
+    }
+
+    private func copyBlockDetails(_ block: EAPlannerReducer.State.TimeBlockState) {
+        UIPasteboard.general.string = blockDetailsText(block)
+    }
+
+    private func openMessagesWithBlockDetails(_ block: EAPlannerReducer.State.TimeBlockState) {
+        let body = blockDetailsText(block)
+        guard let encoded = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "sms:&body=\(encoded)") else { return }
+        UIApplication.shared.open(url)
+    }
+
     // MARK: - Helpers
 
     private func blockColor(_ type: String) -> Color {
@@ -441,7 +508,6 @@ struct EAPlannerView: View {
         return "\(minutes)m"
     }
 }
-
 
 #Preview {
     EAPlannerView(

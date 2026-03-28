@@ -157,7 +157,6 @@ struct PriorityDetailView: View {
     }
 }
 
-
 #Preview {
     PriorityDetailView(
         store: Store(initialState: CommandCenterReducer.State()) {

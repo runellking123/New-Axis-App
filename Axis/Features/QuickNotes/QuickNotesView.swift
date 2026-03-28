@@ -51,6 +51,7 @@ struct QuickNotesView: View {
                 }
             }
             .navigationTitle("Quick Notes")
+            .scrollDismissesKeyboard(.immediately)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -427,7 +428,6 @@ struct NoteEditorSheet: View {
         }
     }
 }
-
 
 #Preview {
     QuickNotesView(

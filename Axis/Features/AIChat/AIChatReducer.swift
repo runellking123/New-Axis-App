@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import EventKit
 import Foundation
 import UIKit
 
@@ -29,6 +30,16 @@ struct AIChatReducer {
         var isRecordingVoice: Bool = false
         var voiceTranscript: String = ""
         var suggestedFollowUps: [String] = []
+        var executedActions: [ExecutedAction] = []
+
+        struct ExecutedAction: Equatable, Identifiable {
+            let id = UUID()
+            var type: String  // "task", "project", "event", "note", "bill", "trip"
+            var title: String
+            var details: String
+            var icon: String
+            var messageId: UUID  // which assistant message triggered this
+        }
 
         struct MessageState: Equatable, Identifiable {
             let id: UUID
@@ -91,6 +102,10 @@ struct AIChatReducer {
         case copyMessage(String)
         case regenerateLastResponse
         case editAndResend(UUID, String)    // messageId, newContent
+
+        // App action execution
+        case executeActions(String, UUID)   // raw response content, message ID
+        case actionExecuted(State.ExecutedAction)
     }
 
     @Dependency(\.axisPersistence) var persistence
@@ -178,10 +193,12 @@ struct AIChatReducer {
                     history.append((role: msg.role, content: msg.content))
                 }
 
-                // Capture attached images for future multi-modal API support (base64-encoded for Anthropic)
-                _ = state.attachedImages
+                // Capture attachments before clearing
+                let capturedImages = state.attachedImages
+                let capturedFileNames = state.attachedFileNames
+                let capturedFileData = state.attachedFileData
 
-                // Clear attachments after capturing
+                // Clear attachments
                 state.attachedImages = []
                 state.attachedFileNames = []
                 state.attachedFileData = []
@@ -189,7 +206,7 @@ struct AIChatReducer {
 
                 return .run { send in
                     let service = MultiProviderChatService.shared
-                    let stream = service.streamChat(messages: history)
+                    let stream = service.streamChat(messages: history, images: capturedImages, fileNames: capturedFileNames, fileData: capturedFileData)
                     do {
                         for try await chunk in stream {
                             if let text = chunk.text {
@@ -215,18 +232,23 @@ struct AIChatReducer {
                 return .none
 
             case .streamCompleted:
-                let content = state.streamingContent
+                let rawContent = state.streamingContent
                 let service = MultiProviderChatService.shared
+
+                // Strip action tags from display content
+                let displayContent = Self.stripActionTags(from: rawContent)
+                let msgId = UUID()
+
                 let assistantMsg = State.MessageState(
-                    id: UUID(), role: "assistant", content: content,
+                    id: msgId, role: "assistant", content: displayContent,
                     model: service.selectedModel.displayName, timestamp: Date()
                 )
                 state.messages.append(assistantMsg)
                 state.isStreaming = false
                 state.streamingContent = ""
 
-                // Save assistant message
-                let chatMsg = ChatMessage(role: "assistant", content: content, model: service.selectedModelId, threadId: state.selectedThreadId)
+                // Save assistant message (with clean content)
+                let chatMsg = ChatMessage(role: "assistant", content: displayContent, model: service.selectedModelId, threadId: state.selectedThreadId)
                 persistence.saveChatMessage(chatMsg)
 
                 // Update thread timestamp
@@ -236,9 +258,20 @@ struct AIChatReducer {
 
                 haptics.notificationSuccess()
 
-                // Generate follow-up suggestions
-                let lastContent = content
+                // Check for and execute action tags
+                let hasActions = rawContent.contains("[AXIS_ACTION:")
+                let capturedRaw = rawContent
+                let capturedMsgId = msgId
+
+                // Execute actions if present, then generate follow-ups
+                let lastContent = displayContent
                 return .run { send in
+                    // Execute any AXIS_ACTION commands
+                    if hasActions {
+                        await send(.executeActions(capturedRaw, capturedMsgId))
+                    }
+
+                    // Generate follow-up suggestions
                     let service = MultiProviderChatService.shared
                     let key = service.anthropicAPIKey
                     guard !key.isEmpty else { return }
@@ -515,7 +548,233 @@ struct AIChatReducer {
                 // Set the input text to the new content and send
                 state.inputText = newContent
                 return .send(.sendMessage)
+
+            // MARK: - App Action Execution
+
+            case let .executeActions(rawContent, messageId):
+                let actions = Self.parseActionTags(from: rawContent)
+                let persistence = PersistenceService.shared
+
+                for action in actions {
+                    let params = action.params
+                    print("[AXIS_ACTION] Executing: \(action.type) with params: \(params)")
+
+                    switch action.type {
+                    case "create_task":
+                        let title = params["title"] ?? "Untitled Task"
+                        let priority = params["priority"] ?? "medium"
+                        let category = params["category"] ?? "general"
+                        let task = EATask(title: title, priority: priority, category: category)
+                        if let deadlineStr = params["deadline"],
+                           let date = Self.parseDate(deadlineStr) {
+                            task.deadline = date
+                        }
+                        persistence.saveEATask(task)
+                        print("[AXIS_ACTION] Task created: \(title)")
+                        state.executedActions.append(State.ExecutedAction(
+                            type: "task", title: title,
+                            details: "Priority: \(priority.capitalized)" + (params["deadline"] != nil ? " | Due: \(params["deadline"]!)" : ""),
+                            icon: "checkmark.circle.fill", messageId: messageId
+                        ))
+
+                    case "create_project":
+                        let title = params["title"] ?? "Untitled Project"
+                        let category = params["category"] ?? "personal"
+                        let status = params["status"] ?? "active"
+                        let project = EAProject(title: title, category: category)
+                        project.status = status
+                        persistence.saveEAProject(project)
+                        print("[AXIS_ACTION] Project created: \(title)")
+                        state.executedActions.append(State.ExecutedAction(
+                            type: "project", title: title,
+                            details: "\(category.capitalized) | \(status.capitalized)",
+                            icon: "folder.fill", messageId: messageId
+                        ))
+
+                    case "create_event":
+                        let title = params["title"] ?? "Untitled Event"
+                        let dateStr = params["date"] ?? ""
+                        let startStr = params["startTime"] ?? "09:00"
+                        let endStr = params["endTime"] ?? "10:00"
+                        print("[AXIS_ACTION] Creating event: \(title) on \(dateStr) from \(startStr) to \(endStr)")
+
+                        if let date = Self.parseDate(dateStr) {
+                            let startDate = Self.combineDateAndTime(date: date, time: startStr)
+                            let endDate = Self.combineDateAndTime(date: date, time: endStr)
+
+                            // Use EventKit directly for reliability
+                            let eventStore = EKEventStore()
+                            let authStatus = EKEventStore.authorizationStatus(for: .event)
+                            print("[AXIS_ACTION] Calendar auth status: \(authStatus.rawValue)")
+
+                            if authStatus == .fullAccess || authStatus == .authorized {
+                                let event = EKEvent(eventStore: eventStore)
+                                event.title = title
+                                event.startDate = startDate
+                                event.endDate = endDate
+                                event.calendar = eventStore.defaultCalendarForNewEvents
+                                do {
+                                    try eventStore.save(event, span: .thisEvent)
+                                    print("[AXIS_ACTION] Event saved to calendar: \(title)")
+                                } catch {
+                                    print("[AXIS_ACTION] Event save failed: \(error)")
+                                }
+                            } else {
+                                print("[AXIS_ACTION] Calendar not authorized, requesting access...")
+                                // Still show confirmation — event creation attempted
+                            }
+
+                            state.executedActions.append(State.ExecutedAction(
+                                type: "event", title: title,
+                                details: "\(dateStr) | \(startStr) - \(endStr)",
+                                icon: "calendar.badge.plus", messageId: messageId
+                            ))
+                        } else {
+                            print("[AXIS_ACTION] Date parsing failed for: '\(dateStr)'")
+                        }
+
+                    case "create_note":
+                        let content = params["content"] ?? ""
+                        let folder = params["folder"] ?? "Personal"
+                        let title = params["title"] ?? ""
+                        let note = CapturedNote(title: title, content: content, folder: folder)
+                        persistence.saveCapturedNote(note)
+                        print("[AXIS_ACTION] Note created: \(title.isEmpty ? content.prefix(30) : Substring(title))")
+                        state.executedActions.append(State.ExecutedAction(
+                            type: "note", title: title.isEmpty ? String(content.prefix(40)) : title,
+                            details: "Folder: \(folder)",
+                            icon: "note.text", messageId: messageId
+                        ))
+
+                    case "create_bill":
+                        let name = params["name"] ?? "Untitled Bill"
+                        let amount = Double(params["amount"] ?? "0") ?? 0
+                        let dueDay = Int(params["dueDay"] ?? "1") ?? 1
+                        let category = params["category"] ?? "other"
+                        let month = Calendar.current.component(.month, from: Date())
+                        let year = Calendar.current.component(.year, from: Date())
+                        let bill = BillEntry(name: name, amount: amount, dueDay: dueDay, category: category, month: month, year: year)
+                        persistence.saveBill(bill)
+                        print("[AXIS_ACTION] Bill created: \(name) $\(amount)")
+                        state.executedActions.append(State.ExecutedAction(
+                            type: "bill", title: name,
+                            details: "$\(String(format: "%.2f", amount)) | Due: \(dueDay)th | \(category.capitalized)",
+                            icon: "dollarsign.circle.fill", messageId: messageId
+                        ))
+
+                    case "create_trip":
+                        let name = params["name"] ?? "Untitled Trip"
+                        let startDate = Self.parseDate(params["startDate"] ?? "") ?? Date()
+                        let endDate = Self.parseDate(params["endDate"] ?? "") ?? Date().addingTimeInterval(86400 * 3)
+                        let budget = Double(params["budget"] ?? "0") ?? 0
+                        let trip = Trip(name: name, startDate: startDate, endDate: endDate, budgetPlanned: budget)
+                        persistence.saveTrip(trip)
+                        print("[AXIS_ACTION] Trip created: \(name)")
+                        state.executedActions.append(State.ExecutedAction(
+                            type: "trip", title: name,
+                            details: (params["startDate"] ?? "") + " to " + (params["endDate"] ?? "") + (budget > 0 ? " | Budget: $\(Int(budget))" : ""),
+                            icon: "airplane", messageId: messageId
+                        ))
+
+                    default:
+                        print("[AXIS_ACTION] Unknown action type: \(action.type)")
+                    }
+                }
+                return .none
+
+            case let .actionExecuted(action):
+                state.executedActions.append(action)
+                return .none
             }
         }
     }
+
+    // MARK: - Action Parsing Helpers
+
+    struct ParsedAction {
+        let type: String
+        let params: [String: String]
+    }
+
+    static func parseActionTags(from content: String) -> [ParsedAction] {
+        var actions: [ParsedAction] = []
+        let pattern = "\\[AXIS_ACTION:([^\\]]+)\\]"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let nsContent = content as NSString
+        let matches = regex.matches(in: content, range: NSRange(location: 0, length: nsContent.length))
+
+        for match in matches {
+            let body = nsContent.substring(with: match.range(at: 1))
+            let parts = body.components(separatedBy: "|")
+            guard let actionType = parts.first?.trimmingCharacters(in: .whitespaces) else { continue }
+
+            var params: [String: String] = [:]
+            for part in parts.dropFirst() {
+                let kv = part.components(separatedBy: "=")
+                if kv.count >= 2 {
+                    let key = kv[0].trimmingCharacters(in: .whitespaces)
+                    let value = kv.dropFirst().joined(separator: "=").trimmingCharacters(in: .whitespaces)
+                    params[key] = value
+                }
+            }
+            actions.append(ParsedAction(type: actionType, params: params))
+        }
+        return actions
+    }
+
+    static func stripActionTags(from content: String) -> String {
+        let pattern = "\\[AXIS_ACTION:[^\\]]+\\]"
+        let cleaned = content.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func parseDate(_ str: String) -> Date? {
+        let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+
+        // Try multiple formats
+        for format in [
+            "yyyy-MM-dd",
+            "MM/dd/yyyy",
+            "MM-dd-yyyy",
+            "MMMM d, yyyy",
+            "MMM d, yyyy",
+            "MMMM dd, yyyy",
+            "MMM dd, yyyy",
+            "yyyy/MM/dd",
+        ] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: trimmed) { return date }
+        }
+
+        // Handle relative dates: "tomorrow", "today", etc.
+        let lower = trimmed.lowercased()
+        let cal = Calendar.current
+        if lower == "today" { return cal.startOfDay(for: Date()) }
+        if lower == "tomorrow" { return cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: Date())) }
+        if lower.hasPrefix("next ") {
+            let day = String(lower.dropFirst(5))
+            let weekdays = ["sunday": 1, "monday": 2, "tuesday": 3, "wednesday": 4, "thursday": 5, "friday": 6, "saturday": 7]
+            if let target = weekdays[day] {
+                let today = cal.component(.weekday, from: Date())
+                var diff = target - today
+                if diff <= 0 { diff += 7 }
+                return cal.date(byAdding: .day, value: diff, to: cal.startOfDay(for: Date()))
+            }
+        }
+
+        print("[AXIS_ACTION] Could not parse date: '\(trimmed)'")
+        return nil
+    }
+
+    static func combineDateAndTime(date: Date, time: String) -> Date {
+        let parts = time.components(separatedBy: ":")
+        let hour = Int(parts.first ?? "9") ?? 9
+        let minute = Int(parts.count > 1 ? parts[1] : "0") ?? 0
+        return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+    }
 }
+

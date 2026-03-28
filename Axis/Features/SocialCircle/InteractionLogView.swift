@@ -69,7 +69,6 @@ struct InteractionLogView: View {
     }
 }
 
-
 #Preview {
     InteractionLogView(
         store: Store(initialState: SocialCircleReducer.State()) {

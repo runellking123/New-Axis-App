@@ -370,7 +370,7 @@ struct ContactDetailView: View {
             .padding()
         }
         .background(Color(.systemGroupedBackground))
-        .scrollDismissesKeyboard(.interactively)
+        .scrollDismissesKeyboard(.immediately)
             .navigationTitle(contact.name)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -462,7 +462,6 @@ struct ContactDetailView: View {
         return "\(digits.prefix(3))-\(digits.dropFirst(3).prefix(3))-\(digits.suffix(4))"
     }
 }
-
 
 #Preview {
     ContactDetailView(

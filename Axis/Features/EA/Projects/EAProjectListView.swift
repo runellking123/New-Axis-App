@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import SwiftUI
+import UIKit
 
 struct EAProjectListView: View {
     @Bindable var store: StoreOf<EAProjectReducer>
@@ -8,7 +9,7 @@ struct EAProjectListView: View {
         NavigationStack {
             mainProjectContent
                 .background(Color(.systemGroupedBackground))
-                .scrollDismissesKeyboard(.interactively)
+                .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Projects")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { addProjectButton }
@@ -151,33 +152,86 @@ struct EAProjectListView: View {
                             Button(role: .destructive) {
                                 store.send(.deleteProject(project.id))
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label("Archive", systemImage: "archivebox.fill")
                             }
                         }
                         .swipeActions(edge: .leading) {
                             Button {
-                                let newStatus = project.status == "active" ? "completed" : "active"
+                                let newStatus = project.status == "active" ? "onHold" : "active"
                                 store.send(.updateProjectStatus(project.id, newStatus))
                             } label: {
                                 Label(
-                                    project.status == "active" ? "Complete" : "Activate",
-                                    systemImage: project.status == "active" ? "checkmark.circle" : "play.circle"
+                                    project.status == "active" ? "On Hold" : "Activate",
+                                    systemImage: project.status == "active" ? "pause.circle.fill" : "play.circle.fill"
                                 )
                             }
-                            .tint(project.status == "active" ? .green : .blue)
+                            .tint(.orange)
                         }
                         .contextMenu {
-                            Button {
-                                let newStatus = project.status == "active" ? "completed" : "active"
-                                store.send(.updateProjectStatus(project.id, newStatus))
-                            } label: {
-                                Label(project.status == "active" ? "Mark Completed" : "Mark Active", systemImage: "checkmark.circle")
-                            }
+                            // Edit
                             Button {
                                 store.send(.selectProject(project.id))
                             } label: {
-                                Label("Open Details", systemImage: "info.circle")
+                                Label("Edit", systemImage: "pencil")
                             }
+
+                            // Change Status submenu
+                            Menu {
+                                Button {
+                                    store.send(.updateProjectStatus(project.id, "active"))
+                                } label: {
+                                    Label("Active", systemImage: "checkmark.circle")
+                                }
+                                Button {
+                                    store.send(.updateProjectStatus(project.id, "onHold"))
+                                } label: {
+                                    Label("On Hold", systemImage: "pause.circle")
+                                }
+                                Button {
+                                    store.send(.updateProjectStatus(project.id, "completed"))
+                                } label: {
+                                    Label("Completed", systemImage: "checkmark.seal")
+                                }
+                                Button {
+                                    store.send(.updateProjectStatus(project.id, "archived"))
+                                } label: {
+                                    Label("Archived", systemImage: "archivebox")
+                                }
+                            } label: {
+                                Label("Change Status", systemImage: "arrow.triangle.2.circlepath")
+                            }
+
+                            // Add Milestone
+                            Button {
+                                store.send(.selectProject(project.id))
+                            } label: {
+                                Label("Add Milestone", systemImage: "flag")
+                            }
+
+                            Divider()
+
+                            // Text Details — open Messages
+                            Button {
+                                let summary = projectSummaryText(project)
+                                let encoded = summary.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                if let url = URL(string: "sms:&body=\(encoded)") {
+                                    UIApplication.shared.open(url)
+                                }
+                            } label: {
+                                Label("Text Details", systemImage: "message")
+                            }
+
+                            // Copy Details
+                            Button {
+                                let summary = projectSummaryText(project)
+                                UIPasteboard.general.string = summary
+                            } label: {
+                                Label("Copy Details", systemImage: "doc.on.doc")
+                            }
+
+                            Divider()
+
+                            // Delete
                             Button(role: .destructive) {
                                 store.send(.deleteProject(project.id))
                             } label: {
@@ -486,6 +540,30 @@ struct EAProjectListView: View {
         }
     }
 
+    private func projectSummaryText(_ project: EAProjectReducer.State.ProjectState) -> String {
+        let statusLabel: String = {
+            switch project.status {
+            case "active": return "Active"
+            case "onHold": return "On Hold"
+            case "completed": return "Completed"
+            case "archived": return "Archived"
+            default: return project.status.capitalized
+            }
+        }()
+        let progressPercent = Int(project.progress * 100)
+        var lines: [String] = []
+        lines.append(project.title)
+        lines.append("Status: \(statusLabel) | Progress: \(progressPercent)%")
+        lines.append("Category: \(project.category.capitalized)")
+        if let deadline = project.deadline {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .long
+            formatter.timeStyle = .none
+            lines.append("Deadline: \(formatter.string(from: deadline))")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     private func priorityColor(_ priority: String) -> Color {
         switch priority {
         case "critical": return .red
@@ -751,7 +829,6 @@ private struct IdentifiableProject: Identifiable {
         self.project = project
     }
 }
-
 
 #Preview {
     EAProjectListView(

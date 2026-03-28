@@ -68,7 +68,6 @@ struct GroupManagementView: View {
     }
 }
 
-
 #Preview {
     GroupManagementView(
         store: Store(initialState: SocialCircleReducer.State()) {

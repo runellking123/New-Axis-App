@@ -48,7 +48,13 @@ struct AppView: View {
                         store.send(.eaTasks(.filterChanged(.done)))
                     },
                     onMeetingsTapped: { store.send(.tabSelected(.planner)) },
-                    onDeepWorkTapped: { store.send(.tabSelected(.planner)) }
+                    onDeepWorkTapped: { store.send(.tabSelected(.planner)) },
+                    onToggleDarkMode: {
+                        let current = store.settings.darkModeOverride
+                        let next: SettingsReducer.State.DarkModeOption = current == .dark ? .light : .dark
+                        store.send(.settings(.darkModeChanged(next)))
+                    },
+                    isDarkMode: store.settings.darkModeOverride == .dark
                 )
                 .tabItem {
                     Label("EA", systemImage: "brain.head.profile.fill")

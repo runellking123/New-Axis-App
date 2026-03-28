@@ -300,7 +300,6 @@ struct ProjectDetailView: View {
     }
 }
 
-
 #Preview {
     ProjectDetailView(
         store: Store(initialState: WorkSuiteReducer.State()) {

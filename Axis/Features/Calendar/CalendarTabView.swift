@@ -28,6 +28,9 @@ struct CalendarTabView: View {
     @State private var isGeneratingPrep = false
     @State private var showMeetingPrep = false
     @State private var prepForEvent: CalEventItem?
+    @State private var expandedEventId: String? = nil
+    @State private var showEditEvent = false
+    @State private var editingEvent: CalEventItem? = nil
     @State private var dailySummary = ""
     @State private var isGeneratingSummary = false
     @State private var conflicts: [(CalEventItem, CalEventItem)] = []
@@ -255,7 +258,7 @@ struct CalendarTabView: View {
                                         }
                                     }
 
-                                    // Event row with conflict badge + context menu
+                                    // Event row with conflict badge + context menu + swipe
                                     eventRow(event)
                                         .overlay(alignment: .topTrailing) {
                                             if isConflicting(event) {
@@ -265,12 +268,69 @@ struct CalendarTabView: View {
                                                     .padding(6)
                                             }
                                         }
+                                        .onTapGesture {
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                expandedEventId = expandedEventId == event.id ? nil : event.id
+                                            }
+                                        }
                                         .contextMenu {
+                                            Button {
+                                                editingEvent = event
+                                                newTitle = event.title
+                                                newStart = event.startDate
+                                                newEnd = event.endDate
+                                                newLocation = event.location ?? ""
+                                                newNotes = ""
+                                                showEditEvent = true
+                                            } label: {
+                                                Label("Edit", systemImage: "pencil")
+                                            }
                                             Button {
                                                 Task { await generateMeetingPrep(for: event) }
                                             } label: {
                                                 Label("AI Meeting Prep", systemImage: "sparkles")
                                             }
+                                            Button {
+                                                shareEventAsICS(event)
+                                            } label: {
+                                                Label("Send Calendar Invite", systemImage: "calendar.badge.plus")
+                                            }
+                                            Button {
+                                                textEventDetails(event)
+                                            } label: {
+                                                Label("Text Details", systemImage: "message")
+                                            }
+                                            Button {
+                                                UIPasteboard.general.string = eventDetailsText(event)
+                                            } label: {
+                                                Label("Copy Details", systemImage: "doc.on.doc")
+                                            }
+                                            Button {
+                                                addEventToTasks(event)
+                                            } label: {
+                                                Label("Add to Tasks", systemImage: "checklist")
+                                            }
+                                            Divider()
+                                            Button(role: .destructive) {
+                                                deleteEvent(event)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            Button(role: .destructive) {
+                                                deleteEvent(event)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                        .swipeActions(edge: .leading) {
+                                            Button {
+                                                textEventDetails(event)
+                                            } label: {
+                                                Label("Text", systemImage: "message")
+                                            }
+                                            .tint(.blue)
                                         }
                                 }
                             }
@@ -298,6 +358,9 @@ struct CalendarTabView: View {
             .sheet(isPresented: $showCreateEvent) {
                 createEventSheet
             }
+            .sheet(isPresented: $showEditEvent) {
+                editEventSheet
+            }
             .sheet(isPresented: $showConnectSheet) {
                 connectedAccountsSheet
             }
@@ -321,33 +384,93 @@ struct CalendarTabView: View {
     // MARK: - Event Row
 
     private func eventRow(_ event: CalEventItem) -> some View {
-        HStack(spacing: 12) {
-            if let color = event.calendarColor {
-                Rectangle().fill(Color(cgColor: color)).frame(width: 4).clipShape(.rect(cornerRadius: 2))
-            } else {
-                Rectangle().fill(Color.axisGold).frame(width: 4).clipShape(.rect(cornerRadius: 2))
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                if let color = event.calendarColor {
+                    Rectangle().fill(Color(cgColor: color)).frame(width: 4).clipShape(.rect(cornerRadius: 2))
+                } else {
+                    Rectangle().fill(Color.axisGold).frame(width: 4).clipShape(.rect(cornerRadius: 2))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(event.title).font(.subheadline).fontWeight(.medium)
+                    HStack(spacing: 6) {
+                        if event.isAllDay {
+                            Text("All Day").font(.caption2).foregroundStyle(Color.axisGold)
+                        } else {
+                            Text(timeStr(event.startDate)).font(.caption).foregroundStyle(.secondary)
+                            Text("–").font(.caption).foregroundStyle(.secondary)
+                            Text(timeStr(event.endDate)).font(.caption).foregroundStyle(.secondary)
+                        }
+                        if let loc = event.location, !loc.isEmpty {
+                            Text("• \(loc)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    Text(event.calendarName).font(.caption2).foregroundStyle(.tertiary)
+                }
+                Spacer()
+                Image(systemName: expandedEventId == event.id ? "chevron.up" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title).font(.subheadline).fontWeight(.medium)
-                HStack(spacing: 6) {
-                    if event.isAllDay {
-                        Text("All Day").font(.caption2).foregroundStyle(Color.axisGold)
-                    } else {
-                        Text(timeStr(event.startDate)).font(.caption).foregroundStyle(.secondary)
-                        Text("–").font(.caption).foregroundStyle(.secondary)
-                        Text(timeStr(event.endDate)).font(.caption).foregroundStyle(.secondary)
+
+            // Expanded details + action buttons
+            if expandedEventId == event.id {
+                Divider().padding(.vertical, 8)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    if !event.isAllDay {
+                        let duration = Int(event.endDate.timeIntervalSince(event.startDate) / 60)
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock").font(.caption2).foregroundStyle(.secondary)
+                            Text("\(duration) minutes").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     if let loc = event.location, !loc.isEmpty {
-                        Text("• \(loc)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        HStack(spacing: 4) {
+                            Image(systemName: "location.fill").font(.caption2).foregroundStyle(.secondary)
+                            Text(loc).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
-                Text(event.calendarName).font(.caption2).foregroundStyle(.tertiary)
+
+                // Quick action buttons
+                HStack(spacing: 10) {
+                    quickActionButton("Share", icon: "square.and.arrow.up") {
+                        shareEventAsICS(event)
+                    }
+                    quickActionButton("Text", icon: "message") {
+                        textEventDetails(event)
+                    }
+                    quickActionButton("Copy", icon: "doc.on.doc") {
+                        UIPasteboard.general.string = eventDetailsText(event)
+                    }
+                    quickActionButton("Delete", icon: "trash", destructive: true) {
+                        deleteEvent(event)
+                    }
+                }
+                .padding(.top, 4)
             }
-            Spacer()
         }
         .padding(12)
         .background(.ultraThinMaterial)
         .clipShape(.rect(cornerRadius: 12))
+    }
+
+    private func quickActionButton(_ label: String, icon: String, destructive: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text(label)
+                    .font(.system(size: 9))
+            }
+            .foregroundStyle(destructive ? .red : Color.axisGold)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(destructive ? .red.opacity(0.08) : Color.axisGold.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Create Event Sheet
@@ -361,7 +484,7 @@ struct CalendarTabView: View {
                 TextField("Location", text: $newLocation)
                 TextField("Notes", text: $newNotes, axis: .vertical).lineLimit(3...6)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("New Event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -572,6 +695,121 @@ struct CalendarTabView: View {
             .clipShape(.capsule)
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Edit Event Sheet
+
+    private var editEventSheet: some View {
+        NavigationStack {
+            Form {
+                TextField("Event Title", text: $newTitle)
+                DatePicker("Start", selection: $newStart)
+                DatePicker("End", selection: $newEnd)
+                TextField("Location", text: $newLocation)
+            }
+            .scrollDismissesKeyboard(.immediately)
+            .navigationTitle("Edit Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showEditEvent = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if let editing = editingEvent {
+                            updateEvent(editing)
+                        }
+                        showEditEvent = false
+                    }
+                    .disabled(newTitle.isEmpty)
+                }
+            }
+        }
+    }
+
+    // MARK: - Event Actions
+
+    private func deleteEvent(_ event: CalEventItem) {
+        let store = EKEventStore()
+        if let ekEvent = store.calendarItem(withIdentifier: event.id) as? EKEvent {
+            try? store.remove(ekEvent, span: .thisEvent)
+            loadEvents()
+        }
+    }
+
+    private func updateEvent(_ event: CalEventItem) {
+        let store = EKEventStore()
+        if let ekEvent = store.calendarItem(withIdentifier: event.id) as? EKEvent {
+            ekEvent.title = newTitle
+            ekEvent.startDate = newStart
+            ekEvent.endDate = newEnd
+            if !newLocation.isEmpty { ekEvent.location = newLocation }
+            try? store.save(ekEvent, span: .thisEvent)
+            loadEvents()
+        }
+    }
+
+    private func eventDetailsText(_ event: CalEventItem) -> String {
+        let df = DateFormatter()
+        df.dateFormat = "EEEE, MMMM d"
+        let dateText = df.string(from: event.startDate)
+
+        var text = "\(event.title)\n"
+        if event.isAllDay {
+            text += "\(dateText) - All Day\n"
+        } else {
+            text += "\(dateText) at \(timeStr(event.startDate)) - \(timeStr(event.endDate))\n"
+        }
+        if let loc = event.location, !loc.isEmpty {
+            text += "\(loc)\n"
+        }
+        return text
+    }
+
+    private func textEventDetails(_ event: CalEventItem) {
+        let details = eventDetailsText(event)
+        let encoded = details.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let url = URL(string: "sms:&body=\(encoded)") {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    private func shareEventAsICS(_ event: CalEventItem) {
+        // Create .ics content
+        let df = DateFormatter()
+        df.dateFormat = "yyyyMMdd'T'HHmmss"
+        df.timeZone = TimeZone.current
+
+        var ics = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//AXIS//EN\nBEGIN:VEVENT\n"
+        ics += "SUMMARY:\(event.title)\n"
+        ics += "DTSTART:\(df.string(from: event.startDate))\n"
+        ics += "DTEND:\(df.string(from: event.endDate))\n"
+        if let loc = event.location, !loc.isEmpty {
+            ics += "LOCATION:\(loc)\n"
+        }
+        ics += "END:VEVENT\nEND:VCALENDAR"
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(event.title.replacingOccurrences(of: " ", with: "_")).ics")
+        try? ics.write(to: tempURL, atomically: true, encoding: .utf8)
+
+        // Also include plain text
+        let plainText = eventDetailsText(event)
+
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let vc = scene.windows.first?.rootViewController {
+            var top = vc
+            while let p = top.presentedViewController { top = p }
+            let av = UIActivityViewController(activityItems: [plainText, tempURL], applicationActivities: nil)
+            top.present(av, animated: true)
+        }
+    }
+
+    private func addEventToTasks(_ event: CalEventItem) {
+        let task = EATask(title: event.title, category: "general")
+        if !event.isAllDay {
+            task.deadline = event.startDate
+        }
+        PersistenceService.shared.saveEATask(task)
     }
 
     // MARK: - EventKit

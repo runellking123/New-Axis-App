@@ -230,7 +230,6 @@ struct GoalDetailView: View {
     }
 }
 
-
 #Preview {
     GoalDetailView(
         store: Store(initialState: FamilyHQReducer.State()) {

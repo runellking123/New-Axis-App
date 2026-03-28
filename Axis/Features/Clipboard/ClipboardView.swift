@@ -287,3 +287,11 @@ struct ClipEditorSheet: View {
         }
     }
 }
+
+#Preview {
+    ClipboardView(
+        store: Store(initialState: ClipboardReducer.State()) {
+            ClipboardReducer()
+        }
+    )
+}

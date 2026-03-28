@@ -31,14 +31,16 @@ final class MultiProviderChatService: @unchecked Sendable {
     static let shared = MultiProviderChatService()
 
     private(set) var isStreaming = false
+    private static let defaultAnthropicKey = Bundle.main.infoDictionary?["ANTHROPIC_API_KEY"] as? String ?? ""
+    private static let defaultGeminiKey = Bundle.main.infoDictionary?["GEMINI_API_KEY"] as? String ?? ""
 
     var anthropicAPIKey: String {
-        get { UserDefaults.standard.string(forKey: "anthropic_api_key") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "anthropic_api_key") }
+        get { Self.defaultAnthropicKey }
+        set { /* embedded */ }
     }
     var geminiAPIKey: String {
-        get { UserDefaults.standard.string(forKey: "gemini_api_key") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "gemini_api_key") }
+        get { Self.defaultGeminiKey }
+        set { /* embedded */ }
     }
     var selectedModelId: String {
         get { UserDefaults.standard.string(forKey: "selected_ai_model") ?? "claude-sonnet-4-20250514" }
@@ -96,18 +98,52 @@ final class MultiProviderChatService: @unchecked Sendable {
     - No filler words or unnecessary preamble
     - Get straight to the answer
     - Only elaborate if explicitly asked
+
+    APP ACTIONS:
+    You can execute actions inside the AXIS app. When the user asks you to create, add, or schedule something, include the appropriate action tag in your response. Always confirm what you did in natural language BEFORE the action tag. You may include multiple action tags in one response.
+
+    Available actions (use EXACTLY this format, one per line, at the END of your response):
+
+    [AXIS_ACTION:create_task|title=TITLE|priority=high|category=university|deadline=YYYY-MM-DD]
+    - priority: critical, high, medium, low (default: medium)
+    - category: university, consulting, personal, general (default: general)
+    - deadline: optional, use YYYY-MM-DD format
+
+    [AXIS_ACTION:create_project|title=TITLE|category=university|status=active]
+    - category: university, consulting, personal (default: personal)
+    - status: active, onHold (default: active)
+
+    [AXIS_ACTION:create_event|title=TITLE|date=YYYY-MM-DD|startTime=HH:MM|endTime=HH:MM]
+    - date, startTime, endTime are required. Use 24-hour format for times.
+
+    [AXIS_ACTION:create_note|content=CONTENT|folder=Work|title=TITLE]
+    - folder: Work, Personal, Lagniappe (default: Personal)
+    - title: optional
+
+    [AXIS_ACTION:create_bill|name=NAME|amount=AMOUNT|dueDay=DAY|category=CATEGORY]
+    - amount: number (e.g. 150.00)
+    - dueDay: 1-31
+    - category: housing, utilities, transportation, insurance, subscriptions, debt, food, childcare, phone, other
+
+    [AXIS_ACTION:create_trip|name=NAME|startDate=YYYY-MM-DD|endDate=YYYY-MM-DD|budget=AMOUNT]
+    - budget: optional number
+
+    IMPORTANT: Only include action tags when the user explicitly asks you to create, add, schedule, or save something. Do not include action tags for questions, analysis, or general conversation. Always write your conversational response FIRST, then put action tags at the very end.
     """
 
     // MARK: - Streaming Chat
 
     func streamChat(
         messages: [(role: String, content: String)],
-        model: AIModel? = nil
+        model: AIModel? = nil,
+        images: [Data] = [],
+        fileNames: [String] = [],
+        fileData: [Data] = []
     ) -> AsyncThrowingStream<ChatStreamChunk, Error> {
         let activeModel = model ?? selectedModel
         switch activeModel.provider {
         case .claude:
-            return streamClaude(messages: messages, model: activeModel.id)
+            return streamClaude(messages: messages, model: activeModel.id, images: images, fileNames: fileNames, fileData: fileData)
         case .gemini:
             return streamGemini(messages: messages, model: activeModel.id)
         }
@@ -117,7 +153,10 @@ final class MultiProviderChatService: @unchecked Sendable {
 
     private func streamClaude(
         messages: [(role: String, content: String)],
-        model: String
+        model: String,
+        images: [Data] = [],
+        fileNames: [String] = [],
+        fileData: [Data] = []
     ) -> AsyncThrowingStream<ChatStreamChunk, Error> {
         AsyncThrowingStream { continuation in
             Task {
@@ -138,10 +177,88 @@ final class MultiProviderChatService: @unchecked Sendable {
                     let projectCount = persistence.fetchEAProjects().count
                     dynamicSystem += "\n\nCURRENT USER DATA:\n- Total tasks: \(taskCount) (\(completedCount) completed)\n- Active projects: \(projectCount)\n- Current date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .short))"
 
-                    let msgArray = messages.map { ["role": $0.role, "content": $0.content] }
+                    // Build messages array — last user message gets multimodal content if attachments exist
+                    var msgArray: [[String: Any]] = []
+                    let hasAttachments = !images.isEmpty || !fileData.isEmpty
+
+                    for (i, msg) in messages.enumerated() {
+                        let isLastUserMsg = (i == messages.count - 1) && msg.role == "user" && hasAttachments
+
+                        if isLastUserMsg {
+                            // Build multimodal content array for the last user message
+                            var contentParts: [[String: Any]] = []
+
+                            // Add images as base64
+                            for imageData in images {
+                                let base64 = imageData.base64EncodedString()
+                                contentParts.append([
+                                    "type": "image",
+                                    "source": [
+                                        "type": "base64",
+                                        "media_type": "image/jpeg",
+                                        "data": base64
+                                    ]
+                                ])
+                            }
+
+                            // Add file content as text (extract text from files)
+                            for (idx, data) in fileData.enumerated() {
+                                let fileName = idx < fileNames.count ? fileNames[idx] : "file"
+                                let ext = (fileName as NSString).pathExtension.lowercased()
+
+                                if ["png", "jpg", "jpeg", "gif", "webp"].contains(ext) {
+                                    // Image file — send as image
+                                    let base64 = data.base64EncodedString()
+                                    let mediaType = ext == "png" ? "image/png" : ext == "gif" ? "image/gif" : ext == "webp" ? "image/webp" : "image/jpeg"
+                                    contentParts.append([
+                                        "type": "image",
+                                        "source": [
+                                            "type": "base64",
+                                            "media_type": mediaType,
+                                            "data": base64
+                                        ]
+                                    ])
+                                } else if ["pdf"].contains(ext) {
+                                    // PDF — send as document
+                                    let base64 = data.base64EncodedString()
+                                    contentParts.append([
+                                        "type": "document",
+                                        "source": [
+                                            "type": "base64",
+                                            "media_type": "application/pdf",
+                                            "data": base64
+                                        ]
+                                    ])
+                                } else {
+                                    // Text-based file — extract content
+                                    let textContent = String(data: data, encoding: .utf8) ?? "(Could not read file content)"
+                                    contentParts.append([
+                                        "type": "text",
+                                        "text": "--- File: \(fileName) ---\n\(textContent)\n--- End of file ---"
+                                    ])
+                                }
+                            }
+
+                            // Add the user's text message
+                            // Strip the "[X attached]" suffix since we're sending actual content
+                            var cleanText = msg.content
+                            if let range = cleanText.range(of: "\n[", options: .backwards) {
+                                cleanText = String(cleanText[..<range.lowerBound])
+                            }
+                            contentParts.append([
+                                "type": "text",
+                                "text": cleanText
+                            ])
+
+                            msgArray.append(["role": "user", "content": contentParts])
+                        } else {
+                            msgArray.append(["role": msg.role, "content": msg.content])
+                        }
+                    }
+
                     let body: [String: Any] = [
                         "model": model,
-                        "max_tokens": 1024,
+                        "max_tokens": 4096,
                         "stream": true,
                         "system": dynamicSystem,
                         "messages": msgArray

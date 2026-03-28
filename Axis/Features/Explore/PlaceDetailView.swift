@@ -342,7 +342,6 @@ struct PlaceDetailView: View {
     }
 }
 
-
 #Preview {
     PlaceDetailView(
         store: Store(initialState: ExploreReducer.State()) {

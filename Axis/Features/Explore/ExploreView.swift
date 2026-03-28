@@ -492,7 +492,7 @@ struct ExploreView: View {
             .padding(.horizontal)
             .padding(.bottom, 100)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .scrollDismissesKeyboard(.immediately)
     }
 
     @ToolbarContentBuilder
@@ -1304,7 +1304,6 @@ struct ScaleButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
-
 
 #Preview {
     ExploreView(

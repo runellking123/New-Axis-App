@@ -378,3 +378,11 @@ struct TripDetailSheet: View {
         }
     }
 }
+
+#Preview {
+    TravelPlannerView(
+        store: Store(initialState: TravelPlannerReducer.State()) {
+            TravelPlannerReducer()
+        }
+    )
+}

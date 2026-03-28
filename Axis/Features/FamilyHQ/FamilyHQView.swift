@@ -471,7 +471,7 @@ struct FamilyHQView: View {
                     DatePicker("Date & Time", selection: $store.newEventDate.sending(\.newEventDateChanged))
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("New Event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -990,7 +990,6 @@ struct FamilyHQView: View {
         }
     }
 }
-
 
 #Preview {
     FamilyHQView(

@@ -404,3 +404,7 @@ struct FlowLayout: Layout {
         return (CGSize(width: maxWidth, height: y + rowHeight), positions)
     }
 }
+
+#Preview {
+    TravelAgentsView()
+}

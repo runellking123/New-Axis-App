@@ -111,6 +111,7 @@ struct EATaskReducer {
         case deleteTask(UUID)
         case selectTask(UUID?)
         case updateTaskStatus(UUID, String)
+        case updateTaskPriority(UUID, String)
         case toggleSelectMode
         case toggleTaskSelection(UUID)
         case batchComplete
@@ -285,6 +286,17 @@ struct EATaskReducer {
                     let tasks = persistence.fetchEATasks()
                     if let model = tasks.first(where: { $0.uuid == id }) {
                         model.status = status
+                        persistence.updateEATasks()
+                    }
+                }
+                return .none
+
+            case let .updateTaskPriority(id, priority):
+                if let index = state.tasks.firstIndex(where: { $0.id == id }) {
+                    state.tasks[index].priority = priority
+                    let tasks = persistence.fetchEATasks()
+                    if let model = tasks.first(where: { $0.uuid == id }) {
+                        model.priority = priority
                         persistence.updateEATasks()
                     }
                 }

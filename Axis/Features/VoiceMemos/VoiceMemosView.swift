@@ -371,3 +371,11 @@ struct MemoDetailSheet: View {
         }
     }
 }
+
+#Preview {
+    VoiceMemosView(
+        store: Store(initialState: VoiceMemosReducer.State()) {
+            VoiceMemosReducer()
+        }
+    )
+}
