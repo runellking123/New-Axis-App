@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import Speech
+import UIKit
 
 @Observable
 final class SpeechService {
@@ -42,12 +43,19 @@ final class SpeechService {
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest else { return }
         recognitionRequest.shouldReportPartialResults = true
+        recognitionRequest.addsPunctuation = true
+        recognitionRequest.taskHint = .dictation
 
         recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             guard let self else { return }
             if let result {
+                let rawText = result.bestTranscription.formattedString
                 Task { @MainActor in
-                    self.transcribedText = result.bestTranscription.formattedString
+                    if result.isFinal {
+                        self.transcribedText = Self.correctGrammar(rawText)
+                    } else {
+                        self.transcribedText = rawText
+                    }
                 }
             }
             if error != nil || (result?.isFinal ?? false) {
@@ -81,6 +89,76 @@ final class SpeechService {
         recognitionRequest?.endAudio()
         Task { @MainActor in
             self.isRecording = false
+            self.transcribedText = Self.correctGrammar(self.transcribedText)
         }
+    }
+
+    // MARK: - Grammar Correction
+
+    /// Applies grammar and spelling corrections to transcribed text.
+    /// Capitalizes sentences, fixes common speech-to-text issues, and
+    /// runs the system spell checker to correct misspelled words.
+    static func correctGrammar(_ text: String) -> String {
+        guard !text.isEmpty else { return text }
+
+        var corrected = text
+
+        // 1. Capitalize the first letter of the entire text
+        if let first = corrected.first, first.isLowercase {
+            corrected = first.uppercased() + corrected.dropFirst()
+        }
+
+        // 2. Capitalize the first letter after sentence-ending punctuation (. ! ?)
+        let sentencePattern = "([.!?])\\s+(\\p{Ll})"
+        if let regex = try? NSRegularExpression(pattern: sentencePattern) {
+            let mutable = NSMutableString(string: corrected)
+            let range = NSRange(location: 0, length: mutable.length)
+            regex.enumerateMatches(in: corrected, range: range) { match, _, _ in
+                guard let match,
+                      let letterRange = Range(match.range(at: 2), in: corrected) else { return }
+                let upper = String(corrected[letterRange]).uppercased()
+                mutable.replaceCharacters(in: match.range(at: 2), with: upper)
+            }
+            corrected = mutable as String
+        }
+
+        // 3. Capitalize "I" when used as a pronoun (standalone lowercase "i")
+        if let regex = try? NSRegularExpression(pattern: "\\bi\\b") {
+            let mutable = NSMutableString(string: corrected)
+            regex.replaceMatches(in: mutable, range: NSRange(location: 0, length: mutable.length),
+                                 withTemplate: "I")
+            corrected = mutable as String
+        }
+
+        // 4. Apply system spell-checking corrections
+        let checker = UITextChecker()
+        let nsText = corrected as NSString
+        var offset = 0
+
+        while offset < nsText.length {
+            let searchRange = NSRange(location: offset, length: nsText.length - offset)
+            let misspelledRange = checker.rangeOfMisspelledWord(
+                in: corrected, range: searchRange, startingAt: offset,
+                wrap: false, language: "en"
+            )
+
+            guard misspelledRange.location != NSNotFound else { break }
+
+            if let guesses = checker.guesses(forWordRange: misspelledRange, in: corrected, language: "en"),
+               let bestGuess = guesses.first {
+                corrected = (corrected as NSString).replacingCharacters(in: misspelledRange, with: bestGuess)
+                offset = misspelledRange.location + bestGuess.count
+            } else {
+                offset = misspelledRange.location + misspelledRange.length
+            }
+        }
+
+        // 5. Ensure text ends with punctuation
+        let trimmed = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let last = trimmed.last, !last.isPunctuation {
+            corrected = trimmed + "."
+        }
+
+        return corrected
     }
 }
