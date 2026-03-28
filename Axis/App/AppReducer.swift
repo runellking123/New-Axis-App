@@ -288,6 +288,9 @@ struct AppReducer {
         var aiChat = AIChatReducer.State()
         var budget = BudgetReducer.State()
         var quickNotes = QuickNotesReducer.State()
+        var voiceMemos = VoiceMemosReducer.State()
+        var travelPlanner = TravelPlannerReducer.State()
+        var clipboard = ClipboardReducer.State()
         var settings = SettingsReducer.State()
 
         // Legacy (kept for data but not primary tabs)
@@ -316,7 +319,10 @@ struct AppReducer {
             case balance = 10
             case budget = 11
             case trends = 12
-            case settings = 13
+            case voiceMemos = 13
+            case travel = 14
+            case clipboard = 15
+            case settings = 16
 
             var id: Int { rawValue }
 
@@ -335,6 +341,9 @@ struct AppReducer {
                 case .budget: return "Budget"
                 case .trends: return "News"
                 case .notes: return "Notes"
+                case .voiceMemos: return "Voice Memos"
+                case .travel: return "Travel"
+                case .clipboard: return "Clipboard"
                 case .settings: return "Settings"
                 }
             }
@@ -354,6 +363,9 @@ struct AppReducer {
                 case .budget: return "dollarsign.circle.fill"
                 case .trends: return "newspaper.fill"
                 case .notes: return "note.text"
+                case .voiceMemos: return "mic.fill"
+                case .travel: return "airplane"
+                case .clipboard: return "doc.on.clipboard"
                 case .settings: return "gearshape.fill"
                 }
             }
@@ -385,6 +397,9 @@ struct AppReducer {
         case balance(BalanceReducer.Action)
         case budget(BudgetReducer.Action)
         case quickNotes(QuickNotesReducer.Action)
+        case voiceMemos(VoiceMemosReducer.Action)
+        case travelPlanner(TravelPlannerReducer.Action)
+        case clipboard(ClipboardReducer.Action)
         case trends(TrendsReducer.Action)
         case aiChat(AIChatReducer.Action)
         case settings(SettingsReducer.Action)
@@ -435,6 +450,15 @@ struct AppReducer {
         }
         Scope(state: \.quickNotes, action: \.quickNotes) {
             QuickNotesReducer()
+        }
+        Scope(state: \.voiceMemos, action: \.voiceMemos) {
+            VoiceMemosReducer()
+        }
+        Scope(state: \.travelPlanner, action: \.travelPlanner) {
+            TravelPlannerReducer()
+        }
+        Scope(state: \.clipboard, action: \.clipboard) {
+            ClipboardReducer()
         }
         Scope(state: \.trends, action: \.trends) {
             TrendsReducer()
@@ -516,12 +540,15 @@ struct AppReducer {
                 case "dashboard": state.selectedTab = .dashboard
                 case "calendar": state.selectedTab = .calendar
                 case "notes": state.selectedTab = .notes
+                case "voice-memos": state.selectedTab = .voiceMemos
+                case "travel": state.selectedTab = .travel
+                case "clipboard": state.selectedTab = .clipboard
                 default: break
                 }
                 return .none
 
             case .eaDashboard, .eaPlanner, .eaTasks, .eaProjects,
-                 .socialCircle, .familyHQ, .explore, .balance, .budget, .quickNotes, .trends, .aiChat, .settings,
+                 .socialCircle, .familyHQ, .explore, .balance, .budget, .quickNotes, .voiceMemos, .travelPlanner, .clipboard, .trends, .aiChat, .settings,
                  .commandCenter, .workSuite:
                 return .none
             }

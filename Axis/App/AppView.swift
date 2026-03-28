@@ -153,6 +153,30 @@ struct AppView: View {
                 }
                 .tag(AppReducer.State.Tab.trends)
 
+                VoiceMemosView(
+                    store: store.scope(state: \.voiceMemos, action: \.voiceMemos)
+                )
+                .tabItem {
+                    Label("Voice Memos", systemImage: "mic.fill")
+                }
+                .tag(AppReducer.State.Tab.voiceMemos)
+
+                TravelPlannerView(
+                    store: store.scope(state: \.travelPlanner, action: \.travelPlanner)
+                )
+                .tabItem {
+                    Label("Travel", systemImage: "airplane")
+                }
+                .tag(AppReducer.State.Tab.travel)
+
+                ClipboardView(
+                    store: store.scope(state: \.clipboard, action: \.clipboard)
+                )
+                .tabItem {
+                    Label("Clipboard", systemImage: "doc.on.clipboard")
+                }
+                .tag(AppReducer.State.Tab.clipboard)
+
                 SettingsView(
                     store: store.scope(state: \.settings, action: \.settings)
                 )

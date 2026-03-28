@@ -702,6 +702,167 @@ final class PersistenceService: @unchecked Sendable {
         _ = saveContext("updateBills")
     }
 
+    // MARK: - Voice Memos
+
+    func fetchVoiceMemos() -> [VoiceMemo] {
+        let descriptor = FetchDescriptor<VoiceMemo>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        return fetchAll(VoiceMemo.self, descriptor: descriptor, operation: "fetchVoiceMemos")
+    }
+
+    func saveVoiceMemo(_ memo: VoiceMemo) {
+        guard let context = modelContext else { return }
+        context.insert(memo)
+        _ = saveContext("saveVoiceMemo")
+    }
+
+    func deleteVoiceMemo(_ memo: VoiceMemo) {
+        guard let context = modelContext else { return }
+        context.delete(memo)
+        _ = saveContext("deleteVoiceMemo")
+    }
+
+    func updateVoiceMemos() {
+        _ = saveContext("updateVoiceMemos")
+    }
+
+    // MARK: - Trips
+
+    func fetchTrips() -> [Trip] {
+        let descriptor = FetchDescriptor<Trip>(sortBy: [SortDescriptor(\.startDate, order: .reverse)])
+        return fetchAll(Trip.self, descriptor: descriptor, operation: "fetchTrips")
+    }
+
+    func saveTrip(_ trip: Trip) {
+        guard let context = modelContext else { return }
+        context.insert(trip)
+        _ = saveContext("saveTrip")
+    }
+
+    func deleteTrip(_ trip: Trip) {
+        guard let context = modelContext else { return }
+        context.delete(trip)
+        _ = saveContext("deleteTrip")
+    }
+
+    func updateTrips() {
+        _ = saveContext("updateTrips")
+    }
+
+    // MARK: - Itinerary Days
+
+    func fetchItineraryDays(forTrip tripId: UUID) -> [ItineraryDay] {
+        let descriptor = FetchDescriptor<ItineraryDay>(
+            predicate: #Predicate { $0.tripId == tripId },
+            sortBy: [SortDescriptor(\.dayNumber)]
+        )
+        return fetchAll(ItineraryDay.self, descriptor: descriptor, operation: "fetchItineraryDays")
+    }
+
+    func saveItineraryDay(_ day: ItineraryDay) {
+        guard let context = modelContext else { return }
+        context.insert(day)
+        _ = saveContext("saveItineraryDay")
+    }
+
+    func deleteItineraryDay(_ day: ItineraryDay) {
+        guard let context = modelContext else { return }
+        context.delete(day)
+        _ = saveContext("deleteItineraryDay")
+    }
+
+    // MARK: - Clipboard Items
+
+    func fetchClipboardItems() -> [ClipboardItem] {
+        let descriptor = FetchDescriptor<ClipboardItem>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        return fetchAll(ClipboardItem.self, descriptor: descriptor, operation: "fetchClipboardItems")
+    }
+
+    func saveClipboardItem(_ item: ClipboardItem) {
+        guard let context = modelContext else { return }
+        context.insert(item)
+        _ = saveContext("saveClipboardItem")
+    }
+
+    func deleteClipboardItem(_ item: ClipboardItem) {
+        guard let context = modelContext else { return }
+        context.delete(item)
+        _ = saveContext("deleteClipboardItem")
+    }
+
+    func updateClipboardItems() {
+        _ = saveContext("updateClipboardItems")
+    }
+
+    // MARK: - Energy Check-Ins
+
+    func fetchEnergyCheckIns(for date: Date) -> [EnergyCheckIn] {
+        let start = Calendar.current.startOfDay(for: date)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
+        let descriptor = FetchDescriptor<EnergyCheckIn>(
+            predicate: #Predicate { $0.timestamp >= start && $0.timestamp < end },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        return fetchAll(EnergyCheckIn.self, descriptor: descriptor, operation: "fetchEnergyCheckIns")
+    }
+
+    func fetchEnergyCheckInsRange(start: Date, end: Date) -> [EnergyCheckIn] {
+        let descriptor = FetchDescriptor<EnergyCheckIn>(
+            predicate: #Predicate { $0.timestamp >= start && $0.timestamp < end },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        return fetchAll(EnergyCheckIn.self, descriptor: descriptor, operation: "fetchEnergyCheckInsRange")
+    }
+
+    func saveEnergyCheckIn(_ checkIn: EnergyCheckIn) {
+        guard let context = modelContext else { return }
+        context.insert(checkIn)
+        _ = saveContext("saveEnergyCheckIn")
+    }
+
+    // MARK: - Trip Expenses
+
+    func fetchTripExpenses(tripId: UUID) -> [TripExpense] {
+        let descriptor = FetchDescriptor<TripExpense>(
+            predicate: #Predicate { $0.tripId == tripId },
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        return fetchAll(TripExpense.self, descriptor: descriptor, operation: "fetchTripExpenses")
+    }
+
+    func saveTripExpense(_ expense: TripExpense) {
+        guard let context = modelContext else { return }
+        context.insert(expense)
+        _ = saveContext("saveTripExpense")
+    }
+
+    func deleteTripExpense(_ expense: TripExpense) {
+        guard let context = modelContext else { return }
+        context.delete(expense)
+        _ = saveContext("deleteTripExpense")
+    }
+
+    // MARK: - Trip Activities
+
+    func fetchTripActivities(tripId: UUID) -> [TripActivity] {
+        let descriptor = FetchDescriptor<TripActivity>(
+            predicate: #Predicate { $0.tripId == tripId },
+            sortBy: [SortDescriptor(\.dayNumber)]
+        )
+        return fetchAll(TripActivity.self, descriptor: descriptor, operation: "fetchTripActivities")
+    }
+
+    func saveTripActivity(_ activity: TripActivity) {
+        guard let context = modelContext else { return }
+        context.insert(activity)
+        _ = saveContext("saveTripActivity")
+    }
+
+    func deleteTripActivity(_ activity: TripActivity) {
+        guard let context = modelContext else { return }
+        context.delete(activity)
+        _ = saveContext("deleteTripActivity")
+    }
+
     // MARK: - QA Utilities
 
     /// Debug utility for local QA resets. Removes all persisted records.
