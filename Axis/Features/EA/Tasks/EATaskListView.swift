@@ -488,3 +488,12 @@ private struct IdentifiableTask: Identifiable {
         self.task = task
     }
 }
+
+
+#Preview {
+    EATaskListView(
+        store: Store(initialState: EATaskReducer.State()) {
+            EATaskReducer()
+        }
+    )
+}

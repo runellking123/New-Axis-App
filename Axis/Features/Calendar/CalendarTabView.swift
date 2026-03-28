@@ -957,3 +957,7 @@ struct CalendarTabView: View {
         return "Unable to generate response"
     }
 }
+
+#Preview {
+    CalendarTabView()
+}

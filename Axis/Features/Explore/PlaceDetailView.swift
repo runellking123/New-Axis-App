@@ -341,3 +341,22 @@ struct PlaceDetailView: View {
         UIApplication.shared.open(url)
     }
 }
+
+
+#Preview {
+    PlaceDetailView(
+        store: Store(initialState: ExploreReducer.State()) {
+            ExploreReducer()
+        },
+        place: ExploreReducer.State.PlaceState(
+            id: UUID(),
+            name: "Coffee Shop",
+            category: "cafe",
+            address: "123 Main St",
+            notes: "Great espresso",
+            rating: 4,
+            isVisited: true,
+            isFavorite: false
+        )
+    )
+}

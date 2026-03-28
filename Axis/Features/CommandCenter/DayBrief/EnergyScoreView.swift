@@ -43,3 +43,12 @@ struct EnergyScoreView: View {
         }
     }
 }
+
+#Preview {
+    HStack(spacing: 20) {
+        EnergyScoreView(score: 9)
+        EnergyScoreView(score: 6)
+        EnergyScoreView(score: 3)
+    }
+    .padding()
+}

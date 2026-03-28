@@ -792,3 +792,12 @@ struct BalanceView: View {
         }
     }
 }
+
+
+#Preview {
+    BalanceView(
+        store: Store(initialState: BalanceReducer.State()) {
+            BalanceReducer()
+        }
+    )
+}

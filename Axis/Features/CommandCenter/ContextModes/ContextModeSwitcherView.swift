@@ -33,3 +33,8 @@ struct ContextModeSwitcherView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
+
+#Preview {
+    ContextModeSwitcherView(selectedMode: .work, onModeChanged: { _ in })
+        .padding()
+}

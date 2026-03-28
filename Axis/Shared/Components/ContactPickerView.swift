@@ -317,3 +317,7 @@ struct ContactPickerView: View {
         }
     }
 }
+
+#Preview {
+    ContactPickerView(onContactsSelected: { _ in })
+}

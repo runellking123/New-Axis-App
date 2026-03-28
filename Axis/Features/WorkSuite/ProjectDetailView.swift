@@ -299,3 +299,21 @@ struct ProjectDetailView: View {
         }
     }
 }
+
+
+#Preview {
+    ProjectDetailView(
+        store: Store(initialState: WorkSuiteReducer.State()) {
+            WorkSuiteReducer()
+        },
+        project: WorkSuiteReducer.State.ProjectState(
+            id: UUID(),
+            title: "Dashboard Redesign",
+            workspace: "Engineering",
+            status: "active",
+            priority: "high",
+            notes: "V2 launch",
+            dueDate: Date().addingTimeInterval(86400 * 14)
+        )
+    )
+}

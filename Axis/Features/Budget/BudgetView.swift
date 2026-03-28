@@ -357,3 +357,12 @@ struct BudgetView: View {
         .presentationDetents([.medium])
     }
 }
+
+
+#Preview {
+    BudgetView(
+        store: Store(initialState: BudgetReducer.State()) {
+            BudgetReducer()
+        }
+    )
+}

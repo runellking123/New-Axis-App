@@ -141,3 +141,20 @@ struct EventDetailView: View {
         }
     }
 }
+
+
+#Preview {
+    EventDetailView(
+        store: Store(initialState: FamilyHQReducer.State()) {
+            FamilyHQReducer()
+        },
+        event: FamilyHQReducer.State.EventState(
+            id: UUID(),
+            title: "Soccer Practice",
+            category: "activity",
+            date: Date(),
+            isCompleted: false,
+            assignedTo: "Dad"
+        )
+    )
+}

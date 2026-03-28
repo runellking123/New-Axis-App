@@ -176,3 +176,11 @@ struct AppView: View {
         }
     }
 }
+
+#Preview {
+    AppView(
+        store: Store(initialState: AppReducer.State()) {
+            AppReducer()
+        }
+    )
+}

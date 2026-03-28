@@ -151,3 +151,17 @@ struct PrioritiesWidget: Widget {
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
+
+#Preview(as: .systemSmall) {
+    PrioritiesWidget()
+} timeline: {
+    PrioritiesEntry(
+        date: Date(),
+        priorities: [
+            .init(title: "Review sprint tasks", sourceIcon: "building.columns.fill", isCompleted: false),
+            .init(title: "Pick up groceries", sourceIcon: "house.fill", isCompleted: true),
+        ],
+        completedCount: 1,
+        totalCount: 2
+    )
+}

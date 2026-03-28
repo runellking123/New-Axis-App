@@ -16,3 +16,15 @@ struct GlassCard<Content: View>: View {
             .shadow(color: AxisTheme.cardShadow, radius: AxisTheme.cardShadowRadius, y: 2)
     }
 }
+
+#Preview {
+    GlassCard {
+        HStack {
+            Image(systemName: "star.fill")
+                .foregroundStyle(.yellow)
+            Text("Sample Glass Card")
+                .font(.headline)
+        }
+    }
+    .padding()
+}

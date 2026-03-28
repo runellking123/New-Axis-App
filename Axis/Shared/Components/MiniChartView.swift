@@ -116,3 +116,29 @@ struct HabitWeekRow: View {
         }
     }
 }
+
+#Preview("Sparkline") {
+    SparklineView(data: [3, 5, 2, 8, 4, 7, 6])
+        .frame(height: 40)
+        .padding()
+}
+
+#Preview("Bar Chart") {
+    MiniBarChartView(data: [3, 5, 2, 8, 4, 7, 6])
+        .frame(height: 40)
+        .padding()
+}
+
+#Preview("Trend Indicator") {
+    VStack(spacing: 12) {
+        TrendIndicator(current: 120, previous: 100)
+        TrendIndicator(current: 80, previous: 100)
+        TrendIndicator(current: 100, previous: 100)
+    }
+    .padding()
+}
+
+#Preview("Habit Week") {
+    HabitWeekRow(completions: [true, true, false, true, false, true, true])
+        .padding()
+}

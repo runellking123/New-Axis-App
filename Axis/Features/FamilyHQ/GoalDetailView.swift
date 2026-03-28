@@ -229,3 +229,21 @@ struct GoalDetailView: View {
         }
     }
 }
+
+
+#Preview {
+    GoalDetailView(
+        store: Store(initialState: FamilyHQReducer.State()) {
+            FamilyHQReducer()
+        },
+        goal: FamilyHQReducer.State.GoalState(
+            id: UUID(),
+            title: "Family Vacation",
+            category: "travel",
+            targetDate: Date().addingTimeInterval(86400 * 90),
+            milestones: [],
+            notes: "Plan trip to beach",
+            createdAt: Date()
+        )
+    )
+}

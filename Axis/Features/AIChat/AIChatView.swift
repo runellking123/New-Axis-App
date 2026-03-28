@@ -917,3 +917,12 @@ private struct TypingDotsView: View {
         }
     }
 }
+
+
+#Preview {
+    AIChatView(
+        store: Store(initialState: AIChatReducer.State()) {
+            AIChatReducer()
+        }
+    )
+}

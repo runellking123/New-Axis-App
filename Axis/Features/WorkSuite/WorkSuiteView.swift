@@ -650,3 +650,12 @@ struct WorkSuiteView: View {
         .presentationDetents([.medium])
     }
 }
+
+
+#Preview {
+    WorkSuiteView(
+        store: Store(initialState: WorkSuiteReducer.State()) {
+            WorkSuiteReducer()
+        }
+    )
+}

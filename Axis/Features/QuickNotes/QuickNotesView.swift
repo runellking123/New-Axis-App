@@ -427,3 +427,12 @@ struct NoteEditorSheet: View {
         }
     }
 }
+
+
+#Preview {
+    QuickNotesView(
+        store: Store(initialState: QuickNotesReducer.State()) {
+            QuickNotesReducer()
+        }
+    )
+}

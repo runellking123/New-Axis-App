@@ -779,3 +779,12 @@ struct SocialCircleView: View {
         .presentationDetents([.large])
     }
 }
+
+
+#Preview {
+    SocialCircleView(
+        store: Store(initialState: SocialCircleReducer.State()) {
+            SocialCircleReducer()
+        }
+    )
+}

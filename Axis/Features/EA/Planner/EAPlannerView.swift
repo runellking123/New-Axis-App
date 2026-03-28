@@ -441,3 +441,12 @@ struct EAPlannerView: View {
         return "\(minutes)m"
     }
 }
+
+
+#Preview {
+    EAPlannerView(
+        store: Store(initialState: EAPlannerReducer.State()) {
+            EAPlannerReducer()
+        }
+    )
+}

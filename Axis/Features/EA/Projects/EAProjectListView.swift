@@ -751,3 +751,12 @@ private struct IdentifiableProject: Identifiable {
         self.project = project
     }
 }
+
+
+#Preview {
+    EAProjectListView(
+        store: Store(initialState: EAProjectReducer.State()) {
+            EAProjectReducer()
+        }
+    )
+}

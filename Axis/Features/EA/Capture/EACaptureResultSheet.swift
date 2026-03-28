@@ -112,3 +112,13 @@ struct EACaptureResultSheet: View {
         return .red
     }
 }
+
+#Preview {
+    EACaptureResultSheet(
+        classification: AIExecutiveService.CaptureClassification(type: "task", confidence: 0.92, parsedTitle: "Finish budget report", parsedDeadline: nil, parsedPriority: "high"),
+        rawInput: "Finish budget report by Friday",
+        onConfirm: {},
+        onSendToInbox: {},
+        onDismiss: {}
+    )
+}

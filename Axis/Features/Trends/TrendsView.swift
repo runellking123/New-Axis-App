@@ -190,3 +190,12 @@ struct TrendsView: View {
     }
 
     // Removed old trend charts/metrics — News tab is now news-only
+}
+
+#Preview {
+    TrendsView(
+        store: Store(initialState: TrendsReducer.State()) {
+            TrendsReducer()
+        }
+    )
+}

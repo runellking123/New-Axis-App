@@ -462,3 +462,20 @@ struct ContactDetailView: View {
         return "\(digits.prefix(3))-\(digits.dropFirst(3).prefix(3))-\(digits.suffix(4))"
     }
 }
+
+
+#Preview {
+    ContactDetailView(
+        store: Store(initialState: SocialCircleReducer.State()) {
+            SocialCircleReducer()
+        },
+        contact: SocialCircleReducer.State.ContactState(
+            id: UUID(),
+            name: "John Doe",
+            tier: "inner",
+            phone: "555-123-4567",
+            relationship: "Friend",
+            checkInDays: 14
+        )
+    )
+}

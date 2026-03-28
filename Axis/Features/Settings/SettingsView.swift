@@ -388,3 +388,12 @@ struct SettingsView: View {
         }
     }
 }
+
+
+#Preview {
+    SettingsView(
+        store: Store(initialState: SettingsReducer.State()) {
+            SettingsReducer()
+        }
+    )
+}

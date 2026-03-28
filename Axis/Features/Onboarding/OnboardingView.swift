@@ -121,3 +121,7 @@ struct OnboardingView: View {
         onComplete()
     }
 }
+
+#Preview {
+    OnboardingView(onComplete: {})
+}

@@ -201,3 +201,7 @@ struct EAQuickCaptureOverlay: View {
         }
     }
 }
+
+#Preview {
+    EAQuickCaptureOverlay(onDismiss: {})
+}

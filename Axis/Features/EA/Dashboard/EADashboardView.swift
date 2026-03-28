@@ -497,3 +497,12 @@ struct EADashboardView: View {
         }
     }
 }
+
+
+#Preview {
+    EADashboardView(
+        store: Store(initialState: EADashboardReducer.State()) {
+            EADashboardReducer()
+        }
+    )
+}

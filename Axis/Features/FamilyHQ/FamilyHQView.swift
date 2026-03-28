@@ -990,3 +990,12 @@ struct FamilyHQView: View {
         }
     }
 }
+
+
+#Preview {
+    FamilyHQView(
+        store: Store(initialState: FamilyHQReducer.State()) {
+            FamilyHQReducer()
+        }
+    )
+}

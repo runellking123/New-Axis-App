@@ -96,3 +96,7 @@ struct SleepDetailView: View {
         return tips
     }
 }
+
+#Preview {
+    SleepDetailView(sleepHours: 6.5)
+}

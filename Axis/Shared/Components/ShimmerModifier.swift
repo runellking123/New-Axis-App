@@ -31,3 +31,11 @@ extension View {
         modifier(ShimmerModifier())
     }
 }
+
+#Preview {
+    RoundedRectangle(cornerRadius: 12)
+        .fill(Color.gray.opacity(0.3))
+        .frame(height: 80)
+        .shimmer()
+        .padding()
+}

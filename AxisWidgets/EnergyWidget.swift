@@ -115,3 +115,9 @@ struct EnergyWidget: Widget {
         .supportedFamilies([.systemSmall])
     }
 }
+
+#Preview(as: .systemSmall) {
+    EnergyWidget()
+} timeline: {
+    EnergyEntry(date: Date(), energyScore: 7, sleepHours: 7.2, stepsToday: 6500, stepsGoal: 10000)
+}

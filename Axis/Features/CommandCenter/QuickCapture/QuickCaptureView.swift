@@ -176,3 +176,7 @@ struct QuickCaptureView: View {
         }
     }
 }
+
+#Preview {
+    QuickCaptureView(onDismiss: {})
+}

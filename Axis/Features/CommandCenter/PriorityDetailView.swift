@@ -156,3 +156,21 @@ struct PriorityDetailView: View {
         }
     }
 }
+
+
+#Preview {
+    PriorityDetailView(
+        store: Store(initialState: CommandCenterReducer.State()) {
+            CommandCenterReducer()
+        },
+        priority: CommandCenterReducer.State.PriorityState(
+            id: UUID(),
+            title: "Review Q2 budget",
+            sourceModule: "workSuite",
+            sourceIcon: "building.columns.fill",
+            timeEstimate: "30 min",
+            isCompleted: false,
+            contextMode: "work"
+        )
+    )
+}

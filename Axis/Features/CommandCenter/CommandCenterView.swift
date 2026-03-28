@@ -453,3 +453,12 @@ struct PriorityCardView: View {
         }
     }
 }
+
+
+#Preview {
+    CommandCenterView(
+        store: Store(initialState: CommandCenterReducer.State()) {
+            CommandCenterReducer()
+        }
+    )
+}

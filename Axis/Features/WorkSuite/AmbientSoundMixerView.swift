@@ -144,3 +144,12 @@ struct AmbientSoundMixerView: View {
         }
     }
 }
+
+
+#Preview {
+    AmbientSoundMixerView(
+        store: Store(initialState: WorkSuiteReducer.State()) {
+            WorkSuiteReducer()
+        }
+    )
+}

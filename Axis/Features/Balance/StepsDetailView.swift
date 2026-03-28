@@ -121,3 +121,7 @@ struct StepsDetailView: View {
         return "\(remaining) steps to go. A \(remaining / 100)-minute walk should do it."
     }
 }
+
+#Preview {
+    StepsDetailView(stepsToday: 6200, stepsGoal: 10000)
+}

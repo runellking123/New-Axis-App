@@ -34,3 +34,11 @@ struct WidgetCardView: View {
         }
     }
 }
+
+#Preview {
+    HStack {
+        WidgetCardView(icon: "cloud.fill", title: "Weather", value: "72°", subtitle: "Partly cloudy", color: .blue)
+        WidgetCardView(icon: "bolt.fill", title: "Energy", value: "8/10", subtitle: "Deep work ready", color: .green)
+    }
+    .padding()
+}

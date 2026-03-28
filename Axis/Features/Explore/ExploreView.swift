@@ -1304,3 +1304,12 @@ struct ScaleButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
+
+
+#Preview {
+    ExploreView(
+        store: Store(initialState: ExploreReducer.State()) {
+            ExploreReducer()
+        }
+    )
+}

@@ -95,3 +95,7 @@ struct MetricDetailView: View {
         return formatter.string(from: date)
     }
 }
+
+#Preview {
+    MetricDetailView(metricName: "Sleep", currentValue: "7.2", unit: "hours", color: .purple)
+}
