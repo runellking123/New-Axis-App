@@ -31,16 +31,8 @@ final class MultiProviderChatService: @unchecked Sendable {
     static let shared = MultiProviderChatService()
 
     private(set) var isStreaming = false
-    private static let defaultAnthropicKey: String = {
-        ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
-            ?? UserDefaults.standard.string(forKey: "anthropic_api_key")
-            ?? ""
-    }()
-    private static let defaultGeminiKey: String = {
-        ProcessInfo.processInfo.environment["GEMINI_API_KEY"]
-            ?? UserDefaults.standard.string(forKey: "gemini_api_key")
-            ?? ""
-    }()
+    private static let defaultAnthropicKey: String = Secrets.anthropicAPIKey
+    private static let defaultGeminiKey: String = Secrets.geminiAPIKey
 
     var anthropicAPIKey: String {
         get { Self.defaultAnthropicKey }

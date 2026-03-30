@@ -30,6 +30,7 @@ Pods/
 .env
 *.secret
 Credentials.md
+Secrets.swift
 
 # macOS
 .DS_Store

@@ -139,6 +139,7 @@
 		E191D770159FB4BC74353DFF /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18618A8A5F7F3B8BAC086E50 /* Habit.swift */; };
 		E7AA3B330462C8E55174F80B /* TravelAgentsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB9509ED3A13A66F068DD88 /* TravelAgentsData.swift */; };
 		E7B5F8A4C315F242298F7768 /* VoiceMemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91286FF834C55C342868C3B7 /* VoiceMemo.swift */; };
+		E895632E83C3CBB59962FB12 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C507FC06C7E4A3068371B0 /* Secrets.swift */; };
 		EAC267D0586540C3D64931CA /* RoutineStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1044935D5A4184C2BE7EFF /* RoutineStep.swift */; };
 		ED5F741C804C93D98985D68B /* QuickNotesReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FA0520BC27F2C39F831F96F /* QuickNotesReducer.swift */; };
 		ED86207D61A5EF93224A26B9 /* MiniChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC964EA8E4571942AA5405C /* MiniChartView.swift */; };
@@ -279,6 +280,7 @@
 		E07F7EA83630A6C9DA0A7427 /* HabitCompletion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitCompletion.swift; sourceTree = "<group>"; };
 		E4B9B58532F90DCB4F7C8676 /* TrendsReducer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendsReducer.swift; sourceTree = "<group>"; };
 		E7F3F06821DF2F1F7099C4BD /* EnergyCheckIn.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EnergyCheckIn.swift; sourceTree = "<group>"; };
+		E9C507FC06C7E4A3068371B0 /* Secrets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		EBB9509ED3A13A66F068DD88 /* TravelAgentsData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TravelAgentsData.swift; sourceTree = "<group>"; };
 		ED9BBADA2D2EF2D70F6C98C6 /* Chore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Chore.swift; sourceTree = "<group>"; };
 		EDFD71A9A2220C5A092AA71B /* ShoppingList.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShoppingList.swift; sourceTree = "<group>"; };
@@ -351,6 +353,15 @@
 				FC61CE163D4FE43A1F42698A /* EAQuickCaptureOverlay.swift */,
 			);
 			path = Capture;
+			sourceTree = "<group>";
+		};
+		47072509316ABDAAC6119788 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				E9C507FC06C7E4A3068371B0 /* Secrets.swift */,
+			);
+			name = Configuration;
+			path = Configuration;
 			sourceTree = "<group>";
 		};
 		47873DCE330D9CC6D9AB07DC /* Resources */ = {
@@ -448,6 +459,7 @@
 				B10000000000000000000020 /* Assets.xcassets */,
 				B10000000000000000000021 /* Info.plist */,
 				47873DCE330D9CC6D9AB07DC /* Resources */,
+				47072509316ABDAAC6119788 /* Configuration */,
 			);
 			path = Axis;
 			sourceTree = "<group>";
@@ -979,6 +991,7 @@
 				E7AA3B330462C8E55174F80B /* TravelAgentsData.swift in Sources */,
 				75863CA6A9FD55BCE6E89213 /* TravelAgentsView.swift in Sources */,
 				63CF05EEBBFBEFD56AC34385 /* WeatherDetailView.swift in Sources */,
+				E895632E83C3CBB59962FB12 /* Secrets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
