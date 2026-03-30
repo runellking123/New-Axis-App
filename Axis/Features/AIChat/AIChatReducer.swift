@@ -592,7 +592,7 @@ struct AIChatReducer {
                         ))
 
                     case "create_event":
-                        let title = params["title"] ?? "Untitled Event"
+                        let title = Self.toSentenceCase(params["title"] ?? "Untitled Event")
                         let dateStr = params["date"] ?? ""
                         let startStr = params["startTime"] ?? "09:00"
                         let endStr = params["endTime"] ?? "10:00"
@@ -775,6 +775,18 @@ struct AIChatReducer {
         let hour = Int(parts.first ?? "9") ?? 9
         let minute = Int(parts.count > 1 ? parts[1] : "0") ?? 0
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+    }
+
+    static func toSentenceCase(_ text: String) -> String {
+        let lowercaseWords: Set<String> = ["a", "an", "the", "and", "but", "or", "for", "nor", "on", "at", "to", "in", "of", "with", "by"]
+        let words = text.split(separator: " ").enumerated().map { index, word in
+            let lower = word.lowercased()
+            if index == 0 || !lowercaseWords.contains(lower) {
+                return lower.prefix(1).uppercased() + lower.dropFirst()
+            }
+            return lower
+        }
+        return words.joined(separator: " ")
     }
 }
 

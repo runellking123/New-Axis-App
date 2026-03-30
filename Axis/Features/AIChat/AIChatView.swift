@@ -14,6 +14,7 @@ struct AIChatView: View {
     @State private var threadSearchText: String = ""
     @State private var editingMessageId: UUID?
     @State private var editingText: String = ""
+    @State private var speechService = SpeechService.shared
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -89,14 +90,6 @@ struct AIChatView: View {
                         Image(systemName: "square.and.pencil")
                             .foregroundStyle(Color.axisGold)
                     }
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        isInputFocused = false
-                    }
-                    .foregroundStyle(Color.axisGold)
-                    .fontWeight(.semibold)
                 }
             }
             .sheet(isPresented: Binding(
@@ -181,6 +174,22 @@ struct AIChatView: View {
                 case .failure:
                     break
                 }
+            }
+            .fullScreenCover(isPresented: Binding(
+                get: { store.showCamera },
+                set: { _ in }
+            )) {
+                CameraPickerView(
+                    onCapture: { imageData in
+                        store.send(.addImage(imageData))
+                    },
+                    onDismiss: {
+                        if store.showCamera {
+                            store.send(.toggleCamera)
+                        }
+                    }
+                )
+                .ignoresSafeArea()
             }
             .onAppear { store.send(.onAppear) }
             .onChange(of: store.isStreaming) { _, isStreaming in
@@ -385,7 +394,11 @@ struct AIChatView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
             }
+            .scrollDismissesKeyboard(.interactively)
             .defaultScrollAnchor(.bottom)
+            .onTapGesture {
+                isInputFocused = false
+            }
             .onChange(of: store.messages.count) {
                 if let last = store.messages.last {
                     withAnimation(.easeOut(duration: 0.3)) {
@@ -535,9 +548,15 @@ struct AIChatView: View {
         }
 
         Button {
-            // Share placeholder
+            shareText(msg.content)
         } label: {
             Label("Share", systemImage: "square.and.arrow.up")
+        }
+
+        Button {
+            sendViaOutlook(subject: "From AXIS", body: msg.content)
+        } label: {
+            Label("Send as Email", systemImage: "envelope.fill")
         }
 
         if msg.role == "user" {
@@ -557,6 +576,31 @@ struct AIChatView: View {
                 Label("Regenerate", systemImage: "arrow.counterclockwise")
             }
         }
+    }
+
+    private func sendViaOutlook(subject: String, body: String, to: String = "") {
+        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let encodedTo = to.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let outlookURL = "ms-outlook://compose?to=\(encodedTo)&subject=\(encodedSubject)&body=\(encodedBody)"
+        if let url = URL(string: outlookURL), UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+        } else {
+            // Fallback to system mail compose
+            let mailtoURL = "mailto:\(encodedTo)?subject=\(encodedSubject)&body=\(encodedBody)"
+            if let url = URL(string: mailtoURL) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+
+    private func shareText(_ text: String) {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let vc = scene.windows.first?.rootViewController else { return }
+        var top = vc
+        while let p = top.presentedViewController { top = p }
+        let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        top.present(activityVC, animated: true)
     }
 
     // MARK: - Streaming Bubble
@@ -746,13 +790,33 @@ struct AIChatView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .submitLabel(.done)
 
-                // Mic button — focuses text field so iOS keyboard dictation is available
+                // Mic button — real speech-to-text via SpeechService
                 Button {
-                    isInputFocused = true
+                    if speechService.isRecording {
+                        speechService.stopRecording()
+                        // Append transcribed text to input after a brief delay for finalization
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(300))
+                            let text = speechService.transcribedText
+                            if !text.isEmpty {
+                                let current = store.inputText
+                                let newText = current.isEmpty ? text : current + " " + text
+                                store.send(.inputTextChanged(newText))
+                            }
+                        }
+                    } else {
+                        Task {
+                            let authorized = await speechService.requestAuthorization()
+                            if authorized {
+                                try? speechService.startRecording()
+                            }
+                        }
+                    }
                 } label: {
-                    Image(systemName: "mic")
+                    Image(systemName: speechService.isRecording ? "mic.fill" : "mic")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(speechService.isRecording ? Color.red : .secondary)
+                        .symbolEffect(.pulse, isActive: speechService.isRecording)
                 }
                 .buttonStyle(.plain)
 
@@ -972,6 +1036,41 @@ private struct TypingDotsView: View {
         .onDisappear {
             timer?.invalidate()
             timer = nil
+        }
+    }
+}
+
+// MARK: - Camera Picker
+
+struct CameraPickerView: UIViewControllerRepresentable {
+    let onCapture: (Data) -> Void
+    let onDismiss: () -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraPickerView
+        init(_ parent: CameraPickerView) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.originalImage] as? UIImage,
+               let data = image.jpegData(compressionQuality: 0.8) {
+                parent.onCapture(data)
+            }
+            parent.onDismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onDismiss()
         }
     }
 }

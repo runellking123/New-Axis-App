@@ -124,6 +124,29 @@ final class PersistenceService: @unchecked Sendable {
         _ = saveContext("deleteAllMealPlans")
     }
 
+    // MARK: - Meal Logs
+
+    func fetchMealLogs() -> [MealLog] {
+        let descriptor = FetchDescriptor<MealLog>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        return fetchAll(MealLog.self, descriptor: descriptor, operation: "fetchMealLogs")
+    }
+
+    func saveMealLog(_ log: MealLog) {
+        guard let context = modelContext else { return }
+        context.insert(log)
+        _ = saveContext("saveMealLog")
+    }
+
+    func updateMealLogs() {
+        _ = saveContext("updateMealLogs")
+    }
+
+    func deleteMealLog(_ log: MealLog) {
+        guard let context = modelContext else { return }
+        context.delete(log)
+        _ = saveContext("deleteMealLog")
+    }
+
     // MARK: - Dad Wins
 
     func fetchDadWins() -> [DadWin] {

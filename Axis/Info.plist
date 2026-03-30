@@ -32,6 +32,8 @@
     <string>AXIS uses your location for contextual weather, nearby restaurant suggestions, and automatic mode switching.</string>
     <key>NSRemindersUsageDescription</key>
     <string>AXIS needs reminders access to integrate your reminders into the daily plan and task management.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>AXIS uses your camera to capture photos for AI chat attachments and document scanning.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>AXIS uses your microphone for Quick Capture voice-to-text and meeting transcription.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
@@ -52,6 +54,13 @@
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>ms-outlook</string>
+        <string>googlegmail</string>
+        <string>ubereats</string>
+        <string>doordash</string>
     </array>
     <key>UIApplicationSupportsIndirectInputEvents</key>
     <true/>

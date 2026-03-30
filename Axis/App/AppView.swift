@@ -1,8 +1,10 @@
 import SwiftUI
+import Combine
 import ComposableArchitecture
 
 struct AppView: View {
     @Bindable var store: StoreOf<AppReducer>
+    @State private var isKeyboardVisible = false
 
     var body: some View {
         ZStack {
@@ -40,7 +42,7 @@ struct AppView: View {
     private let primaryTabs: [TabBarItem] = [
         TabBarItem(tab: .dashboard, title: "EA", icon: "brain.head.profile.fill"),
         TabBarItem(tab: .calendar, title: "Calendar", icon: "calendar"),
-        TabBarItem(tab: .tasks, title: "Tasks", icon: "checklist"),
+        TabBarItem(tab: .tasks, title: "Workflow", icon: "rectangle.stack.fill"),
         TabBarItem(tab: .voiceMemos, title: "Memos", icon: "mic.fill"),
         TabBarItem(tab: .aiChat, title: "AI Chat", icon: "bubble.left.and.text.bubble.right"),
         TabBarItem(tab: .notes, title: "Notes", icon: "note.text"),
@@ -49,14 +51,11 @@ struct AppView: View {
 
     private let overflowTabs: [TabBarItem] = [
         TabBarItem(tab: .explore, title: "Explore", icon: "map.fill"),
-        TabBarItem(tab: .planner, title: "Planner", icon: "calendar.badge.clock"),
-        TabBarItem(tab: .projects, title: "Projects", icon: "folder.fill"),
         TabBarItem(tab: .social, title: "Social", icon: "person.2.fill"),
         TabBarItem(tab: .familyHQ, title: "FamilyHQ", icon: "house.and.flag.fill"),
         TabBarItem(tab: .balance, title: "Balance", icon: "heart.circle.fill"),
         TabBarItem(tab: .trends, title: "News", icon: "newspaper.fill"),
         TabBarItem(tab: .travel, title: "Travel", icon: "airplane"),
-        TabBarItem(tab: .clipboard, title: "Clipboard", icon: "doc.on.clipboard"),
         TabBarItem(tab: .settings, title: "Settings", icon: "gearshape.fill"),
     ]
 
@@ -70,8 +69,10 @@ struct AppView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Custom tab bar
-            customTabBar
+            // Custom tab bar — hidden when keyboard is up
+            if !isKeyboardVisible {
+                customTabBar
+            }
         }
         .sheet(isPresented: $showMoreSheet) {
             moreSheet
@@ -86,6 +87,12 @@ struct AppView: View {
                 store: store.scope(state: \.settings, action: \.settings)
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isKeyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isKeyboardVisible = false
+        }
     }
 
     @ViewBuilder
@@ -94,9 +101,9 @@ struct AppView: View {
         case .dashboard:
             EADashboardView(
                 store: store.scope(state: \.eaDashboard, action: \.eaDashboard),
-                onNavigateToPlanner: { store.send(.tabSelected(.planner)) },
+                onNavigateToPlanner: { store.send(.tabSelected(.tasks)) },
                 onNavigateToTasks: { store.send(.tabSelected(.tasks)) },
-                onNavigateToProjects: { store.send(.tabSelected(.projects)) },
+                onNavigateToProjects: { store.send(.tabSelected(.tasks)) },
                 onSettingsTapped: { store.send(.toggleSettings) },
                 onAddTapped: {
                     store.send(.tabSelected(.tasks))
@@ -106,8 +113,8 @@ struct AppView: View {
                     store.send(.tabSelected(.tasks))
                     store.send(.eaTasks(.filterChanged(.done)))
                 },
-                onMeetingsTapped: { store.send(.tabSelected(.planner)) },
-                onDeepWorkTapped: { store.send(.tabSelected(.planner)) },
+                onMeetingsTapped: { store.send(.tabSelected(.tasks)) },
+                onDeepWorkTapped: { store.send(.tabSelected(.tasks)) },
                 onToggleDarkMode: {
                     let current = store.settings.darkModeOverride
                     let next: SettingsReducer.State.DarkModeOption = current == .dark ? .light : .dark
@@ -124,7 +131,11 @@ struct AppView: View {
         case .notes:
             QuickNotesView(store: store.scope(state: \.quickNotes, action: \.quickNotes))
         case .tasks:
-            EATaskListView(store: store.scope(state: \.eaTasks, action: \.eaTasks))
+            WorkflowView(
+                tasksStore: store.scope(state: \.eaTasks, action: \.eaTasks),
+                plannerStore: store.scope(state: \.eaPlanner, action: \.eaPlanner),
+                projectsStore: store.scope(state: \.eaProjects, action: \.eaProjects)
+            )
         case .explore:
             ExploreView(store: store.scope(state: \.explore, action: \.explore))
         case .planner:

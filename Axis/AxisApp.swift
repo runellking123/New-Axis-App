@@ -15,6 +15,7 @@ struct AxisApp: App {
             WorkProject.self,
             FamilyEvent.self,
             MealPlan.self,
+            MealLog.self,
             DadWin.self,
             Goal.self,
             Milestone.self,

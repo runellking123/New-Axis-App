@@ -214,6 +214,29 @@ struct ExploreView: View {
                                     }
 
                                     // Order Food
+                                    // Email Location
+                                    Button {
+                                        let body = "\(place.name)\n\(place.address)\n\nSent from AXIS"
+                                        let encodedSubject = place.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                        let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                        let outlookURL = "ms-outlook://compose?subject=\(encodedSubject)&body=\(encodedBody)"
+                                        if let url = URL(string: outlookURL), UIApplication.shared.canOpenURL(url) {
+                                            UIApplication.shared.open(url)
+                                        } else {
+                                            let mailtoURL = "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
+                                            if let url = URL(string: mailtoURL) {
+                                                UIApplication.shared.open(url)
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Email Location", systemImage: "envelope.fill")
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 12)
+                                            .background(Color.purple.opacity(0.15))
+                                            .foregroundStyle(.purple)
+                                            .clipShape(.rect(cornerRadius: 12))
+                                    }
+
                                     if place.category == "dining" || place.category == "coffee" {
                                         Button {
                                             let encoded = place.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""

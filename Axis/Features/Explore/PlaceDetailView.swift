@@ -141,6 +141,33 @@ struct PlaceDetailView: View {
                     }
                 }
 
+                // Email Location
+                Button {
+                    let body = "\(place.name)\n\(place.address)\n\nSent from AXIS"
+                    let encodedSubject = place.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                    let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                    let outlookURL = "ms-outlook://compose?subject=\(encodedSubject)&body=\(encodedBody)"
+                    if let url = URL(string: outlookURL), UIApplication.shared.canOpenURL(url) {
+                        UIApplication.shared.open(url)
+                    } else {
+                        let mailtoURL = "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
+                        if let url = URL(string: mailtoURL) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "envelope.fill")
+                        Text("Email Location")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.purple.opacity(0.15))
+                    .foregroundStyle(.purple)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
                 // Delete
                 Button(role: .destructive) {
                     store.send(.deletePlace(place.id))

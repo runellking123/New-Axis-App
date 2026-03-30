@@ -26,6 +26,59 @@ struct FamilyHQReducer {
         var selectedEventId: UUID?
         var selectedGoalId: UUID?
 
+        // Meal Logs
+        var mealLogs: [MealLogState] = []
+        var showAddMealLog = false
+        var newMealName = ""
+        var newMealType = "lunch"
+        var newMealNotes = ""
+        var newMealCalories: Int = 0
+        var newMealDate = Date()
+        var mealLogFilter: MealLogFilter = .today
+
+        struct MealLogState: Equatable, Identifiable {
+            let id: UUID
+            var mealType: String
+            var name: String
+            var notes: String
+            var calories: Int
+            var date: Date
+
+            var mealIcon: String {
+                switch mealType {
+                case "breakfast": return "sunrise.fill"
+                case "lunch": return "sun.max.fill"
+                case "dinner": return "moon.stars.fill"
+                case "snack": return "cup.and.saucer.fill"
+                default: return "fork.knife"
+                }
+            }
+        }
+
+        enum MealLogFilter: String, CaseIterable, Equatable {
+            case today = "Today"
+            case week = "This Week"
+            case all = "All"
+        }
+
+        var filteredMealLogs: [MealLogState] {
+            let cal = Calendar.current
+            switch mealLogFilter {
+            case .today:
+                return mealLogs.filter { cal.isDateInToday($0.date) }
+            case .week:
+                let weekAgo = cal.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+                return mealLogs.filter { $0.date >= weekAgo }
+            case .all:
+                return mealLogs
+            }
+        }
+
+        var todayCalories: Int {
+            let cal = Calendar.current
+            return mealLogs.filter { cal.isDateInToday($0.date) }.reduce(0) { $0 + $1.calories }
+        }
+
         // Chore Counter
         var choreCategories: [String] = ["Pick up kids", "Wash clothes", "Clean house", "Cook dinner", "Groceries", "Dishes", "Take out trash", "Help with homework"]
         var choreCounts: [String: [String: Int]] = [:]  // [choreName: ["drking": count, "wife": count]]
@@ -231,8 +284,20 @@ struct FamilyHQReducer {
         case goalFilterChanged(State.GoalFilter)
         case toggleGoalExpanded(UUID)
         case hideConfetti
-        // Meals
+        // Meals (legacy dinner plan)
         case mealNameChanged(dayOfWeek: Int, mealType: String, name: String)
+        // Meal Logs
+        case toggleAddMealLog
+        case dismissAddMealLog
+        case newMealNameChanged(String)
+        case newMealTypeChanged(String)
+        case newMealNotesChanged(String)
+        case newMealCaloriesChanged(Int)
+        case newMealDateChanged(Date)
+        case addMealLog
+        case deleteMealLog(UUID)
+        case mealLogFilterChanged(State.MealLogFilter)
+        case exportMealLogs
         // Chore Counter
         case toggleChoreCounter
         case dismissChoreCounter
@@ -290,6 +355,12 @@ struct FamilyHQReducer {
                     state.mealPlan = storedMeals.map { m in
                         State.MealState(dayOfWeek: m.dayOfWeek, mealType: m.mealType, mealName: m.mealName)
                     }
+                }
+
+                // Meal Logs
+                let storedLogs = persistence.fetchMealLogs()
+                state.mealLogs = storedLogs.map { l in
+                    State.MealLogState(id: l.uuid, mealType: l.mealType, name: l.name, notes: l.notes, calories: l.calories, date: l.date)
                 }
 
                 // Goals
@@ -528,6 +599,95 @@ struct FamilyHQReducer {
                         match.mealName = name
                         persistence.updateMealPlans()
                     }
+                }
+                return .none
+
+            // MARK: - Meal Logs
+
+            case .toggleAddMealLog:
+                state.showAddMealLog.toggle()
+                if state.showAddMealLog {
+                    state.newMealName = ""
+                    state.newMealType = "lunch"
+                    state.newMealNotes = ""
+                    state.newMealCalories = 0
+                    state.newMealDate = Date()
+                }
+                return .none
+
+            case .dismissAddMealLog:
+                state.showAddMealLog = false
+                return .none
+
+            case let .newMealNameChanged(name):
+                state.newMealName = name
+                return .none
+
+            case let .newMealTypeChanged(type):
+                state.newMealType = type
+                return .none
+
+            case let .newMealNotesChanged(notes):
+                state.newMealNotes = notes
+                return .none
+
+            case let .newMealCaloriesChanged(cal):
+                state.newMealCalories = cal
+                return .none
+
+            case let .newMealDateChanged(date):
+                state.newMealDate = date
+                return .none
+
+            case .addMealLog:
+                let trimmed = state.newMealName.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return .none }
+                let log = MealLog(
+                    mealType: state.newMealType,
+                    name: trimmed,
+                    notes: state.newMealNotes,
+                    calories: state.newMealCalories,
+                    date: state.newMealDate
+                )
+                PersistenceService.shared.saveMealLog(log)
+                state.mealLogs.insert(State.MealLogState(
+                    id: log.uuid, mealType: log.mealType, name: log.name,
+                    notes: log.notes, calories: log.calories, date: log.date
+                ), at: 0)
+                state.showAddMealLog = false
+                HapticService.notification(.success)
+                return .none
+
+            case let .deleteMealLog(id):
+                state.mealLogs.removeAll { $0.id == id }
+                let persistence = PersistenceService.shared
+                let stored = persistence.fetchMealLogs()
+                if let match = stored.first(where: { $0.uuid == id }) {
+                    persistence.deleteMealLog(match)
+                }
+                return .none
+
+            case let .mealLogFilterChanged(filter):
+                state.mealLogFilter = filter
+                return .none
+
+            case .exportMealLogs:
+                var csv = "Date,Meal Type,Name,Calories,Notes\n"
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateStyle = .medium
+                dateFormatter.timeStyle = .short
+                for log in state.mealLogs.sorted(by: { $0.date < $1.date }) {
+                    let escapedName = log.name.replacingOccurrences(of: "\"", with: "\"\"")
+                    let escapedNotes = log.notes.replacingOccurrences(of: "\"", with: "\"\"")
+                    csv += "\(dateFormatter.string(from: log.date)),\(log.mealType),\"\(escapedName)\",\(log.calories),\"\(escapedNotes)\"\n"
+                }
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("MealLog_\(Date().formatted(.dateTime.year().month().day())).csv")
+                try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let vc = scene.windows.first?.rootViewController {
+                    var top = vc
+                    while let p = top.presentedViewController { top = p }
+                    top.present(UIActivityViewController(activityItems: [tempURL], applicationActivities: nil), animated: true)
                 }
                 return .none
 

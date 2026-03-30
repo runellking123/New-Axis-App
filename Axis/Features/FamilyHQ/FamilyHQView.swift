@@ -155,7 +155,16 @@ struct FamilyHQView: View {
                     .foregroundStyle(.blue)
             }
         case .meals:
-            EmptyView()
+            HStack(spacing: 12) {
+                Button { store.send(.exportMealLogs) } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundStyle(.blue)
+                }
+                Button { store.send(.toggleAddMealLog) } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.blue)
+                }
+            }
         }
     }
 
@@ -253,37 +262,160 @@ struct FamilyHQView: View {
 
     private var mealsSection: some View {
         VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "fork.knife")
-                    .foregroundStyle(.blue)
-                Text("This Week's Dinner Plan")
-                    .font(.headline)
-                Spacer()
+            // Today's summary
+            GlassCard {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Today's Meals")
+                            .font(.headline)
+                        let todayCount = store.filteredMealLogs.filter { Calendar.current.isDateInToday($0.date) }.count
+                        Text("\(todayCount) logged")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if store.todayCalories > 0 {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("\(store.todayCalories)")
+                                .font(.title2.bold())
+                                .foregroundStyle(Color.axisGold)
+                            Text("calories")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
 
-            ForEach(store.mealPlan) { meal in
-                GlassCard {
-                    HStack(spacing: 12) {
-                        Text(meal.dayLabel)
-                            .font(.subheadline)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.blue)
-                            .frame(width: 36)
+            // Filter
+            Picker("Filter", selection: $store.mealLogFilter.sending(\.mealLogFilterChanged)) {
+                ForEach(FamilyHQReducer.State.MealLogFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
 
-                        TextField("Plan dinner...", text: Binding(
-                            get: { meal.mealName },
-                            set: { newValue in
-                                store.send(.mealNameChanged(dayOfWeek: meal.dayOfWeek, mealType: meal.mealType, name: newValue))
-                            }
-                        ))
+            if store.filteredMealLogs.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "fork.knife.circle")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.secondary)
+                    Text("No meals logged yet")
                         .font(.subheadline)
-                        .textFieldStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    Text("Tap + to log a meal")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+            } else {
+                ForEach(store.filteredMealLogs) { log in
+                    GlassCard {
+                        HStack(spacing: 12) {
+                            Image(systemName: log.mealIcon)
+                                .font(.title3)
+                                .foregroundStyle(mealColor(log.mealType))
+                                .frame(width: 32)
 
-                        Spacer()
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(log.name)
+                                    .font(.subheadline.bold())
+                                HStack(spacing: 6) {
+                                    Text(log.mealType.capitalized)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    if log.calories > 0 {
+                                        Text("\u{2022} \(log.calories) cal")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Text("\u{2022} \(log.date.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                if !log.notes.isEmpty {
+                                    Text(log.notes)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+
+                            Spacer()
+
+                            Button {
+                                store.send(.deleteMealLog(log.id))
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.caption)
+                                    .foregroundStyle(.red.opacity(0.6))
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
         }
+        .sheet(isPresented: Binding(
+            get: { store.showAddMealLog },
+            set: { newValue in
+                if !newValue { store.send(.dismissAddMealLog) }
+            }
+        )) {
+            addMealLogSheet
+        }
+    }
+
+    private func mealColor(_ type: String) -> Color {
+        switch type {
+        case "breakfast": return .orange
+        case "lunch": return .yellow
+        case "dinner": return .indigo
+        case "snack": return .green
+        default: return .gray
+        }
+    }
+
+    private var addMealLogSheet: some View {
+        NavigationStack {
+            Form {
+                Section("What did you eat?") {
+                    TextField("Meal name", text: $store.newMealName.sending(\.newMealNameChanged))
+
+                    Picker("Meal Type", selection: $store.newMealType.sending(\.newMealTypeChanged)) {
+                        Text("Breakfast").tag("breakfast")
+                        Text("Lunch").tag("lunch")
+                        Text("Dinner").tag("dinner")
+                        Text("Snack").tag("snack")
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section("Details (optional)") {
+                    TextField("Calories", value: $store.newMealCalories.sending(\.newMealCaloriesChanged), format: .number)
+                        .keyboardType(.numberPad)
+
+                    DatePicker("Date & Time", selection: $store.newMealDate.sending(\.newMealDateChanged))
+
+                    TextField("Notes", text: $store.newMealNotes.sending(\.newMealNotesChanged), axis: .vertical)
+                        .lineLimit(3...6)
+                }
+            }
+            .navigationTitle("Log Meal")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { store.send(.dismissAddMealLog) }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { store.send(.addMealLog) }
+                        .bold()
+                        .disabled(store.newMealName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     // MARK: - Goals Section

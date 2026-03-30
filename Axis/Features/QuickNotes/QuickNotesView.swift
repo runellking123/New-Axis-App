@@ -294,6 +294,8 @@ struct QuickNotesView: View {
 struct NoteEditorSheet: View {
     @Bindable var store: StoreOf<QuickNotesReducer>
     @FocusState private var focusedField: Field?
+    @State private var speechService = SpeechService.shared
+    @State private var isTranscribing = false
 
     enum Field { case title, content }
 
@@ -366,9 +368,49 @@ struct NoteEditorSheet: View {
 
                     // Content editor
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Note")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        HStack {
+                            Text("Note")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button {
+                                if speechService.isRecording {
+                                    speechService.stopRecording()
+                                    isTranscribing = true
+                                    // Wait for finalization, then append corrected text
+                                    Task { @MainActor in
+                                        try? await Task.sleep(for: .milliseconds(500))
+                                        let text = speechService.transcribedText
+                                        if !text.isEmpty {
+                                            let corrected = SpeechService.correctGrammar(text)
+                                            let current = store.formContent
+                                            let newContent = current.isEmpty ? corrected : current + "\n" + corrected
+                                            store.send(.formContentChanged(newContent))
+                                        }
+                                        isTranscribing = false
+                                    }
+                                } else {
+                                    Task {
+                                        let authorized = await speechService.requestAuthorization()
+                                        if authorized {
+                                            try? speechService.startRecording()
+                                        }
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: speechService.isRecording ? "mic.fill" : "mic")
+                                        .foregroundStyle(speechService.isRecording ? .red : Color.axisGold)
+                                        .symbolEffect(.pulse, isActive: speechService.isRecording)
+                                    if speechService.isRecording {
+                                        Text("Listening...")
+                                            .font(.caption)
+                                            .foregroundStyle(.red)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
                         TextEditor(text: $store.formContent.sending(\.formContentChanged))
                             .focused($focusedField, equals: .content)
                             .frame(minHeight: 250)

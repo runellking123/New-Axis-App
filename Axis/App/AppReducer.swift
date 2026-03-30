@@ -540,9 +540,13 @@ struct AppReducer {
                 case "dashboard": state.selectedTab = .dashboard
                 case "calendar": state.selectedTab = .calendar
                 case "notes": state.selectedTab = .notes
-                case "voice-memos": state.selectedTab = .voiceMemos
+                case "voice-memos", "memo": state.selectedTab = .voiceMemos
                 case "travel": state.selectedTab = .travel
-                case "clipboard": state.selectedTab = .clipboard
+                case "chat": state.selectedTab = .aiChat
+                case "note": state.selectedTab = .notes
+                case "meal":
+                    state.selectedTab = .familyHQ
+                    state.familyHQ.selectedSection = .meals
                 default: break
                 }
                 return .none
