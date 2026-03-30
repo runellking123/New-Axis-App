@@ -11,8 +11,12 @@ struct VoiceMemosReducer {
         var isRecording: Bool = false
         var recordingDuration: Double = 0
         var isTranscribing: Bool = false
+        var isRewriting: Bool = false
+        var isProofreading: Bool = false
         var selectedMemo: MemoItem? = nil
         var searchText: String = ""
+        var isSelectMode: Bool = false
+        var selectedMemoIDs: Set<UUID> = []
 
         struct MemoItem: Equatable, Identifiable {
             let id: UUID
@@ -24,6 +28,7 @@ struct VoiceMemosReducer {
             var extractedActions: [String]
             var isTranscribed: Bool
             var isSummarized: Bool
+            var rewrittenTranscript: String
             var createdAt: Date
 
             var displayTitle: String {
@@ -59,9 +64,19 @@ struct VoiceMemosReducer {
         case recordingTick
         case recordingCompleted(audioFile: String, duration: Double)
         case transcriptionCompleted(id: UUID, transcript: String)
+        case polishCompleted(id: UUID, polishedText: String)
         case summaryCompleted(id: UUID, summary: String, actions: [String])
+        case rewriteTranscript(id: UUID, style: WritingStyle)
+        case rewriteCustomTone(id: UUID, tone: String)
+        case rewriteCompleted(id: UUID, rewritten: String)
+        case proofreadTranscript(id: UUID)
+        case proofreadCompleted(id: UUID, proofread: String)
         case selectMemo(State.MemoItem?)
         case deleteMemo(State.MemoItem)
+        case toggleSelectMode
+        case toggleMemoSelection(UUID)
+        case selectAll
+        case deleteSelected
         case updateTitle(id: UUID, title: String)
         case sendToTasks(String)
         case sendToNotes(String)
@@ -87,6 +102,7 @@ struct VoiceMemosReducer {
                             extractedActions: memo.extractedActions,
                             isTranscribed: memo.isTranscribed,
                             isSummarized: memo.isSummarized,
+                            rewrittenTranscript: memo.rewrittenTranscript,
                             createdAt: memo.createdAt
                         )
                     }
@@ -144,7 +160,7 @@ struct VoiceMemosReducer {
                     // Reload list
                     let fetched = PersistenceService.shared.fetchVoiceMemos()
                     let items = fetched.map { m in
-                        State.MemoItem(id: m.uuid, title: m.title, transcript: m.transcript, aiSummary: m.aiSummary, duration: m.duration, audioFileName: m.audioFileName, extractedActions: m.extractedActions, isTranscribed: m.isTranscribed, isSummarized: m.isSummarized, createdAt: m.createdAt)
+                        State.MemoItem(id: m.uuid, title: m.title, transcript: m.transcript, aiSummary: m.aiSummary, duration: m.duration, audioFileName: m.audioFileName, extractedActions: m.extractedActions, isTranscribed: m.isTranscribed, isSummarized: m.isSummarized, rewrittenTranscript: m.rewrittenTranscript, createdAt: m.createdAt)
                     }
                     await send(.memosLoaded(items))
 
@@ -169,10 +185,34 @@ struct VoiceMemosReducer {
                     state.memos[idx].isTranscribed = true
                 }
 
-                // Generate summary
-                let summary = VoiceMemosReducer.generateSummary(from: transcript)
-                let actions = VoiceMemosReducer.extractActions(from: transcript)
-                return .send(.summaryCompleted(id: id, summary: summary, actions: actions))
+                // Auto-polish via AI, then generate summary
+                let transcriptForPolish = transcript
+                return .run { send in
+                    let polished = await VoiceMemosReducer.polishTranscript(transcriptForPolish)
+                    await send(.polishCompleted(id: id, polishedText: polished))
+                }
+
+            case let .polishCompleted(id, polishedText):
+                // Update persistence with polished text
+                let memos = PersistenceService.shared.fetchVoiceMemos()
+                if let match = memos.first(where: { $0.uuid == id }) {
+                    match.transcript = polishedText
+                    PersistenceService.shared.updateVoiceMemos()
+                }
+                if let idx = state.memos.firstIndex(where: { $0.id == id }) {
+                    state.memos[idx].transcript = polishedText
+                }
+                // Update selected memo if viewing it
+                if state.selectedMemo?.id == id {
+                    state.selectedMemo?.transcript = polishedText
+                }
+
+                // Extract action items via AI (only if transcript sounds like it has them)
+                let textForActions = polishedText
+                return .run { send in
+                    let actions = await VoiceMemosReducer.extractActionsAI(from: textForActions)
+                    await send(.summaryCompleted(id: id, summary: "", actions: actions))
+                }
 
             case let .summaryCompleted(id, summary, actions):
                 let memos = PersistenceService.shared.fetchVoiceMemos()
@@ -196,7 +236,6 @@ struct VoiceMemosReducer {
             case let .deleteMemo(memo):
                 let memos = PersistenceService.shared.fetchVoiceMemos()
                 if let match = memos.first(where: { $0.uuid == memo.id }) {
-                    // Delete audio file
                     let url = VoiceMemosReducer.audioURL(for: match.audioFileName)
                     try? FileManager.default.removeItem(at: url)
                     PersistenceService.shared.deleteVoiceMemo(match)
@@ -205,6 +244,48 @@ struct VoiceMemosReducer {
                 if state.selectedMemo?.id == memo.id {
                     state.selectedMemo = nil
                 }
+                state.selectedMemoIDs.remove(memo.id)
+                return .none
+
+            case .toggleSelectMode:
+                state.isSelectMode.toggle()
+                if !state.isSelectMode {
+                    state.selectedMemoIDs.removeAll()
+                }
+                return .none
+
+            case let .toggleMemoSelection(id):
+                if state.selectedMemoIDs.contains(id) {
+                    state.selectedMemoIDs.remove(id)
+                } else {
+                    state.selectedMemoIDs.insert(id)
+                }
+                return .none
+
+            case .selectAll:
+                if state.selectedMemoIDs.count == state.filteredMemos.count {
+                    state.selectedMemoIDs.removeAll()
+                } else {
+                    state.selectedMemoIDs = Set(state.filteredMemos.map(\.id))
+                }
+                return .none
+
+            case .deleteSelected:
+                let idsToDelete = state.selectedMemoIDs
+                let memos = PersistenceService.shared.fetchVoiceMemos()
+                for id in idsToDelete {
+                    if let match = memos.first(where: { $0.uuid == id }) {
+                        let url = VoiceMemosReducer.audioURL(for: match.audioFileName)
+                        try? FileManager.default.removeItem(at: url)
+                        PersistenceService.shared.deleteVoiceMemo(match)
+                    }
+                }
+                state.memos.removeAll { idsToDelete.contains($0.id) }
+                if let selected = state.selectedMemo, idsToDelete.contains(selected.id) {
+                    state.selectedMemo = nil
+                }
+                state.selectedMemoIDs.removeAll()
+                state.isSelectMode = false
                 return .none
 
             case let .updateTitle(id, title):
@@ -226,6 +307,75 @@ struct VoiceMemosReducer {
             case let .sendToNotes(text):
                 let note = CapturedNote(content: text)
                 persistence.saveNote(note)
+                return .none
+
+            case let .rewriteTranscript(id, style):
+                state.isRewriting = true
+                let transcript: String
+                if let idx = state.memos.firstIndex(where: { $0.id == id }) {
+                    transcript = state.memos[idx].transcript
+                } else {
+                    return .none
+                }
+                return .run { send in
+                    let rewritten = await VoiceMemosReducer.rewriteTranscript(transcript, style: style)
+                    await send(.rewriteCompleted(id: id, rewritten: rewritten))
+                }
+
+            case let .rewriteCustomTone(id, tone):
+                state.isRewriting = true
+                let transcript: String
+                if let idx = state.memos.firstIndex(where: { $0.id == id }) {
+                    transcript = state.memos[idx].transcript
+                } else {
+                    return .none
+                }
+                return .run { send in
+                    let rewritten = await VoiceMemosReducer.rewriteWithCustomTone(transcript, tone: tone)
+                    await send(.rewriteCompleted(id: id, rewritten: rewritten))
+                }
+
+            case let .rewriteCompleted(id, rewritten):
+                state.isRewriting = false
+                let memos = PersistenceService.shared.fetchVoiceMemos()
+                if let match = memos.first(where: { $0.uuid == id }) {
+                    match.rewrittenTranscript = rewritten
+                    PersistenceService.shared.updateVoiceMemos()
+                }
+                if let idx = state.memos.firstIndex(where: { $0.id == id }) {
+                    state.memos[idx].rewrittenTranscript = rewritten
+                }
+                if state.selectedMemo?.id == id {
+                    state.selectedMemo?.rewrittenTranscript = rewritten
+                }
+                return .none
+
+            case let .proofreadTranscript(id):
+                state.isProofreading = true
+                let transcript: String
+                if let idx = state.memos.firstIndex(where: { $0.id == id }) {
+                    transcript = state.memos[idx].transcript
+                } else {
+                    return .none
+                }
+                return .run { send in
+                    let proofread = await VoiceMemosReducer.proofreadTranscript(transcript)
+                    await send(.proofreadCompleted(id: id, proofread: proofread))
+                }
+
+            case let .proofreadCompleted(id, proofread):
+                state.isProofreading = false
+                let memos = PersistenceService.shared.fetchVoiceMemos()
+                if let match = memos.first(where: { $0.uuid == id }) {
+                    match.rewrittenTranscript = proofread
+                    PersistenceService.shared.updateVoiceMemos()
+                }
+                if let idx = state.memos.firstIndex(where: { $0.id == id }) {
+                    state.memos[idx].rewrittenTranscript = proofread
+                }
+                if state.selectedMemo?.id == id {
+                    state.selectedMemo?.rewrittenTranscript = proofread
+                }
                 return .none
             }
         }
@@ -257,6 +407,7 @@ struct VoiceMemosReducer {
                 let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
                 let request = SFSpeechURLRecognitionRequest(url: url)
                 request.shouldReportPartialResults = false
+                request.addsPunctuation = true
 
                 recognizer?.recognitionTask(with: request) { result, error in
                     if let result = result, result.isFinal {
@@ -269,32 +420,175 @@ struct VoiceMemosReducer {
         }
     }
 
-    static func generateSummary(from transcript: String) -> String {
-        guard !transcript.isEmpty, !transcript.hasPrefix("(") else { return "" }
-        let sentences = transcript.components(separatedBy: ". ")
-        if sentences.count <= 2 { return transcript }
-        let key = sentences.prefix(3).joined(separator: ". ")
-        return key + "."
+    static func extractActionsAI(from transcript: String) async -> [String] {
+        guard !transcript.isEmpty, !transcript.hasPrefix("(") else { return [] }
+        let prompt = """
+        Read this voice memo transcript and determine if it contains any genuine \
+        action items, tasks, reminders, or things the speaker needs to do. \
+        Only extract items that are clearly actionable — things like "I need to...", \
+        "remind me to...", "don't forget to...", "I have to...", deadlines, or \
+        commitments. Do NOT extract casual observations, opinions, or general statements.
+
+        If there are NO action items, respond with exactly: NONE
+
+        If there ARE action items, list each one on its own line with no bullets, \
+        numbers, or prefixes. Just the action item text.
+
+        Transcript:
+        \(transcript)
+        """
+        if let result = await MultiProviderChatService.shared.sendSingleMessage(
+            prompt: prompt,
+            systemPrompt: "You extract action items from transcripts. Be selective — only flag genuine tasks and reminders, not every sentence."
+        ) {
+            let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.uppercased() == "NONE" || trimmed.isEmpty { return [] }
+            return trimmed.components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+        return []
     }
 
-    static func extractActions(from transcript: String) -> [String] {
-        guard !transcript.isEmpty, !transcript.hasPrefix("(") else { return [] }
-        let keywords = ["need to", "have to", "should", "must", "will", "going to", "want to", "plan to", "remember to", "don't forget"]
-        let sentences = transcript.components(separatedBy: ". ")
-        var actions: [String] = []
-        for sentence in sentences {
-            let lower = sentence.lowercased()
-            for keyword in keywords {
-                if lower.contains(keyword) {
-                    let cleaned = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !cleaned.isEmpty {
-                        actions.append(cleaned)
-                    }
-                    break
-                }
-            }
+    // MARK: - AI Text Processing
+
+    static func polishTranscript(_ text: String) async -> String {
+        guard !text.isEmpty, !text.hasPrefix("(") else {
+            print("[VoiceMemo Polish] Skipped: text empty or starts with '('")
+            return text
         }
-        return actions
+        print("[VoiceMemo Polish] Starting AI polish for: \(text.prefix(80))...")
+        let prompt = """
+        Clean up this speech-to-text transcription. Fix grammar, punctuation, spelling, \
+        and sentence structure so it reads naturally. Keep the original meaning and ALL \
+        words intact — do not add, remove, censor, or rephrase content. Preserve all \
+        explicit language, slang, and colloquial speech exactly as spoken. If the speaker \
+        says a word, keep that exact word. Return only the corrected text with no extra commentary.
+
+        Transcription:
+        \(text)
+        """
+        if let polished = await MultiProviderChatService.shared.sendSingleMessage(
+            prompt: prompt,
+            systemPrompt: "You are a transcription editor. Return only the corrected text. Never censor, remove, or replace any words including explicit language, profanity, or slang. Preserve the speaker's exact vocabulary."
+        ) {
+            print("[VoiceMemo Polish] AI success: \(polished.prefix(80))...")
+            return polished.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        print("[VoiceMemo Polish] AI failed, using fallback grammar correction")
+        // Fallback to rule-based correction
+        return SpeechService.correctGrammar(text)
+    }
+
+    static func rewriteTranscript(_ text: String, style: WritingStyle) async -> String {
+        guard !text.isEmpty else { return text }
+        let prompt = """
+        Rewrite the following text in a \(style.promptDescription) style. \
+        Keep all the original information and meaning. Return only the rewritten text \
+        with no extra commentary. Do NOT use asterisks, markdown, bold, or any special formatting. \
+        Use plain text only with dashes for lists.
+
+        Text:
+        \(text)
+        """
+        if let rewritten = await MultiProviderChatService.shared.sendSingleMessage(
+            prompt: prompt,
+            systemPrompt: "You are a professional writing assistant. Return only plain text with no markdown or asterisks.",
+            model: AIModel.allModels.first { $0.id == "claude-haiku-4-5-20251001" }
+        ) {
+            return stripAsterisks(rewritten.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return text
+    }
+
+    static func rewriteWithCustomTone(_ text: String, tone: String) async -> String {
+        guard !text.isEmpty, !tone.isEmpty else { return text }
+        let prompt = """
+        Rewrite the following text with this tone/style: \(tone). \
+        Keep all the original information and meaning. Return only the rewritten text \
+        with no extra commentary. Do NOT use asterisks, markdown, bold, or any special formatting. \
+        Use plain text only.
+
+        Text:
+        \(text)
+        """
+        if let rewritten = await MultiProviderChatService.shared.sendSingleMessage(
+            prompt: prompt,
+            systemPrompt: "You are a professional writing assistant. Return only plain text with no markdown or asterisks.",
+            model: AIModel.allModels.first { $0.id == "claude-haiku-4-5-20251001" }
+        ) {
+            return stripAsterisks(rewritten.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return text
+    }
+
+    private static func stripAsterisks(_ text: String) -> String {
+        text.replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "##", with: "")
+            .replacingOccurrences(of: "# ", with: "")
+    }
+
+    static func proofreadTranscript(_ text: String) async -> String {
+        guard !text.isEmpty else { return text }
+        let prompt = """
+        Proofread the following text. Fix any grammar, spelling, punctuation, or \
+        syntax errors. If the text is already correct, return it unchanged. \
+        After the corrected text, add a blank line then list each correction you made \
+        in the format: "- Changed [original] → [corrected]". \
+        If no corrections were needed, write "- No corrections needed."
+
+        Text:
+        \(text)
+        """
+        if let proofread = await MultiProviderChatService.shared.sendSingleMessage(
+            prompt: prompt,
+            systemPrompt: "You are a meticulous proofreader. Return the corrected text followed by a list of corrections."
+        ) {
+            return proofread.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return text
+    }
+}
+
+// MARK: - Writing Style
+
+enum WritingStyle: String, CaseIterable, Equatable, Identifiable {
+    case professional = "Professional"
+    case casual = "Casual"
+    case academic = "Academic"
+    case concise = "Concise"
+    case email = "Email"
+    case meetingNotes = "Meeting Notes"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .professional: return "briefcase"
+        case .casual: return "face.smiling"
+        case .academic: return "graduationcap"
+        case .concise: return "list.bullet"
+        case .email: return "envelope"
+        case .meetingNotes: return "doc.text"
+        }
+    }
+
+    var promptDescription: String {
+        switch self {
+        case .professional:
+            return "professional and formal business"
+        case .casual:
+            return "casual and conversational"
+        case .academic:
+            return "academic and scholarly"
+        case .concise:
+            return "concise bullet-point summary, extracting only the key takeaways"
+        case .email:
+            return "well-formatted email ready to send, with a subject line, greeting, body, and sign-off"
+        case .meetingNotes:
+            return "structured meeting minutes with attendees (if mentioned), discussion points, decisions, and action items"
+        }
     }
 }
 

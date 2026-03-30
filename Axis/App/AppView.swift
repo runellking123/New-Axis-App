@@ -29,170 +29,52 @@ struct AppView: View {
         }
     }
 
+    // MARK: - Tab Bar Configuration
+
+    private struct TabBarItem {
+        let tab: AppReducer.State.Tab
+        let title: String
+        let icon: String
+    }
+
+    private let primaryTabs: [TabBarItem] = [
+        TabBarItem(tab: .dashboard, title: "EA", icon: "brain.head.profile.fill"),
+        TabBarItem(tab: .calendar, title: "Calendar", icon: "calendar"),
+        TabBarItem(tab: .tasks, title: "Tasks", icon: "checklist"),
+        TabBarItem(tab: .voiceMemos, title: "Memos", icon: "mic.fill"),
+        TabBarItem(tab: .aiChat, title: "AI Chat", icon: "bubble.left.and.text.bubble.right"),
+        TabBarItem(tab: .notes, title: "Notes", icon: "note.text"),
+        TabBarItem(tab: .budget, title: "Budget", icon: "dollarsign.circle.fill"),
+    ]
+
+    private let overflowTabs: [TabBarItem] = [
+        TabBarItem(tab: .explore, title: "Explore", icon: "map.fill"),
+        TabBarItem(tab: .planner, title: "Planner", icon: "calendar.badge.clock"),
+        TabBarItem(tab: .projects, title: "Projects", icon: "folder.fill"),
+        TabBarItem(tab: .social, title: "Social", icon: "person.2.fill"),
+        TabBarItem(tab: .familyHQ, title: "FamilyHQ", icon: "house.and.flag.fill"),
+        TabBarItem(tab: .balance, title: "Balance", icon: "heart.circle.fill"),
+        TabBarItem(tab: .trends, title: "News", icon: "newspaper.fill"),
+        TabBarItem(tab: .travel, title: "Travel", icon: "airplane"),
+        TabBarItem(tab: .clipboard, title: "Clipboard", icon: "doc.on.clipboard"),
+        TabBarItem(tab: .settings, title: "Settings", icon: "gearshape.fill"),
+    ]
+
+    @State private var showMoreSheet = false
+
     private var mainContent: some View {
-        ZStack {
-            TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
-                // Tab 1: Dashboard
-                EADashboardView(
-                    store: store.scope(state: \.eaDashboard, action: \.eaDashboard),
-                    onNavigateToPlanner: { store.send(.tabSelected(.planner)) },
-                    onNavigateToTasks: { store.send(.tabSelected(.tasks)) },
-                    onNavigateToProjects: { store.send(.tabSelected(.projects)) },
-                    onSettingsTapped: { store.send(.toggleSettings) },
-                    onAddTapped: {
-                        store.send(.tabSelected(.tasks))
-                        store.send(.eaTasks(.showAddTaskSheet))
-                    },
-                    onCompletedTasksTapped: {
-                        store.send(.tabSelected(.tasks))
-                        store.send(.eaTasks(.filterChanged(.done)))
-                    },
-                    onMeetingsTapped: { store.send(.tabSelected(.planner)) },
-                    onDeepWorkTapped: { store.send(.tabSelected(.planner)) },
-                    onToggleDarkMode: {
-                        let current = store.settings.darkModeOverride
-                        let next: SettingsReducer.State.DarkModeOption = current == .dark ? .light : .dark
-                        store.send(.settings(.darkModeChanged(next)))
-                    },
-                    isDarkMode: store.settings.darkModeOverride == .dark
-                )
-                .tabItem {
-                    Label("EA", systemImage: "brain.head.profile.fill")
-                }
-                .tag(AppReducer.State.Tab.dashboard)
-
-                // Tab 2: Calendar
-                CalendarTabView()
-                    .tabItem {
-                        Label("Calendar", systemImage: "calendar")
-                    }
-                    .tag(AppReducer.State.Tab.calendar)
-
-                // Tab 3: AI Chat
-                AIChatView(store: store.scope(state: \.aiChat, action: \.aiChat))
-                    .tabItem {
-                        Label("AI Chat", systemImage: "bubble.left.and.text.bubble.right")
-                    }
-                    .tag(AppReducer.State.Tab.aiChat)
-
-                // Tab 4: Notes
-                QuickNotesView(
-                    store: store.scope(state: \.quickNotes, action: \.quickNotes)
-                )
-                .tabItem {
-                    Label("Notes", systemImage: "note.text")
-                }
-                .tag(AppReducer.State.Tab.notes)
-
-                // Tab 5: Tasks
-                EATaskListView(
-                    store: store.scope(state: \.eaTasks, action: \.eaTasks)
-                )
-                .tabItem {
-                    Label("Tasks", systemImage: "checklist")
-                }
-                .badge(store.eaTasks.inboxCount > 0 ? store.eaTasks.inboxCount : 0)
-                .tag(AppReducer.State.Tab.tasks)
-
-                // Under "More" (iOS auto-creates More tab when >5 tabs)
-                ExploreView(
-                    store: store.scope(state: \.explore, action: \.explore)
-                )
-                .tabItem {
-                    Label("Explore", systemImage: "map.fill")
-                }
-                .tag(AppReducer.State.Tab.explore)
-
-                EAPlannerView(
-                    store: store.scope(state: \.eaPlanner, action: \.eaPlanner)
-                )
-                .tabItem {
-                    Label("Planner", systemImage: "calendar.badge.clock")
-                }
-                .tag(AppReducer.State.Tab.planner)
-
-                EAProjectListView(
-                    store: store.scope(state: \.eaProjects, action: \.eaProjects)
-                )
-                .tabItem {
-                    Label("Projects", systemImage: "folder.fill")
-                }
-                .tag(AppReducer.State.Tab.projects)
-
-                SocialCircleView(
-                    store: store.scope(state: \.socialCircle, action: \.socialCircle)
-                )
-                .tabItem {
-                    Label("Social", systemImage: "person.2.fill")
-                }
-                .tag(AppReducer.State.Tab.social)
-
-                FamilyHQView(
-                    store: store.scope(state: \.familyHQ, action: \.familyHQ)
-                )
-                .tabItem {
-                    Label("FamilyHQ", systemImage: "house.and.flag.fill")
-                }
-                .tag(AppReducer.State.Tab.familyHQ)
-
-                BalanceView(
-                    store: store.scope(state: \.balance, action: \.balance)
-                )
-                .tabItem {
-                    Label("Balance", systemImage: "heart.circle.fill")
-                }
-                .tag(AppReducer.State.Tab.balance)
-
-                BudgetView(
-                    store: store.scope(state: \.budget, action: \.budget)
-                )
-                .tabItem {
-                    Label("Budget", systemImage: "dollarsign.circle.fill")
-                }
-                .tag(AppReducer.State.Tab.budget)
-
-                TrendsView(
-                    store: store.scope(state: \.trends, action: \.trends)
-                )
-                .tabItem {
-                    Label("News", systemImage: "newspaper.fill")
-                }
-                .tag(AppReducer.State.Tab.trends)
-
-                VoiceMemosView(
-                    store: store.scope(state: \.voiceMemos, action: \.voiceMemos)
-                )
-                .tabItem {
-                    Label("Voice Memos", systemImage: "mic.fill")
-                }
-                .tag(AppReducer.State.Tab.voiceMemos)
-
-                TravelPlannerView(
-                    store: store.scope(state: \.travelPlanner, action: \.travelPlanner)
-                )
-                .tabItem {
-                    Label("Travel", systemImage: "airplane")
-                }
-                .tag(AppReducer.State.Tab.travel)
-
-                ClipboardView(
-                    store: store.scope(state: \.clipboard, action: \.clipboard)
-                )
-                .tabItem {
-                    Label("Clipboard", systemImage: "doc.on.clipboard")
-                }
-                .tag(AppReducer.State.Tab.clipboard)
-
-                SettingsView(
-                    store: store.scope(state: \.settings, action: \.settings)
-                )
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
-                .tag(AppReducer.State.Tab.settings)
+        VStack(spacing: 0) {
+            // Content area
+            ZStack {
+                tabContentView
             }
-            .tint(Color.axisGold)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+            // Custom tab bar
+            customTabBar
+        }
+        .sheet(isPresented: $showMoreSheet) {
+            moreSheet
         }
         .sheet(isPresented: Binding(
             get: { store.showSettings },
@@ -204,6 +86,134 @@ struct AppView: View {
                 store: store.scope(state: \.settings, action: \.settings)
             )
         }
+    }
+
+    @ViewBuilder
+    private var tabContentView: some View {
+        switch store.selectedTab {
+        case .dashboard:
+            EADashboardView(
+                store: store.scope(state: \.eaDashboard, action: \.eaDashboard),
+                onNavigateToPlanner: { store.send(.tabSelected(.planner)) },
+                onNavigateToTasks: { store.send(.tabSelected(.tasks)) },
+                onNavigateToProjects: { store.send(.tabSelected(.projects)) },
+                onSettingsTapped: { store.send(.toggleSettings) },
+                onAddTapped: {
+                    store.send(.tabSelected(.tasks))
+                    store.send(.eaTasks(.showAddTaskSheet))
+                },
+                onCompletedTasksTapped: {
+                    store.send(.tabSelected(.tasks))
+                    store.send(.eaTasks(.filterChanged(.done)))
+                },
+                onMeetingsTapped: { store.send(.tabSelected(.planner)) },
+                onDeepWorkTapped: { store.send(.tabSelected(.planner)) },
+                onToggleDarkMode: {
+                    let current = store.settings.darkModeOverride
+                    let next: SettingsReducer.State.DarkModeOption = current == .dark ? .light : .dark
+                    store.send(.settings(.darkModeChanged(next)))
+                },
+                isDarkMode: store.settings.darkModeOverride == .dark
+            )
+        case .calendar:
+            CalendarTabView()
+        case .voiceMemos:
+            VoiceMemosView(store: store.scope(state: \.voiceMemos, action: \.voiceMemos))
+        case .aiChat:
+            AIChatView(store: store.scope(state: \.aiChat, action: \.aiChat))
+        case .notes:
+            QuickNotesView(store: store.scope(state: \.quickNotes, action: \.quickNotes))
+        case .tasks:
+            EATaskListView(store: store.scope(state: \.eaTasks, action: \.eaTasks))
+        case .explore:
+            ExploreView(store: store.scope(state: \.explore, action: \.explore))
+        case .planner:
+            EAPlannerView(store: store.scope(state: \.eaPlanner, action: \.eaPlanner))
+        case .projects:
+            EAProjectListView(store: store.scope(state: \.eaProjects, action: \.eaProjects))
+        case .social:
+            SocialCircleView(store: store.scope(state: \.socialCircle, action: \.socialCircle))
+        case .familyHQ:
+            FamilyHQView(store: store.scope(state: \.familyHQ, action: \.familyHQ))
+        case .balance:
+            BalanceView(store: store.scope(state: \.balance, action: \.balance))
+        case .budget:
+            BudgetView(store: store.scope(state: \.budget, action: \.budget))
+        case .trends:
+            TrendsView(store: store.scope(state: \.trends, action: \.trends))
+        case .travel:
+            TravelPlannerView(store: store.scope(state: \.travelPlanner, action: \.travelPlanner))
+        case .clipboard:
+            ClipboardView(store: store.scope(state: \.clipboard, action: \.clipboard))
+        case .settings:
+            SettingsView(store: store.scope(state: \.settings, action: \.settings))
+        }
+    }
+
+    private var customTabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(primaryTabs, id: \.tab) { item in
+                tabBarButton(item)
+            }
+            // More button
+            Button {
+                showMoreSheet = true
+            } label: {
+                VStack(spacing: 2) {
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.system(size: 20))
+                    Text("More")
+                        .font(.system(size: 10))
+                }
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(overflowTabs.contains(where: { $0.tab == store.selectedTab }) ? Color.axisGold : .secondary)
+            }
+        }
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+    }
+
+    private func tabBarButton(_ item: TabBarItem) -> some View {
+        Button {
+            store.send(.tabSelected(item.tab))
+        } label: {
+            VStack(spacing: 2) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 20))
+                Text(item.title)
+                    .font(.system(size: 10))
+            }
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(store.selectedTab == item.tab ? Color.axisGold : .secondary)
+        }
+    }
+
+    private var moreSheet: some View {
+        NavigationStack {
+            List {
+                ForEach(overflowTabs, id: \.tab) { item in
+                    Button {
+                        showMoreSheet = false
+                        store.send(.tabSelected(item.tab))
+                    } label: {
+                        Label(item.title, systemImage: item.icon)
+                            .foregroundStyle(store.selectedTab == item.tab ? Color.axisGold : .primary)
+                    }
+                }
+            }
+            .navigationTitle("More")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showMoreSheet = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

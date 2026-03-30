@@ -241,11 +241,3 @@ struct TrendsView: View {
         }
     }
 }
-
-#Preview {
-    TrendsView(
-        store: Store(initialState: TrendsReducer.State()) {
-            TrendsReducer()
-        }
-    )
-}

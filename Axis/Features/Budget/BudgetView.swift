@@ -500,11 +500,3 @@ struct BillImagePicker: UIViewControllerRepresentable {
         }
     }
 }
-
-#Preview {
-    BudgetView(
-        store: Store(initialState: BudgetReducer.State()) {
-            BudgetReducer()
-        }
-    )
-}

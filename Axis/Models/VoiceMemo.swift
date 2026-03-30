@@ -12,6 +12,7 @@ final class VoiceMemo {
     var extractedActions: [String]
     var isTranscribed: Bool
     var isSummarized: Bool
+    var rewrittenTranscript: String = ""
     var createdAt: Date
 
     init(
@@ -22,7 +23,8 @@ final class VoiceMemo {
         audioFileName: String = "",
         extractedActions: [String] = [],
         isTranscribed: Bool = false,
-        isSummarized: Bool = false
+        isSummarized: Bool = false,
+        rewrittenTranscript: String = ""
     ) {
         self.uuid = UUID()
         self.title = title
@@ -33,6 +35,7 @@ final class VoiceMemo {
         self.extractedActions = extractedActions
         self.isTranscribed = isTranscribed
         self.isSummarized = isSummarized
+        self.rewrittenTranscript = rewrittenTranscript
         self.createdAt = Date()
     }
 

@@ -31,8 +31,16 @@ final class MultiProviderChatService: @unchecked Sendable {
     static let shared = MultiProviderChatService()
 
     private(set) var isStreaming = false
-    private static let defaultAnthropicKey = Bundle.main.infoDictionary?["ANTHROPIC_API_KEY"] as? String ?? ""
-    private static let defaultGeminiKey = Bundle.main.infoDictionary?["GEMINI_API_KEY"] as? String ?? ""
+    private static let defaultAnthropicKey: String = {
+        ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
+            ?? UserDefaults.standard.string(forKey: "anthropic_api_key")
+            ?? ""
+    }()
+    private static let defaultGeminiKey: String = {
+        ProcessInfo.processInfo.environment["GEMINI_API_KEY"]
+            ?? UserDefaults.standard.string(forKey: "gemini_api_key")
+            ?? ""
+    }()
 
     var anthropicAPIKey: String {
         get { Self.defaultAnthropicKey }
@@ -390,6 +398,103 @@ final class MultiProviderChatService: @unchecked Sendable {
                     continuation.finish()
                 }
             }
+        }
+    }
+
+    // MARK: - Single Message (Non-Streaming)
+
+    /// Sends a single prompt to the AI and returns the full response.
+    /// Uses Claude Haiku by default for speed. Falls back to nil on failure.
+    func sendSingleMessage(
+        prompt: String,
+        systemPrompt: String? = nil,
+        model: AIModel? = nil
+    ) async -> String? {
+        let activeModel = model ?? AIModel.allModels.first { $0.id == "claude-haiku-4-5-20251001" } ?? selectedModel
+
+        switch activeModel.provider {
+        case .claude:
+            return await sendClaudeSingle(prompt: prompt, systemPrompt: systemPrompt, model: activeModel.id)
+        case .gemini:
+            return await sendGeminiSingle(prompt: prompt, systemPrompt: systemPrompt, model: activeModel.id)
+        }
+    }
+
+    private func sendClaudeSingle(prompt: String, systemPrompt: String?, model: String) async -> String? {
+        do {
+            print("[Claude Single] Sending request to model: \(model), key prefix: \(String(anthropicAPIKey.prefix(12)))...")
+            let url = URL(string: "https://api.anthropic.com/v1/messages")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 30
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(anthropicAPIKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+
+            var body: [String: Any] = [
+                "model": model,
+                "max_tokens": 1024,
+                "stream": false,
+                "messages": [["role": "user", "content": prompt]]
+            ]
+            if let systemPrompt {
+                body["system"] = systemPrompt
+            }
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                print("[Claude Single] No HTTP response")
+                return nil
+            }
+            print("[Claude Single] HTTP status: \(http.statusCode)")
+            if http.statusCode != 200 {
+                let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
+                print("[Claude Single] Error body: \(errorBody)")
+                return nil
+            }
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let content = json["content"] as? [[String: Any]],
+                  let text = content.first?["text"] as? String else {
+                let raw = String(data: data, encoding: .utf8) ?? "unparseable"
+                print("[Claude Single] JSON parse failed: \(raw.prefix(200))")
+                return nil
+            }
+            print("[Claude Single] Success, response length: \(text.count)")
+            return text
+        } catch {
+            print("[Claude Single] Exception: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func sendGeminiSingle(prompt: String, systemPrompt: String?, model: String) async -> String? {
+        do {
+            let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(geminiAPIKey)")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            var body: [String: Any] = [
+                "contents": [["role": "user", "parts": [["text": prompt]]]],
+                "generationConfig": ["maxOutputTokens": 4096, "temperature": 0.3]
+            ]
+            if let systemPrompt {
+                body["systemInstruction"] = ["parts": [["text": systemPrompt]]]
+            }
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let candidates = json["candidates"] as? [[String: Any]],
+                  let first = candidates.first,
+                  let content = first["content"] as? [String: Any],
+                  let parts = content["parts"] as? [[String: Any]],
+                  let text = parts.first?["text"] as? String else { return nil }
+            return text
+        } catch {
+            return nil
         }
     }
 }

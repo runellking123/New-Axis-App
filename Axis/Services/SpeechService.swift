@@ -130,30 +130,7 @@ final class SpeechService {
             corrected = mutable as String
         }
 
-        // 4. Apply system spell-checking corrections
-        let checker = UITextChecker()
-        let nsText = corrected as NSString
-        var offset = 0
-
-        while offset < nsText.length {
-            let searchRange = NSRange(location: offset, length: nsText.length - offset)
-            let misspelledRange = checker.rangeOfMisspelledWord(
-                in: corrected, range: searchRange, startingAt: offset,
-                wrap: false, language: "en"
-            )
-
-            guard misspelledRange.location != NSNotFound else { break }
-
-            if let guesses = checker.guesses(forWordRange: misspelledRange, in: corrected, language: "en"),
-               let bestGuess = guesses.first {
-                corrected = (corrected as NSString).replacingCharacters(in: misspelledRange, with: bestGuess)
-                offset = misspelledRange.location + bestGuess.count
-            } else {
-                offset = misspelledRange.location + misspelledRange.length
-            }
-        }
-
-        // 5. Ensure text ends with punctuation
+        // 4. Ensure text ends with punctuation
         let trimmed = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
         if let last = trimmed.last, !last.isPunctuation {
             corrected = trimmed + "."
