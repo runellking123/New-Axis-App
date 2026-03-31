@@ -2,6 +2,11 @@ import ComposableArchitecture
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 // MARK: - AIChatView
 
@@ -175,6 +180,7 @@ struct AIChatView: View {
                     break
                 }
             }
+            #if os(iOS)
             .fullScreenCover(isPresented: Binding(
                 get: { store.showCamera },
                 set: { _ in }
@@ -191,6 +197,7 @@ struct AIChatView: View {
                 )
                 .ignoresSafeArea()
             }
+            #endif
             .onAppear { store.send(.onAppear) }
             .onChange(of: store.isStreaming) { _, isStreaming in
                 if isStreaming {
@@ -234,13 +241,7 @@ struct AIChatView: View {
         }
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("AXIS_Chat_Export.txt")
         try? text.write(to: tempURL, atomically: true, encoding: .utf8)
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
-            var topVC = rootVC
-            while let presented = topVC.presentedViewController { topVC = presented }
-            let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
-            topVC.present(activityVC, animated: true)
-        }
+        PlatformServices.share(items: [tempURL])
     }
 
     // MARK: - Quick Action Chips
@@ -462,7 +463,7 @@ struct AIChatView: View {
 
                     if msg.role == "assistant" {
                         Button {
-                            UIPasteboard.general.string = msg.content
+                            PlatformServices.copyToClipboard(msg.content)
                             store.send(.copyMessage(msg.content))
                         } label: {
                             Image(systemName: "doc.on.doc")
@@ -541,7 +542,7 @@ struct AIChatView: View {
     @ViewBuilder
     private func contextMenuItems(for msg: AIChatReducer.State.MessageState) -> some View {
         Button {
-            UIPasteboard.general.string = msg.content
+            PlatformServices.copyToClipboard(msg.content)
             store.send(.copyMessage(msg.content))
         } label: {
             Label("Copy", systemImage: "doc.on.doc")
@@ -582,25 +583,26 @@ struct AIChatView: View {
         let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let encodedTo = to.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        #if os(iOS)
         let outlookURL = "ms-outlook://compose?to=\(encodedTo)&subject=\(encodedSubject)&body=\(encodedBody)"
         if let url = URL(string: outlookURL), UIApplication.shared.canOpenURL(url) {
-            UIApplication.shared.open(url)
+            PlatformServices.openURL(url)
         } else {
-            // Fallback to system mail compose
             let mailtoURL = "mailto:\(encodedTo)?subject=\(encodedSubject)&body=\(encodedBody)"
             if let url = URL(string: mailtoURL) {
-                UIApplication.shared.open(url)
+                PlatformServices.openURL(url)
             }
         }
+        #else
+        let mailtoURL = "mailto:\(encodedTo)?subject=\(encodedSubject)&body=\(encodedBody)"
+        if let url = URL(string: mailtoURL) {
+            PlatformServices.openURL(url)
+        }
+        #endif
     }
 
     private func shareText(_ text: String) {
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let vc = scene.windows.first?.rootViewController else { return }
-        var top = vc
-        while let p = top.presentedViewController { top = p }
-        let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
-        top.present(activityVC, animated: true)
+        PlatformServices.share(items: [text])
     }
 
     // MARK: - Streaming Bubble
@@ -713,6 +715,7 @@ struct AIChatView: View {
 
     private func attachmentImageThumbnail(data: Data, index: Int) -> some View {
         ZStack(alignment: .topTrailing) {
+            #if os(iOS)
             if let uiImage = UIImage(data: data) {
                 Image(uiImage: uiImage)
                     .resizable()
@@ -728,6 +731,23 @@ struct AIChatView: View {
                             .foregroundStyle(.secondary)
                     }
             }
+            #elseif os(macOS)
+            if let nsImage = NSImage(data: data) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.windowBackgroundColor))
+                    .frame(width: 56, height: 56)
+                    .overlay {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                    }
+            }
+            #endif
 
             removeButton(index: index)
         }
@@ -1042,6 +1062,7 @@ private struct TypingDotsView: View {
 
 // MARK: - Camera Picker
 
+#if os(iOS)
 struct CameraPickerView: UIViewControllerRepresentable {
     let onCapture: (Data) -> Void
     let onDismiss: () -> Void
@@ -1074,6 +1095,7 @@ struct CameraPickerView: UIViewControllerRepresentable {
         }
     }
 }
+#endif
 
 #Preview {
     AIChatView(

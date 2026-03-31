@@ -1,7 +1,6 @@
 import ComposableArchitecture
 import EventKit
 import Foundation
-import UIKit
 
 @Reducer
 struct AIChatReducer {
@@ -467,7 +466,7 @@ struct AIChatReducer {
             // MARK: - Message Actions
 
             case let .copyMessage(content):
-                UIPasteboard.general.string = content
+                PlatformServices.copyToClipboard(content)
                 haptics.selection()
                 return .none
 

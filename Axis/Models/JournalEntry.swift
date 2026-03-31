@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class JournalEntry {
-    var uuid: UUID
-    var content: String
-    var gratitudeItems: [String]
-    var mood: String
-    var date: Date
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var content: String = ""
+    var gratitudeItems: [String] = []
+    var mood: String = ""
+    var date: Date = Date()
+    var createdAt: Date = Date()
 
     init(
         content: String = "",

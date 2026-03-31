@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class DadWin {
-    var uuid: UUID
-    var title: String
-    var details: String
-    var mood: String // "proud", "grateful", "joyful", "peaceful", "accomplished"
-    var date: Date
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var details: String = ""
+    var mood: String = "" // "proud", "grateful", "joyful", "peaceful", "accomplished"
+    var date: Date = Date()
+    var createdAt: Date = Date()
     @Attribute(.externalStorage) var photoData: Data?
 
     init(

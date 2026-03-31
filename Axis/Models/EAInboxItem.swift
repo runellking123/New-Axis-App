@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class EAInboxItem {
-    var uuid: UUID
-    var rawInput: String
-    var classifiedType: String // task, event, note
+    var uuid: UUID = UUID()
+    var rawInput: String = ""
+    var classifiedType: String = "" // task, event, note
     var confidence: Double?
     var parsedData: String? // JSON string of parsed fields
-    var isReviewed: Bool
-    var createdAt: Date
+    var isReviewed: Bool = false
+    var createdAt: Date = Date()
 
     init(
         rawInput: String,

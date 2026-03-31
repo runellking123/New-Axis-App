@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class MealLog {
-    var uuid: UUID
-    var mealType: String   // "breakfast", "lunch", "dinner", "snack"
-    var name: String
-    var notes: String
-    var calories: Int
-    var date: Date
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var mealType: String = ""   // "breakfast", "lunch", "dinner", "snack"
+    var name: String = ""
+    var notes: String = ""
+    var calories: Int = 0
+    var date: Date = Date()
+    var createdAt: Date = Date()
 
     init(
         mealType: String = "lunch",

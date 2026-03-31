@@ -18,37 +18,47 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         isUsingCustomLocation ? customLocation : currentLocation
     }
 
+    private var isLocationAuthorized: Bool {
+        #if os(macOS)
+        authorizationStatus == .authorized || authorizationStatus == .authorizedAlways
+        #else
+        authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
+        #endif
+    }
+
     private override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.distanceFilter = 100 // Update every 100m
+        manager.distanceFilter = 100
         authorizationStatus = manager.authorizationStatus
         currentLocation = manager.location
         if let currentLocation {
             reverseGeocode(currentLocation)
         }
-        // Auto-start if already authorized
-        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+        if isLocationAuthorized {
             manager.startUpdatingLocation()
         }
     }
 
     func requestPermission() {
         authorizationStatus = manager.authorizationStatus
-        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+        if isLocationAuthorized {
             manager.startUpdatingLocation()
             return
         }
+        #if os(macOS)
+        manager.requestAlwaysAuthorization()
+        #else
         manager.requestWhenInUseAuthorization()
+        #endif
     }
 
     func requestLocation() {
-        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
+        guard isLocationAuthorized else {
             requestPermission()
             return
         }
-        // Use startUpdatingLocation for reliability, then stop after first fix
         manager.startUpdatingLocation()
     }
 
@@ -110,7 +120,6 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             if !self.isUsingCustomLocation, let location = locations.last {
                 self.reverseGeocode(location)
             }
-            // Stop continuous updates after getting a good fix to save battery
             manager.stopUpdatingLocation()
         }
     }
@@ -119,10 +128,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         #if DEBUG
         print("[LocationService] Location error: \(error.localizedDescription)")
         #endif
-        // On failure, try requestLocation() as fallback
         let code = (error as NSError).code
         if code == CLError.locationUnknown.rawValue {
-            // Transient error, keep trying
             return
         }
         Task { @MainActor in
@@ -133,7 +140,14 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
             self.authorizationStatus = manager.authorizationStatus
-            if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
+            let authorized: Bool = {
+                #if os(macOS)
+                return manager.authorizationStatus == .authorized || manager.authorizationStatus == .authorizedAlways
+                #else
+                return manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways
+                #endif
+            }()
+            if authorized {
                 manager.startUpdatingLocation()
             }
         }

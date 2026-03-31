@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class Recipe {
-    var uuid: UUID
-    var name: String
-    var ingredients: String
-    var instructions: String
-    var servings: Int
-    var prepTimeMinutes: Int
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var ingredients: String = ""
+    var instructions: String = ""
+    var servings: Int = 0
+    var prepTimeMinutes: Int = 0
+    var createdAt: Date = Date()
 
     init(
         name: String,

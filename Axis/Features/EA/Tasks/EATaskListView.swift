@@ -1,7 +1,6 @@
 import ComposableArchitecture
 import EventKit
 import SwiftUI
-import UIKit
 
 struct EATaskListView: View {
     @Bindable var store: StoreOf<EATaskReducer>
@@ -349,7 +348,7 @@ struct EATaskListView: View {
                 let text = taskPlainText(task)
                 if let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
                    let url = URL(string: "sms:&body=\(encoded)") {
-                    UIApplication.shared.open(url)
+                    PlatformServices.openURL(url)
                 }
             } label: {
                 Label("Text Details", systemImage: "message")
@@ -357,7 +356,7 @@ struct EATaskListView: View {
 
             // Copy Details
             Button {
-                UIPasteboard.general.string = taskPlainText(task)
+                PlatformServices.copyToClipboard(taskPlainText(task))
             } label: {
                 Label("Copy Details", systemImage: "doc.on.doc")
             }

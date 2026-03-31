@@ -774,13 +774,7 @@ struct EADashboardView: View {
 
                         Button {
                             let shareText = "\"\(store.dailyQuote)\"\n— \(store.dailyQuoteAuthor)\n\n\(store.dailyQuoteGrandma)\n\n— Shared from AXIS"
-                            let av = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
-                            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                               let vc = scene.windows.first?.rootViewController {
-                                var top = vc
-                                while let p = top.presentedViewController { top = p }
-                                top.present(av, animated: true)
-                            }
+                            PlatformServices.share(items: [shareText])
                         } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: "square.and.arrow.up")

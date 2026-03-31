@@ -3,14 +3,14 @@ import SwiftData
 
 @Model
 final class Trip {
-    var uuid: UUID
-    var name: String
-    var startDate: Date
-    var endDate: Date
-    var budgetPlanned: Double
-    var budgetSpent: Double
-    var notes: String
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var startDate: Date = Date()
+    var endDate: Date = Date()
+    var budgetPlanned: Double = 0
+    var budgetSpent: Double = 0
+    var notes: String = ""
+    var createdAt: Date = Date()
 
     init(
         name: String,

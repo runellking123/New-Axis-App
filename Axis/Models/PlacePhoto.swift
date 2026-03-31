@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class PlacePhoto {
-    var uuid: UUID
-    var placeId: UUID
-    var caption: String
+    var uuid: UUID = UUID()
+    var placeId: UUID = UUID()
+    var caption: String = ""
     @Attribute(.externalStorage) var photoData: Data?
-    var date: Date
-    var createdAt: Date
+    var date: Date = Date()
+    var createdAt: Date = Date()
 
     init(
         placeId: UUID,

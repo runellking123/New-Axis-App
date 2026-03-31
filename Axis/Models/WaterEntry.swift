@@ -3,10 +3,10 @@ import SwiftData
 
 @Model
 final class WaterEntry {
-    var uuid: UUID
-    var amountOz: Int
-    var date: Date
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var amountOz: Int = 0
+    var date: Date = Date()
+    var createdAt: Date = Date()
 
     init(
         amountOz: Int = 8,

@@ -534,18 +534,18 @@ struct VoiceMemosReducer {
         let prompt = """
         Proofread the following text. Fix any grammar, spelling, punctuation, or \
         syntax errors. If the text is already correct, return it unchanged. \
-        After the corrected text, add a blank line then list each correction you made \
-        in the format: "- Changed [original] → [corrected]". \
-        If no corrections were needed, write "- No corrections needed."
+        Return ONLY the corrected text with no extra commentary, no list of changes, \
+        and no explanations. Do NOT use asterisks, markdown, bold, or any special formatting. \
+        Use plain text only.
 
         Text:
         \(text)
         """
         if let proofread = await MultiProviderChatService.shared.sendSingleMessage(
             prompt: prompt,
-            systemPrompt: "You are a meticulous proofreader. Return the corrected text followed by a list of corrections."
+            systemPrompt: "You are a meticulous proofreader. Return only the corrected plain text, nothing else."
         ) {
-            return proofread.trimmingCharacters(in: .whitespacesAndNewlines)
+            return stripAsterisks(proofread.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return text
     }
@@ -600,9 +600,11 @@ final class VoiceRecorder: NSObject, @unchecked Sendable {
     private var recordingURL: URL?
 
     func startRecording(to url: URL) {
+        #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playAndRecord, mode: .default)
         try? session.setActive(true)
+        #endif
 
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),

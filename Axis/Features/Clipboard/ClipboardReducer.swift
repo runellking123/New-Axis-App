@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import UIKit
 
 @Reducer
 struct ClipboardReducer {
@@ -149,15 +148,12 @@ struct ClipboardReducer {
             case let .formTagsChanged(t): state.formTags = t; return .none
 
             case .pasteFromClipboard:
-                #if canImport(UIKit)
-                if let text = UIPasteboard.general.string {
+                if let text = PlatformServices.pasteFromClipboard() {
                     state.formContent = text
-                    // Auto-detect type
                     if text.hasPrefix("http://") || text.hasPrefix("https://") {
                         state.formType = "link"
                     }
                 }
-                #endif
                 return .none
 
             case .saveItem:

@@ -1,7 +1,9 @@
 import AVFoundation
 import Foundation
 import Speech
+#if os(iOS)
 import UIKit
+#endif
 
 @Observable
 final class SpeechService {
@@ -36,9 +38,11 @@ final class SpeechService {
         recognitionTask?.cancel()
         recognitionTask = nil
 
+        #if os(iOS)
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        #endif
 
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest else { return }

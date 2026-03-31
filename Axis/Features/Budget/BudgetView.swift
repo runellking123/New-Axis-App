@@ -1,5 +1,8 @@
 import ComposableArchitecture
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 struct BudgetView: View {
     @Bindable var store: StoreOf<BudgetReducer>
@@ -372,6 +375,7 @@ struct BudgetView: View {
 
 // MARK: - Bill Scanner Sheet
 
+#if os(iOS)
 struct BillScannerSheet: View {
     @Bindable var store: StoreOf<BudgetReducer>
     @State private var showImagePicker = false
@@ -500,3 +504,30 @@ struct BillImagePicker: UIViewControllerRepresentable {
         }
     }
 }
+#else
+struct BillScannerSheet: View {
+    @Bindable var store: StoreOf<BudgetReducer>
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Spacer()
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.secondary)
+                Text("Bill scanning is available on iPhone")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .navigationTitle("Scan Bill")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { store.send(.dismissScanBill) }
+                }
+            }
+        }
+    }
+}
+#endif

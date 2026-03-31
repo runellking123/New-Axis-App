@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class FamilyMember {
-    var uuid: UUID
-    var name: String
-    var emoji: String
-    var color: String
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var emoji: String = ""
+    var color: String = ""
+    var createdAt: Date = Date()
 
     init(
         name: String,

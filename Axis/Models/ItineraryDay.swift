@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class ItineraryDay {
-    var uuid: UUID
-    var tripId: UUID
-    var dayNumber: Int
-    var date: Date
-    var placeIds: [UUID]
-    var notes: String
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var tripId: UUID = UUID()
+    var dayNumber: Int = 0
+    var date: Date = Date()
+    var placeIds: [UUID] = []
+    var notes: String = ""
+    var createdAt: Date = Date()
 
     init(
         tripId: UUID,

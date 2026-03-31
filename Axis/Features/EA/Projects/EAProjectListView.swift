@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import SwiftUI
-import UIKit
 
 struct EAProjectListView: View {
     @Bindable var store: StoreOf<EAProjectReducer>
@@ -215,7 +214,7 @@ struct EAProjectListView: View {
                                 let summary = projectSummaryText(project)
                                 let encoded = summary.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                                 if let url = URL(string: "sms:&body=\(encoded)") {
-                                    UIApplication.shared.open(url)
+                                    PlatformServices.openURL(url)
                                 }
                             } label: {
                                 Label("Text Details", systemImage: "message")
@@ -224,7 +223,7 @@ struct EAProjectListView: View {
                             // Copy Details
                             Button {
                                 let summary = projectSummaryText(project)
-                                UIPasteboard.general.string = summary
+                                PlatformServices.copyToClipboard(summary)
                             } label: {
                                 Label("Copy Details", systemImage: "doc.on.doc")
                             }

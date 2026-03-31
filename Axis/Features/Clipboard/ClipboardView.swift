@@ -163,18 +163,14 @@ struct ClipboardView: View {
             if item.isLink {
                 Button {
                     if let url = URL(string: item.content) {
-                        #if canImport(UIKit)
-                        UIApplication.shared.open(url)
-                        #endif
+                        PlatformServices.openURL(url)
                     }
                 } label: {
                     Label("Open Link", systemImage: "safari")
                 }
             }
             Button {
-                #if canImport(UIKit)
-                UIPasteboard.general.string = item.content
-                #endif
+                PlatformServices.copyToClipboard(item.content)
             } label: {
                 Label("Copy", systemImage: "doc.on.doc")
             }

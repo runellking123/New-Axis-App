@@ -3,16 +3,16 @@ import SwiftData
 
 @Model
 final class Habit {
-    var uuid: UUID
-    var name: String
-    var frequency: String // "daily", "weekly"
-    var targetDaysPerWeek: Int
-    var specificDays: [Int] // 1=Mon through 7=Sun
-    var streakCurrent: Int
-    var streakBest: Int
-    var color: String
-    var icon: String
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var frequency: String = "" // "daily", "weekly"
+    var targetDaysPerWeek: Int = 0
+    var specificDays: [Int] = [] // 1=Mon through 7=Sun
+    var streakCurrent: Int = 0
+    var streakBest: Int = 0
+    var color: String = ""
+    var icon: String = ""
+    var createdAt: Date = Date()
 
     init(
         name: String,

@@ -3,16 +3,16 @@ import SwiftData
 
 @Model
 final class WorkProject {
-    var uuid: UUID
-    var title: String
-    var workspace: String // "wiley" or "consulting"
-    var status: String // "active", "completed", "onHold"
-    var priority: String // "high", "medium", "low"
-    var notes: String
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var workspace: String = "" // "wiley" or "consulting"
+    var status: String = "" // "active", "completed", "onHold"
+    var priority: String = "" // "high", "medium", "low"
+    var notes: String = ""
     var dueDate: Date?
     var completedAt: Date?
-    var sortOrder: Int
-    var createdAt: Date
+    var sortOrder: Int = 0
+    var createdAt: Date = Date()
     var estimatedPomodoros: Int?
 
     init(

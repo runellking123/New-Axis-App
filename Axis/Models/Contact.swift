@@ -3,17 +3,17 @@ import SwiftData
 
 @Model
 final class Contact {
-    var uuid: UUID
-    var name: String
-    var tier: String // "innerCircle", "closeFriends", "extended"
-    var phone: String
-    var email: String
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var tier: String = "" // "innerCircle", "closeFriends", "extended"
+    var phone: String = ""
+    var email: String = ""
     var birthday: Date?
     var lastContacted: Date?
-    var checkInDays: Int // cadence in days
-    var notes: String
-    var relationship: String // "friend", "colleague", "family", "mentor"
-    var createdAt: Date
+    var checkInDays: Int = 0 // cadence in days
+    var notes: String = ""
+    var relationship: String = "" // "friend", "colleague", "family", "mentor"
+    var createdAt: Date = Date()
     var richNotes: String?
     var groupIds: [UUID]?
 

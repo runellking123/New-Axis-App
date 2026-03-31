@@ -3,15 +3,20 @@ import SwiftData
 
 @Model
 final class Goal {
-    var uuid: UUID
-    var title: String
-    var category: String // "family", "career", "health", "personal", "financial"
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var category: String = "" // "family", "career", "health", "personal", "financial"
     var targetDate: Date?
-    var notes: String
-    var createdAt: Date
+    var notes: String = ""
+    var createdAt: Date = Date()
     var completedAt: Date?
 
-    @Relationship(deleteRule: .cascade) var milestones: [Milestone]
+    @Relationship(deleteRule: .cascade) var _milestones: [Milestone]? = []
+
+    var milestones: [Milestone] {
+        get { _milestones ?? [] }
+        set { _milestones = newValue }
+    }
 
     init(
         title: String,

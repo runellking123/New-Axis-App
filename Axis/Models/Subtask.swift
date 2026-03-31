@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class Subtask {
-    var uuid: UUID
-    var title: String
-    var isCompleted: Bool
-    var sortOrder: Int
-    var projectId: UUID
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var isCompleted: Bool = false
+    var sortOrder: Int = 0
+    var projectId: UUID = UUID()
+    var createdAt: Date = Date()
 
     init(
         title: String,

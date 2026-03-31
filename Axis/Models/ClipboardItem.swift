@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class ClipboardItem {
-    var uuid: UUID
-    var content: String
-    var title: String
-    var itemType: String  // "link", "text", "snippet"
-    var tags: [String]
-    var isFavorite: Bool
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var content: String = ""
+    var title: String = ""
+    var itemType: String = ""  // "link", "text", "snippet"
+    var tags: [String] = []
+    var isFavorite: Bool = false
+    var createdAt: Date = Date()
 
     init(
         content: String,

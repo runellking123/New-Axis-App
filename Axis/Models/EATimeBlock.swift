@@ -3,15 +3,15 @@ import SwiftData
 
 @Model
 final class EATimeBlock {
-    var uuid: UUID
-    var startTime: Date
-    var endTime: Date
-    var blockType: String // task, meeting, focusBlock, break
+    var uuid: UUID = UUID()
+    var startTime: Date = Date()
+    var endTime: Date = Date()
+    var blockType: String = "" // task, meeting, focusBlock, break
     var taskId: UUID?
     var eventId: String?
     var title: String?
     var aiReasoning: String?
-    var planId: UUID
+    var planId: UUID = UUID()
 
     init(
         startTime: Date,

@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import SwiftUI
-import UIKit
 
 struct EAPlannerView: View {
     @Bindable var store: StoreOf<EAPlannerReducer>
@@ -422,14 +421,14 @@ struct EAPlannerView: View {
     }
 
     private func copyBlockDetails(_ block: EAPlannerReducer.State.TimeBlockState) {
-        UIPasteboard.general.string = blockDetailsText(block)
+        PlatformServices.copyToClipboard(blockDetailsText(block))
     }
 
     private func openMessagesWithBlockDetails(_ block: EAPlannerReducer.State.TimeBlockState) {
         let body = blockDetailsText(block)
         guard let encoded = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "sms:&body=\(encoded)") else { return }
-        UIApplication.shared.open(url)
+        PlatformServices.openURL(url)
     }
 
     // MARK: - Helpers

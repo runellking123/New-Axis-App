@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class Interaction {
-    var uuid: UUID
-    var contactId: UUID
-    var type: String // "call", "text", "coffee", "meeting", "email", "facetime"
-    var date: Date
-    var notes: String
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var contactId: UUID = UUID()
+    var type: String = "" // "call", "text", "coffee", "meeting", "email", "facetime"
+    var date: Date = Date()
+    var notes: String = ""
+    var createdAt: Date = Date()
 
     init(
         contactId: UUID,

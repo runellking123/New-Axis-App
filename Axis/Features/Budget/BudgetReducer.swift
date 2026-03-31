@@ -1,7 +1,10 @@
 import ComposableArchitecture
 import Foundation
-import UIKit
 import Vision
+
+#if os(iOS)
+import UIKit
+#endif
 
 @Reducer
 struct BudgetReducer {
@@ -228,12 +231,7 @@ struct BudgetReducer {
 
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Budget_\(state.monthLabel.replacingOccurrences(of: " ", with: "_")).csv")
                 try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
-                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let vc = scene.windows.first?.rootViewController {
-                    var top = vc
-                    while let p = top.presentedViewController { top = p }
-                    top.present(UIActivityViewController(activityItems: [tempURL], applicationActivities: nil), animated: true)
-                }
+                PlatformServices.share(items: [tempURL])
                 return .none
 
             case .showAddBillSheet:
@@ -303,6 +301,7 @@ struct BudgetReducer {
     // MARK: - OCR Bill Scanning
 
     private static func performOCR(imageData: Data) async -> (name: String, amount: Double, dueDay: Int, category: String) {
+        #if os(iOS)
         guard let image = UIImage(data: imageData),
               let cgImage = image.cgImage else {
             return ("", 0, 1, "other")
@@ -322,6 +321,9 @@ struct BudgetReducer {
         }
 
         return parseBillText(text)
+        #else
+        return ("", 0, 1, "other")
+        #endif
     }
 
     private static func parseBillText(_ text: String) -> (name: String, amount: Double, dueDay: Int, category: String) {

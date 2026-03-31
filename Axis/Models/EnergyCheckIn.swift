@@ -3,10 +3,10 @@ import SwiftData
 
 @Model
 final class EnergyCheckIn {
-    var uuid: UUID
-    var level: Int          // 1-10
-    var note: String
-    var timestamp: Date
+    var uuid: UUID = UUID()
+    var level: Int = 0          // 1-10
+    var note: String = ""
+    var timestamp: Date = Date()
 
     init(level: Int, note: String = "") {
         self.uuid = UUID()

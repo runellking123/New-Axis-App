@@ -247,13 +247,17 @@ struct SettingsView: View {
                 get: { MultiProviderChatService.shared.anthropicAPIKey },
                 set: { MultiProviderChatService.shared.anthropicAPIKey = $0 }
             ))
+            #if os(iOS)
             .textInputAutocapitalization(.never)
+            #endif
 
             SecureField("Google Gemini API Key", text: Binding(
                 get: { MultiProviderChatService.shared.geminiAPIKey },
                 set: { MultiProviderChatService.shared.geminiAPIKey = $0 }
             ))
+            #if os(iOS)
             .textInputAutocapitalization(.never)
+            #endif
 
             HStack {
                 Text("Selected Model")
@@ -352,13 +356,7 @@ struct SettingsView: View {
         if let jsonData = try? JSONSerialization.data(withJSONObject: export, options: .prettyPrinted) {
             let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("AXIS_Export_\(Int(Date().timeIntervalSince1970)).json")
             try? jsonData.write(to: tempURL)
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootVC = windowScene.windows.first?.rootViewController {
-                var topVC = rootVC
-                while let presented = topVC.presentedViewController { topVC = presented }
-                let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
-                topVC.present(activityVC, animated: true)
-            }
+            PlatformServices.share(items: [tempURL])
         }
     }
 

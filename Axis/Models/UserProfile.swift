@@ -3,17 +3,17 @@ import SwiftData
 
 @Model
 final class UserProfile {
-    var name: String
-    var wakeTime: Date
-    var workStartTime: Date
-    var workEndTime: Date
-    var preferredContextMode: String
-    var stepsGoal: Int
-    var defaultFocusMinutes: Int
-    var notificationsEnabled: Bool
-    var hapticFeedbackEnabled: Bool
-    var onboardingComplete: Bool
-    var createdAt: Date
+    var name: String = ""
+    var wakeTime: Date = Date()
+    var workStartTime: Date = Date()
+    var workEndTime: Date = Date()
+    var preferredContextMode: String = ""
+    var stepsGoal: Int = 0
+    var defaultFocusMinutes: Int = 0
+    var notificationsEnabled: Bool = false
+    var hapticFeedbackEnabled: Bool = false
+    var onboardingComplete: Bool = false
+    var createdAt: Date = Date()
 
     init(
         name: String = "",

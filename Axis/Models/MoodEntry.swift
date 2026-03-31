@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class MoodEntry {
-    var uuid: UUID
-    var mood: String // "great", "good", "okay", "bad", "terrible"
-    var energyLevel: Int // 1-5
-    var notes: String
-    var date: Date
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var mood: String = "" // "great", "good", "okay", "bad", "terrible"
+    var energyLevel: Int = 0 // 1-5
+    var notes: String = ""
+    var date: Date = Date()
+    var createdAt: Date = Date()
 
     init(
         mood: String = "okay",

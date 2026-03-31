@@ -33,7 +33,11 @@ struct ConfettiView: View {
     }
 
     private func burst() {
+        #if os(iOS)
         let screenWidth = UIScreen.main.bounds.width
+        #else
+        let screenWidth = NSScreen.main?.frame.width ?? 800
+        #endif
 
         for _ in 0..<40 {
             let particle = ConfettiParticle(
@@ -50,7 +54,11 @@ struct ConfettiView: View {
         withAnimation(.easeOut(duration: 2.0)) {
             for i in particles.indices {
                 particles[i].x += CGFloat.random(in: -150...150)
+                #if os(iOS)
                 particles[i].y = UIScreen.main.bounds.height + 50
+                #else
+                particles[i].y = (NSScreen.main?.frame.height ?? 600) + 50
+                #endif
             }
         }
 

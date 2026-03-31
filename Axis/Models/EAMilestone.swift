@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class EAMilestone {
-    var uuid: UUID
-    var title: String
+    var uuid: UUID = UUID()
+    var title: String = ""
     var dueDate: Date?
-    var isCompleted: Bool
-    var projectId: UUID
-    var sortOrder: Int
-    var createdAt: Date
+    var isCompleted: Bool = false
+    var projectId: UUID = UUID()
+    var sortOrder: Int = 0
+    var createdAt: Date = Date()
 
     init(
         title: String,

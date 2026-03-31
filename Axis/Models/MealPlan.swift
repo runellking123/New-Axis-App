@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class MealPlan {
-    var dayOfWeek: Int // 1=Sunday, 2=Monday, ... 7=Saturday
-    var mealType: String // "breakfast", "lunch", "dinner"
-    var mealName: String
-    var weekStartDate: Date
-    var notes: String
-    var createdAt: Date
+    var dayOfWeek: Int = 0 // 1=Sunday, 2=Monday, ... 7=Saturday
+    var mealType: String = "" // "breakfast", "lunch", "dinner"
+    var mealName: String = ""
+    var weekStartDate: Date = Date()
+    var notes: String = ""
+    var createdAt: Date = Date()
 
     init(
         dayOfWeek: Int,

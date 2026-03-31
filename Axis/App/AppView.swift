@@ -1,7 +1,11 @@
 import SwiftUI
 import Combine
 import ComposableArchitecture
+#if os(iOS)
+import UIKit
+#endif
 
+#if os(iOS)
 struct AppView: View {
     @Bindable var store: StoreOf<AppReducer>
     @State private var isKeyboardVisible = false
@@ -39,43 +43,65 @@ struct AppView: View {
         let icon: String
     }
 
-    private let primaryTabs: [TabBarItem] = [
+    private let tabsBefore: [TabBarItem] = [
         TabBarItem(tab: .dashboard, title: "EA", icon: "brain.head.profile.fill"),
         TabBarItem(tab: .calendar, title: "Calendar", icon: "calendar"),
-        TabBarItem(tab: .tasks, title: "Workflow", icon: "rectangle.stack.fill"),
+    ]
+
+    private let tabsAfter: [TabBarItem] = [
         TabBarItem(tab: .voiceMemos, title: "Memos", icon: "mic.fill"),
         TabBarItem(tab: .aiChat, title: "AI Chat", icon: "bubble.left.and.text.bubble.right"),
-        TabBarItem(tab: .notes, title: "Notes", icon: "note.text"),
-        TabBarItem(tab: .budget, title: "Budget", icon: "dollarsign.circle.fill"),
+        TabBarItem(tab: .tasks, title: "Workflow", icon: "rectangle.stack.fill"),
     ]
 
-    private let overflowTabs: [TabBarItem] = [
-        TabBarItem(tab: .explore, title: "Explore", icon: "map.fill"),
-        TabBarItem(tab: .social, title: "Social", icon: "person.2.fill"),
-        TabBarItem(tab: .familyHQ, title: "FamilyHQ", icon: "house.and.flag.fill"),
-        TabBarItem(tab: .balance, title: "Balance", icon: "heart.circle.fill"),
-        TabBarItem(tab: .trends, title: "News", icon: "newspaper.fill"),
-        TabBarItem(tab: .travel, title: "Travel", icon: "airplane"),
-        TabBarItem(tab: .settings, title: "Settings", icon: "gearshape.fill"),
+    private var primaryTabs: [TabBarItem] { tabsBefore + tabsAfter }
+
+    // Gallery tiles — everything not in the bottom bar
+    private struct GalleryTile {
+        let tab: AppReducer.State.Tab
+        let title: String
+        let subtitle: String
+        let icon: String
+        let color: Color
+    }
+
+    private let galleryTiles: [GalleryTile] = [
+        GalleryTile(tab: .notes, title: "Notes", subtitle: "Quick capture", icon: "note.text", color: .orange),
+        GalleryTile(tab: .budget, title: "Budget", subtitle: "Bills & expenses", icon: "dollarsign.circle.fill", color: .green),
+        GalleryTile(tab: .explore, title: "Explore", subtitle: "Nearby places", icon: "map.fill", color: .blue),
+        GalleryTile(tab: .social, title: "Social", subtitle: "Your circle", icon: "person.2.fill", color: .purple),
+        GalleryTile(tab: .familyHQ, title: "FamilyHQ", subtitle: "Family hub", icon: "house.and.flag.fill", color: .indigo),
+        GalleryTile(tab: .balance, title: "Balance", subtitle: "Wellness", icon: "heart.circle.fill", color: .pink),
+        GalleryTile(tab: .trends, title: "News", subtitle: "Feed & trends", icon: "newspaper.fill", color: .teal),
+        GalleryTile(tab: .travel, title: "Travel", subtitle: "Trip planner", icon: "airplane", color: .cyan),
+        GalleryTile(tab: .clipboard, title: "Clipboard", subtitle: "Saved clips", icon: "doc.on.clipboard", color: .mint),
+        GalleryTile(tab: .settings, title: "Settings", subtitle: "Preferences", icon: "gearshape.fill", color: .gray),
     ]
 
-    @State private var showMoreSheet = false
+    @State private var showGallery = false
+    @State private var gallerySelectedTab: AppReducer.State.Tab? = nil
 
     private var mainContent: some View {
         VStack(spacing: 0) {
-            // Content area
             ZStack {
-                tabContentView
+                if showGallery {
+                    if let tab = gallerySelectedTab {
+                        galleryDetailWrapper(for: tab)
+                            .transition(.move(edge: .trailing))
+                    } else {
+                        galleryGrid
+                            .transition(.move(edge: .leading))
+                    }
+                } else {
+                    tabContentView
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.25), value: gallerySelectedTab)
 
-            // Custom tab bar — hidden when keyboard is up
             if !isKeyboardVisible {
                 customTabBar
             }
-        }
-        .sheet(isPresented: $showMoreSheet) {
-            moreSheet
         }
         .sheet(isPresented: Binding(
             get: { store.showSettings },
@@ -94,6 +120,108 @@ struct AppView: View {
             isKeyboardVisible = false
         }
     }
+
+    // MARK: - Gallery Grid
+
+    private var galleryGrid: some View {
+        NavigationStack {
+            ScrollView {
+                let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(galleryTiles, id: \.tab) { tile in
+                        Button {
+                            store.send(.tabSelected(tile.tab))
+                            gallerySelectedTab = tile.tab
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Image(systemName: tile.icon)
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(tile.color)
+                                Spacer()
+                                Text(tile.title)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text(tile.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(height: 100)
+                            .padding(14)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
+            }
+            .navigationTitle("Gallery")
+            .navigationBarTitleDisplayMode(.large)
+            .background(Color(.systemGroupedBackground))
+        }
+    }
+
+    @ViewBuilder
+    private func galleryDetailWrapper(for tab: AppReducer.State.Tab) -> some View {
+        galleryDetailView(for: tab)
+            .gesture(
+                DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                    .onEnded { value in
+                        // Swipe right to go back
+                        if value.translation.width > 80 && abs(value.translation.height) < 100 {
+                            gallerySelectedTab = nil
+                        }
+                    }
+            )
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        gallerySelectedTab = nil
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Gallery")
+                                .font(.body)
+                        }
+                        .foregroundStyle(Color.axisGold)
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func galleryDetailView(for tab: AppReducer.State.Tab) -> some View {
+        switch tab {
+        case .notes:
+            QuickNotesView(store: store.scope(state: \.quickNotes, action: \.quickNotes))
+        case .budget:
+            BudgetView(store: store.scope(state: \.budget, action: \.budget))
+        case .explore:
+            ExploreView(store: store.scope(state: \.explore, action: \.explore))
+        case .social:
+            SocialCircleView(store: store.scope(state: \.socialCircle, action: \.socialCircle))
+        case .familyHQ:
+            FamilyHQView(store: store.scope(state: \.familyHQ, action: \.familyHQ))
+        case .balance:
+            BalanceView(store: store.scope(state: \.balance, action: \.balance))
+        case .trends:
+            TrendsView(store: store.scope(state: \.trends, action: \.trends))
+        case .travel:
+            TravelPlannerView(store: store.scope(state: \.travelPlanner, action: \.travelPlanner))
+        case .clipboard:
+            ClipboardView(store: store.scope(state: \.clipboard, action: \.clipboard))
+        case .settings:
+            SettingsView(store: store.scope(state: \.settings, action: \.settings))
+        default:
+            EmptyView()
+        }
+    }
+
+    // MARK: - Tab Content
 
     @ViewBuilder
     private var tabContentView: some View {
@@ -161,23 +289,33 @@ struct AppView: View {
         }
     }
 
+    // MARK: - Custom Tab Bar
+
     private var customTabBar: some View {
         HStack(spacing: 0) {
-            ForEach(primaryTabs, id: \.tab) { item in
+            ForEach(tabsBefore, id: \.tab) { item in
                 tabBarButton(item)
             }
-            // More button
+            // Gallery button (between Calendar and Memos)
             Button {
-                showMoreSheet = true
+                if showGallery && gallerySelectedTab == nil {
+                    showGallery = false
+                } else {
+                    gallerySelectedTab = nil
+                    showGallery = true
+                }
             } label: {
                 VStack(spacing: 2) {
-                    Image(systemName: "ellipsis.circle.fill")
+                    Image(systemName: "square.grid.2x2.fill")
                         .font(.system(size: 20))
-                    Text("More")
+                    Text("Gallery")
                         .font(.system(size: 10))
                 }
                 .frame(maxWidth: .infinity)
-                .foregroundStyle(overflowTabs.contains(where: { $0.tab == store.selectedTab }) ? Color.axisGold : .secondary)
+                .foregroundStyle(showGallery ? Color.axisGold : .secondary)
+            }
+            ForEach(tabsAfter, id: \.tab) { item in
+                tabBarButton(item)
             }
         }
         .padding(.top, 6)
@@ -190,6 +328,8 @@ struct AppView: View {
 
     private func tabBarButton(_ item: TabBarItem) -> some View {
         Button {
+            showGallery = false
+            gallerySelectedTab = nil
             store.send(.tabSelected(item.tab))
         } label: {
             VStack(spacing: 2) {
@@ -199,32 +339,8 @@ struct AppView: View {
                     .font(.system(size: 10))
             }
             .frame(maxWidth: .infinity)
-            .foregroundStyle(store.selectedTab == item.tab ? Color.axisGold : .secondary)
+            .foregroundStyle(!showGallery && store.selectedTab == item.tab ? Color.axisGold : .secondary)
         }
-    }
-
-    private var moreSheet: some View {
-        NavigationStack {
-            List {
-                ForEach(overflowTabs, id: \.tab) { item in
-                    Button {
-                        showMoreSheet = false
-                        store.send(.tabSelected(item.tab))
-                    } label: {
-                        Label(item.title, systemImage: item.icon)
-                            .foregroundStyle(store.selectedTab == item.tab ? Color.axisGold : .primary)
-                    }
-                }
-            }
-            .navigationTitle("More")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { showMoreSheet = false }
-                }
-            }
-        }
-        .presentationDetents([.medium])
     }
 }
 
@@ -235,3 +351,4 @@ struct AppView: View {
         }
     )
 }
+#endif

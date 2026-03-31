@@ -3,16 +3,16 @@ import SwiftData
 
 @Model
 final class PriorityItem {
-    var uuid: UUID
-    var title: String
-    var sourceModule: String
-    var timeEstimateMinutes: Int
-    var isCompleted: Bool
-    var sortOrder: Int
-    var contextMode: String
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var sourceModule: String = ""
+    var timeEstimateMinutes: Int = 0
+    var isCompleted: Bool = false
+    var sortOrder: Int = 0
+    var contextMode: String = ""
     var dueDate: Date?
-    var notes: String
-    var createdAt: Date
+    var notes: String = ""
+    var createdAt: Date = Date()
     var completedAt: Date?
 
     init(

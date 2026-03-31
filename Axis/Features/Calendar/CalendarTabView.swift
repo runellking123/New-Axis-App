@@ -301,7 +301,7 @@ struct CalendarTabView: View {
                                                 Label("Text Details", systemImage: "message")
                                             }
                                             Button {
-                                                UIPasteboard.general.string = eventDetailsText(event)
+                                                PlatformServices.copyToClipboard(eventDetailsText(event))
                                             } label: {
                                                 Label("Copy Details", systemImage: "doc.on.doc")
                                             }
@@ -442,7 +442,7 @@ struct CalendarTabView: View {
                         textEventDetails(event)
                     }
                     quickActionButton("Copy", icon: "doc.on.doc") {
-                        UIPasteboard.general.string = eventDetailsText(event)
+                        PlatformServices.copyToClipboard(eventDetailsText(event))
                     }
                     quickActionButton("Delete", icon: "trash", destructive: true) {
                         deleteEvent(event)
@@ -526,9 +526,11 @@ struct CalendarTabView: View {
 
                 Section {
                     Button {
+                        #if os(iOS)
                         if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
+                            PlatformServices.openURL(url)
                         }
+                        #endif
                     } label: {
                         Label("Open iPhone Settings", systemImage: "gear")
                     }
@@ -539,11 +541,7 @@ struct CalendarTabView: View {
 
                     Button {
                         if let url = URL(string: "ms-outlook://") {
-                            if UIApplication.shared.canOpenURL(url) {
-                                UIApplication.shared.open(url)
-                            } else if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(settingsUrl)
-                            }
+                            PlatformServices.openURL(url)
                         }
                     } label: {
                         Label("Open Outlook", systemImage: "envelope.fill")
@@ -770,7 +768,7 @@ struct CalendarTabView: View {
         let details = eventDetailsText(event)
         let encoded = details.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         if let url = URL(string: "sms:&body=\(encoded)") {
-            UIApplication.shared.open(url)
+            PlatformServices.openURL(url)
         }
     }
 
@@ -795,13 +793,7 @@ struct CalendarTabView: View {
         // Also include plain text
         let plainText = eventDetailsText(event)
 
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let vc = scene.windows.first?.rootViewController {
-            var top = vc
-            while let p = top.presentedViewController { top = p }
-            let av = UIActivityViewController(activityItems: [plainText, tempURL], applicationActivities: nil)
-            top.present(av, animated: true)
-        }
+        PlatformServices.share(items: [plainText, tempURL])
     }
 
     private func addEventToTasks(_ event: CalEventItem) {
@@ -940,7 +932,7 @@ struct CalendarTabView: View {
         let text = nlEventText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         isParsingNL = true
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        PlatformServices.dismissKeyboard()
 
         let today = DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)
         let prompt = """

@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class FocusProfile {
-    var uuid: UUID
-    var name: String
-    var durationMinutes: Int
-    var soundVolumes: [String: Float] // sound name -> volume (0.0 - 1.0)
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var durationMinutes: Int = 0
+    var soundVolumes: [String: Float] = [:] // sound name -> volume (0.0 - 1.0)
+    var createdAt: Date = Date()
 
     init(
         name: String,

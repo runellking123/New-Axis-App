@@ -3,15 +3,15 @@ import SwiftData
 
 @Model
 final class SavedPlace {
-    var uuid: UUID
-    var name: String
-    var category: String // "dining", "events", "activities", "travel"
-    var address: String
-    var notes: String
-    var rating: Int // 1-5
-    var isVisited: Bool
-    var isFavorite: Bool
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var category: String = "" // "dining", "events", "activities", "travel"
+    var address: String = ""
+    var notes: String = ""
+    var rating: Int = 0 // 1-5
+    var isVisited: Bool = false
+    var isFavorite: Bool = false
+    var createdAt: Date = Date()
     var phoneNumber: String = ""
     var websiteURL: String = ""
     var hoursOfOperation: String = ""

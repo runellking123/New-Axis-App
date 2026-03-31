@@ -3,10 +3,10 @@ import SwiftData
 
 @Model
 final class Routine {
-    var uuid: UUID
-    var name: String
-    var timeOfDay: String // "morning", "afternoon", "evening"
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var timeOfDay: String = "" // "morning", "afternoon", "evening"
+    var createdAt: Date = Date()
 
     init(
         name: String = "",

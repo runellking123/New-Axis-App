@@ -75,8 +75,12 @@ struct AxisApp: App {
             TripExpense.self,
             TripActivity.self,
         ])
+        let config = ModelConfiguration(
+            schema: schema,
+            cloudKitDatabase: .private("iCloud.com.runellking.axis")
+        )
         do {
-            container = try ModelContainer(for: schema)
+            container = try ModelContainer(for: schema, configurations: [config])
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
@@ -85,11 +89,19 @@ struct AxisApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if os(macOS)
+            MacAppView(
+                store: Store(initialState: AppReducer.State()) {
+                    AppReducer()
+                }
+            )
+            #else
             AppView(
                 store: Store(initialState: AppReducer.State()) {
                     AppReducer()
                 }
             )
+            #endif
         }
         .modelContainer(container)
     }

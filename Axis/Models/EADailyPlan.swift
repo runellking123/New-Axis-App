@@ -3,10 +3,10 @@ import SwiftData
 
 @Model
 final class EADailyPlan {
-    var uuid: UUID
-    var date: Date
+    var uuid: UUID = UUID()
+    var date: Date = Date()
     var aiSummary: String?
-    var generatedAt: Date
+    var generatedAt: Date = Date()
 
     init(
         date: Date = Date(),

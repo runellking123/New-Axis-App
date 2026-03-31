@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class ContactGroup {
-    var uuid: UUID
-    var name: String
-    var emoji: String
-    var memberIds: [UUID]
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var emoji: String = ""
+    var memberIds: [UUID] = []
+    var createdAt: Date = Date()
 
     init(
         name: String,

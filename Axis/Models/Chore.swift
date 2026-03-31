@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class Chore {
-    var uuid: UUID
-    var name: String
+    var uuid: UUID = UUID()
+    var name: String = ""
     var assignedMemberId: UUID?
-    var rotationDays: Int
+    var rotationDays: Int = 0
     var lastRotatedAt: Date?
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     init(
         name: String,

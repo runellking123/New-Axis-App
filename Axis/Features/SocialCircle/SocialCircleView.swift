@@ -469,7 +469,7 @@ struct SocialCircleView: View {
                     if !contact.phone.isEmpty {
                         Button {
                             if let url = URL(string: "tel:\(contact.phone.filter(\.isNumber))") {
-                                UIApplication.shared.open(url)
+                                PlatformServices.openURL(url)
                             }
                         } label: {
                             Image(systemName: "phone.circle.fill")
@@ -483,7 +483,7 @@ struct SocialCircleView: View {
                     if !contact.phone.isEmpty {
                         Button {
                             if let url = URL(string: "sms:\(contact.phone.filter(\.isNumber))") {
-                                UIApplication.shared.open(url)
+                                PlatformServices.openURL(url)
                             }
                         } label: {
                             Image(systemName: "message.circle.fill")
@@ -497,7 +497,7 @@ struct SocialCircleView: View {
                     if !contact.phone.isEmpty {
                         Button {
                             if let url = URL(string: "facetime:\(contact.phone.filter(\.isNumber))") {
-                                UIApplication.shared.open(url)
+                                PlatformServices.openURL(url)
                             }
                         } label: {
                             Image(systemName: "video.circle.fill")
@@ -623,8 +623,7 @@ struct SocialCircleView: View {
 
     private func openURL(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
-        guard UIApplication.shared.canOpenURL(url) else { return }
-        UIApplication.shared.open(url)
+        PlatformServices.openURL(url)
     }
 
     private func tierColor(_ tier: String) -> Color {
@@ -721,7 +720,7 @@ struct SocialCircleView: View {
                 }
             }
             .padding()
-            .background(store.importTier == tier ? color.opacity(0.1) : Color(.systemGray6))
+            .background(store.importTier == tier ? color.opacity(0.1) : Color.gray.opacity(0.15))
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
@@ -735,7 +734,9 @@ struct SocialCircleView: View {
                 Section("Contact Info") {
                     TextField("Name", text: $store.newContactName.sending(\.newContactNameChanged))
                     TextField("Phone (optional)", text: $store.newContactPhone.sending(\.newContactPhoneChanged))
+                        #if os(iOS)
                         .keyboardType(.phonePad)
+                        #endif
                 }
 
                 Section("Relationship") {

@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class RoutineStep {
-    var uuid: UUID
-    var title: String
-    var durationSeconds: Int
-    var routineId: UUID
-    var sortOrder: Int
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var durationSeconds: Int = 0
+    var routineId: UUID = UUID()
+    var sortOrder: Int = 0
+    var createdAt: Date = Date()
 
     init(
         title: String = "",

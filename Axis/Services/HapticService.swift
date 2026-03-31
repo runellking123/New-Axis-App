@@ -1,3 +1,4 @@
+#if os(iOS)
 import UIKit
 
 enum HapticService {
@@ -49,3 +50,16 @@ enum HapticService {
         generator.impactOccurred(intensity: 0.8)
     }
 }
+#else
+// macOS stub — no haptic feedback
+enum HapticService {
+    enum FeedbackStyle { case light, medium, heavy, rigid, soft }
+    enum FeedbackType { case success, warning, error }
+    static func setEnabled(_ enabled: Bool) {}
+    static func impact(_ style: FeedbackStyle = .medium) {}
+    static func notification(_ type: FeedbackType) {}
+    static func selection() {}
+    static func celebration() {}
+    static func modeSwitch() {}
+}
+#endif

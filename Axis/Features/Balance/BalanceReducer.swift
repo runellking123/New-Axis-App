@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import UIKit
 
 @Reducer
 struct BalanceReducer {
@@ -19,6 +18,7 @@ struct BalanceReducer {
         var showLogEntry = false
         var newLogMood = "good"
         var newLogNotes = ""
+        var newLogDate = Date()
         var selectedSection: Section = .dashboard
         var healthKitConnected = false
         var weeklyReport: AIService.WeeklyReport?
@@ -179,6 +179,7 @@ struct BalanceReducer {
         case healthAccessUnavailable
         case newLogMoodChanged(String)
         case newLogNotesChanged(String)
+        case newLogDateChanged(Date)
         case addLogEntry
         case deleteLogEntry(UUID)
         case healthDataLoaded(sleep: Double, steps: Int, energy: Int, calories: Int, heartRate: Double, standHours: Int)
@@ -320,6 +321,7 @@ struct BalanceReducer {
                 if state.showLogEntry {
                     state.newLogMood = "good"
                     state.newLogNotes = ""
+                    state.newLogDate = Date()
                 }
                 return .none
 
@@ -335,10 +337,14 @@ struct BalanceReducer {
                 state.newLogNotes = notes
                 return .none
 
+            case let .newLogDateChanged(date):
+                state.newLogDate = date
+                return .none
+
             case .addLogEntry:
                 let entry = State.DayLog(
                     id: UUID(),
-                    date: Date(),
+                    date: state.newLogDate,
                     mood: state.newLogMood,
                     energyScore: state.energyScore,
                     notes: state.newLogNotes
@@ -453,12 +459,7 @@ struct BalanceReducer {
 
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("AXIS_Balance_Report.csv")
                 try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
-                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let vc = scene.windows.first?.rootViewController {
-                    var top = vc
-                    while let p = top.presentedViewController { top = p }
-                    top.present(UIActivityViewController(activityItems: [tempURL], applicationActivities: nil), animated: true)
-                }
+                PlatformServices.share(items: [tempURL])
                 return .none
             }
         }

@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class WidgetLayoutConfig {
-    var widgetType: String
-    var contextMode: String
-    var size: String // "small", "medium", "large"
-    var sortOrder: Int
-    var isVisible: Bool
-    var createdAt: Date
+    var widgetType: String = ""
+    var contextMode: String = ""
+    var size: String = "" // "small", "medium", "large"
+    var sortOrder: Int = 0
+    var isVisible: Bool = false
+    var createdAt: Date = Date()
 
     init(
         widgetType: String,

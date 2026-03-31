@@ -3,15 +3,15 @@ import SwiftData
 
 @Model
 final class FamilyEvent {
-    var uuid: UUID
-    var title: String
-    var category: String // "activity", "appointment", "school", "meal", "outing"
-    var date: Date
-    var isAllDay: Bool
-    var notes: String
-    var isCompleted: Bool
-    var assignedTo: String // "runell", "morgan", "family"
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var category: String = "" // "activity", "appointment", "school", "meal", "outing"
+    var date: Date = Date()
+    var isAllDay: Bool = false
+    var notes: String = ""
+    var isCompleted: Bool = false
+    var assignedTo: String = "" // "runell", "morgan", "family"
+    var createdAt: Date = Date()
 
     init(
         title: String,

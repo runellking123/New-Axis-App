@@ -146,15 +146,22 @@ struct PlaceDetailView: View {
                     let body = "\(place.name)\n\(place.address)\n\nSent from AXIS"
                     let encodedSubject = place.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                     let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                    #if os(iOS)
                     let outlookURL = "ms-outlook://compose?subject=\(encodedSubject)&body=\(encodedBody)"
                     if let url = URL(string: outlookURL), UIApplication.shared.canOpenURL(url) {
-                        UIApplication.shared.open(url)
+                        PlatformServices.openURL(url)
                     } else {
                         let mailtoURL = "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
                         if let url = URL(string: mailtoURL) {
-                            UIApplication.shared.open(url)
+                            PlatformServices.openURL(url)
                         }
                     }
+                    #else
+                    let mailtoURL = "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
+                    if let url = URL(string: mailtoURL) {
+                        PlatformServices.openURL(url)
+                    }
+                    #endif
                 } label: {
                     HStack {
                         Image(systemName: "envelope.fill")
@@ -279,7 +286,7 @@ struct PlaceDetailView: View {
             Spacer()
             if let url = URL(string: "tel:\(place.phoneNumber.replacingOccurrences(of: " ", with: ""))") {
                 Button {
-                    UIApplication.shared.open(url)
+                    PlatformServices.openURL(url)
                 } label: {
                     Image(systemName: "phone.arrow.up.right")
                         .font(.caption)
@@ -305,7 +312,7 @@ struct PlaceDetailView: View {
             Spacer()
             if let url = URL(string: place.websiteURL) {
                 Button {
-                    UIApplication.shared.open(url)
+                    PlatformServices.openURL(url)
                 } label: {
                     Image(systemName: "arrow.up.right.square")
                         .font(.caption)
@@ -364,8 +371,7 @@ struct PlaceDetailView: View {
     private func openInMaps() {
         let query = "\(place.name) \(place.address)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? place.address
         guard let url = URL(string: "http://maps.apple.com/?q=\(query)") else { return }
-        guard UIApplication.shared.canOpenURL(url) else { return }
-        UIApplication.shared.open(url)
+        PlatformServices.openURL(url)
     }
 }
 

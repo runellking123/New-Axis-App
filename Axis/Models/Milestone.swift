@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class Milestone {
-    var uuid: UUID
-    var title: String
-    var isCompleted: Bool
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var isCompleted: Bool = false
     var completedAt: Date?
-    var sortOrder: Int
+    var sortOrder: Int = 0
     var goal: Goal?
 
     init(

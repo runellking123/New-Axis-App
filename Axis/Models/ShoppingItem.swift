@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class ShoppingItem {
-    var uuid: UUID
-    var name: String
-    var isChecked: Bool
-    var listId: UUID
-    var sortOrder: Int
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var isChecked: Bool = false
+    var listId: UUID = UUID()
+    var sortOrder: Int = 0
+    var createdAt: Date = Date()
 
     init(
         name: String,

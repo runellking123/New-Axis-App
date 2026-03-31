@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class BucketListGoal {
-    var uuid: UUID
-    var title: String
-    var category: String // "food", "travel", "adventure", "culture"
-    var targetCount: Int
-    var completedCount: Int
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var category: String = "" // "food", "travel", "adventure", "culture"
+    var targetCount: Int = 0
+    var completedCount: Int = 0
     var deadline: Date?
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     init(
         title: String,

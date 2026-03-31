@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import UIKit
 
 struct AxisTrendClient {
     var computeTrends: @Sendable (Int) -> TrendService.TrendData
@@ -224,7 +223,7 @@ struct TrendsReducer {
 
             case let .openArticle(urlString):
                 if let url = URL(string: urlString) {
-                    UIApplication.shared.open(url)
+                    PlatformServices.openURL(url)
                 }
                 return .none
 

@@ -3,16 +3,16 @@ import SwiftData
 
 @Model
 final class CapturedNote {
-    var title: String
-    var content: String
-    var transcribedFromVoice: Bool
-    var classifiedModule: String
-    var isProcessed: Bool
-    var isPinned: Bool
-    var color: String
+    var title: String = ""
+    var content: String = ""
+    var transcribedFromVoice: Bool = false
+    var classifiedModule: String = ""
+    var isProcessed: Bool = false
+    var isPinned: Bool = false
+    var color: String = ""
     @Attribute(originalName: "folder") var folder: String? = "Personal"
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
 
     init(
         title: String = "",

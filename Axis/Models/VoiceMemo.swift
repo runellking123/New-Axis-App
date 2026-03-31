@@ -3,17 +3,17 @@ import SwiftData
 
 @Model
 final class VoiceMemo {
-    var uuid: UUID
-    var title: String
-    var transcript: String
-    var aiSummary: String
-    var duration: Double
-    var audioFileName: String
-    var extractedActions: [String]
-    var isTranscribed: Bool
-    var isSummarized: Bool
+    var uuid: UUID = UUID()
+    var title: String = ""
+    var transcript: String = ""
+    var aiSummary: String = ""
+    var duration: Double = 0
+    var audioFileName: String = ""
+    var extractedActions: [String] = []
+    var isTranscribed: Bool = false
+    var isSummarized: Bool = false
     var rewrittenTranscript: String = ""
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     init(
         title: String = "",

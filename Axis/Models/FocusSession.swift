@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class FocusSession {
-    var uuid: UUID
-    var completedAt: Date
-    var durationMinutes: Int
+    var uuid: UUID = UUID()
+    var completedAt: Date = Date()
+    var durationMinutes: Int = 0
     var projectId: UUID?
-    var sessionType: String // "work", "shortBreak", "longBreak"
-    var completedPomodoros: Int
+    var sessionType: String = "" // "work", "shortBreak", "longBreak"
+    var completedPomodoros: Int = 0
 
     init(
         completedAt: Date = Date(),

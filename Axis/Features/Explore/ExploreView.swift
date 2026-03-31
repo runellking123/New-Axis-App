@@ -1,6 +1,8 @@
 import ComposableArchitecture
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 
 struct ExploreView: View {
     @Bindable var store: StoreOf<ExploreReducer>
@@ -202,7 +204,7 @@ struct ExploreView: View {
                                     Button {
                                         let query = place.address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                                         if let url = URL(string: "maps://?q=\(query)") {
-                                            UIApplication.shared.open(url)
+                                            PlatformServices.openURL(url)
                                         }
                                     } label: {
                                         Label("Get Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
@@ -213,21 +215,26 @@ struct ExploreView: View {
                                             .clipShape(.rect(cornerRadius: 12))
                                     }
 
-                                    // Order Food
-                                    // Email Location
                                     Button {
                                         let body = "\(place.name)\n\(place.address)\n\nSent from AXIS"
                                         let encodedSubject = place.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                                         let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                        #if os(iOS)
                                         let outlookURL = "ms-outlook://compose?subject=\(encodedSubject)&body=\(encodedBody)"
                                         if let url = URL(string: outlookURL), UIApplication.shared.canOpenURL(url) {
-                                            UIApplication.shared.open(url)
+                                            PlatformServices.openURL(url)
                                         } else {
                                             let mailtoURL = "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
                                             if let url = URL(string: mailtoURL) {
-                                                UIApplication.shared.open(url)
+                                                PlatformServices.openURL(url)
                                             }
                                         }
+                                        #else
+                                        let mailtoURL = "mailto:?subject=\(encodedSubject)&body=\(encodedBody)"
+                                        if let url = URL(string: mailtoURL) {
+                                            PlatformServices.openURL(url)
+                                        }
+                                        #endif
                                     } label: {
                                         Label("Email Location", systemImage: "envelope.fill")
                                             .frame(maxWidth: .infinity)
@@ -240,13 +247,19 @@ struct ExploreView: View {
                                     if place.category == "dining" || place.category == "coffee" {
                                         Button {
                                             let encoded = place.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                            #if os(iOS)
                                             if let ue = URL(string: "ubereats://search?q=\(encoded)"), UIApplication.shared.canOpenURL(ue) {
-                                                UIApplication.shared.open(ue)
+                                                PlatformServices.openURL(ue)
                                             } else if let dd = URL(string: "doordash://search?query=\(encoded)"), UIApplication.shared.canOpenURL(dd) {
-                                                UIApplication.shared.open(dd)
+                                                PlatformServices.openURL(dd)
                                             } else if let web = URL(string: "https://www.ubereats.com/search?q=\(encoded)") {
-                                                UIApplication.shared.open(web)
+                                                PlatformServices.openURL(web)
                                             }
+                                            #else
+                                            if let web = URL(string: "https://www.ubereats.com/search?q=\(encoded)") {
+                                                PlatformServices.openURL(web)
+                                            }
+                                            #endif
                                         } label: {
                                             Label("Order Food", systemImage: "bag.fill")
                                                 .frame(maxWidth: .infinity)
@@ -807,18 +820,22 @@ struct ExploreView: View {
                                             .clipShape(RoundedRectangle(cornerRadius: 8))
                                         }
 
-                                        // Order Food deep link
                                         if result.category == "dining" || result.category == "coffee" {
                                             Button {
                                                 let encoded = result.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                                                // Try Uber Eats first, then DoorDash, then web
+                                                #if os(iOS)
                                                 if let ue = URL(string: "ubereats://search?q=\(encoded)"), UIApplication.shared.canOpenURL(ue) {
-                                                    UIApplication.shared.open(ue)
+                                                    PlatformServices.openURL(ue)
                                                 } else if let dd = URL(string: "doordash://search?query=\(encoded)"), UIApplication.shared.canOpenURL(dd) {
-                                                    UIApplication.shared.open(dd)
+                                                    PlatformServices.openURL(dd)
                                                 } else if let web = URL(string: "https://www.ubereats.com/search?q=\(encoded)") {
-                                                    UIApplication.shared.open(web)
+                                                    PlatformServices.openURL(web)
                                                 }
+                                                #else
+                                                if let web = URL(string: "https://www.ubereats.com/search?q=\(encoded)") {
+                                                    PlatformServices.openURL(web)
+                                                }
+                                                #endif
                                             } label: {
                                                 HStack(spacing: 4) {
                                                     Image(systemName: "bag.fill")
@@ -1272,8 +1289,7 @@ struct ExploreView: View {
         guard !trimmed.isEmpty else { return }
         let query = "\(name) \(trimmed)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
         guard let url = URL(string: "http://maps.apple.com/?q=\(query)") else { return }
-        guard UIApplication.shared.canOpenURL(url) else { return }
-        UIApplication.shared.open(url)
+        PlatformServices.openURL(url)
     }
 
     // MARK: - Add Place Sheet

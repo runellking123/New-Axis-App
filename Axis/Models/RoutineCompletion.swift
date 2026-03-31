@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class RoutineCompletion {
-    var uuid: UUID
-    var routineId: UUID
-    var date: Date
-    var completedStepIds: [UUID]
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var routineId: UUID = UUID()
+    var date: Date = Date()
+    var completedStepIds: [UUID] = []
+    var createdAt: Date = Date()
 
     init(
         routineId: UUID,

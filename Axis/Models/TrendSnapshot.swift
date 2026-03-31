@@ -3,38 +3,38 @@ import SwiftData
 
 @Model
 final class TrendSnapshot {
-    var uuid: UUID
-    var date: Date
-    var windowDays: Int // 7, 14, 30, 90
+    var uuid: UUID = UUID()
+    var date: Date = Date()
+    var windowDays: Int = 0 // 7, 14, 30, 90
 
     // Work & Focus
-    var focusMinutes: Int
-    var focusSessions: Int
-    var pomodorosCompleted: Int
-    var prioritiesCompleted: Int
-    var prioritiesCreated: Int
+    var focusMinutes: Int = 0
+    var focusSessions: Int = 0
+    var pomodorosCompleted: Int = 0
+    var prioritiesCompleted: Int = 0
+    var prioritiesCreated: Int = 0
 
     // Social
-    var interactionsLogged: Int
-    var contactsReachedOut: Int
+    var interactionsLogged: Int = 0
+    var contactsReachedOut: Int = 0
 
     // Balance & Wellness
-    var averageMoodScore: Double // 1-5 mapped from great=5..terrible=1
-    var averageEnergyLevel: Double // 1-5
-    var moodEntryCount: Int
-    var waterOunces: Double
+    var averageMoodScore: Double = 0 // 1-5 mapped from great=5..terrible=1
+    var averageEnergyLevel: Double = 0 // 1-5
+    var moodEntryCount: Int = 0
+    var waterOunces: Double = 0
 
     // Habits
-    var habitCompletions: Int
-    var habitsDueCount: Int
+    var habitCompletions: Int = 0
+    var habitsDueCount: Int = 0
 
     // Explore
-    var placesVisited: Int
+    var placesVisited: Int = 0
 
     // Family
-    var dadWinsCount: Int
+    var dadWinsCount: Int = 0
 
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     init(
         date: Date = Date(),

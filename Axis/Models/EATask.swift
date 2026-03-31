@@ -3,14 +3,14 @@ import SwiftData
 
 @Model
 final class EATask {
-    var uuid: UUID
-    var title: String
+    var uuid: UUID = UUID()
+    var title: String = ""
     var taskDescription: String?
     var deadline: Date?
-    var priority: String // critical, high, medium, low
-    var energyLevel: String // deepWork, lightWork
-    var status: String // inbox, scheduled, inProgress, completed, cancelled
-    var category: String // university, consulting, personal
+    var priority: String = "" // critical, high, medium, low
+    var energyLevel: String = "" // deepWork, lightWork
+    var status: String = "" // inbox, scheduled, inProgress, completed, cancelled
+    var category: String = "" // university, consulting, personal
     var estimatedMinutes: Int?
     var scheduledStart: Date?
     var scheduledEnd: Date?
@@ -19,7 +19,7 @@ final class EATask {
     var recurrenceRule: String?
     var tags: [String]?
     var aiReasoning: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     init(
         title: String,

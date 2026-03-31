@@ -3,16 +3,16 @@ import SwiftData
 
 @Model
 final class EAProject {
-    var uuid: UUID
-    var title: String
+    var uuid: UUID = UUID()
+    var title: String = ""
     var projectDescription: String?
-    var status: String // active, onHold, completed, archived
-    var category: String // university, consulting, personal
+    var status: String = "" // active, onHold, completed, archived
+    var category: String = "" // university, consulting, personal
     var isTemplate: Bool?
     var templateName: String?
     var deadline: Date?
     var statusNote: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     init(
         title: String,

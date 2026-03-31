@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import UIKit
 
 @Reducer
 struct FamilyHQReducer {
@@ -683,12 +682,7 @@ struct FamilyHQReducer {
                 }
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("MealLog_\(Date().formatted(.dateTime.year().month().day())).csv")
                 try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
-                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let vc = scene.windows.first?.rootViewController {
-                    var top = vc
-                    while let p = top.presentedViewController { top = p }
-                    top.present(UIActivityViewController(activityItems: [tempURL], applicationActivities: nil), animated: true)
-                }
+                PlatformServices.share(items: [tempURL])
                 return .none
 
             case .hideConfetti:
@@ -854,12 +848,7 @@ struct FamilyHQReducer {
                 // Share via UIActivityViewController
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ShoppingList.txt")
                 try? text.write(to: tempURL, atomically: true, encoding: .utf8)
-                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let vc = scene.windows.first?.rootViewController {
-                    var top = vc
-                    while let p = top.presentedViewController { top = p }
-                    top.present(UIActivityViewController(activityItems: [tempURL], applicationActivities: nil), animated: true)
-                }
+                PlatformServices.share(items: [tempURL])
                 return .none
 
             // MARK: - Drill-down

@@ -3,10 +3,10 @@ import SwiftData
 
 @Model
 final class HabitCompletion {
-    var uuid: UUID
-    var habitId: UUID
-    var date: Date
-    var createdAt: Date
+    var uuid: UUID = UUID()
+    var habitId: UUID = UUID()
+    var date: Date = Date()
+    var createdAt: Date = Date()
 
     init(
         habitId: UUID,

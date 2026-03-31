@@ -218,31 +218,86 @@ struct BalanceView: View {
 
     private var checkInSheet: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
-                Text("How's your energy?").font(.title2.bold())
-                Text("\(store.checkInLevel)").font(.system(size: 60, weight: .bold, design: .rounded)).foregroundStyle(energyColor(store.checkInLevel))
-                Slider(value: Binding(
-                    get: { Double(store.checkInLevel) },
-                    set: { store.send(.checkInLevelChanged(Int($0))) }
-                ), in: 1...10, step: 1).tint(energyColor(store.checkInLevel)).padding(.horizontal)
-                HStack {
-                    Text("Drained").font(.caption).foregroundStyle(.red)
-                    Spacer()
-                    Text("Charged").font(.caption).foregroundStyle(.green)
-                }.padding(.horizontal)
-                TextField("How are you feeling? (optional)", text: $store.checkInNote.sending(\.checkInNoteChanged))
-                    .textFieldStyle(.roundedBorder).padding(.horizontal)
-                Spacer()
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Date picker — log for today or a past day
+                    DatePicker(
+                        "Date",
+                        selection: $store.newLogDate.sending(\.newLogDateChanged),
+                        in: ...Date(),
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.compact)
+                    .padding(.horizontal)
+
+                    // Energy level
+                    VStack(spacing: 8) {
+                        Text("Energy Level").font(.headline)
+                        Text("\(store.checkInLevel)").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundStyle(energyColor(store.checkInLevel))
+                        Slider(value: Binding(
+                            get: { Double(store.checkInLevel) },
+                            set: { store.send(.checkInLevelChanged(Int($0))) }
+                        ), in: 1...10, step: 1).tint(energyColor(store.checkInLevel)).padding(.horizontal)
+                        HStack {
+                            Text("Drained").font(.caption).foregroundStyle(.red)
+                            Spacer()
+                            Text("Charged").font(.caption).foregroundStyle(.green)
+                        }.padding(.horizontal)
+                    }
+
+                    Divider().padding(.horizontal)
+
+                    // Mood
+                    VStack(spacing: 10) {
+                        Text("How are you feeling?").font(.headline)
+                        HStack(spacing: 16) {
+                            moodButton(mood: "great", icon: "sun.max.fill", color: .green)
+                            moodButton(mood: "good", icon: "cloud.sun.fill", color: .blue)
+                            moodButton(mood: "okay", icon: "cloud.fill", color: .orange)
+                            moodButton(mood: "rough", icon: "cloud.rain.fill", color: .red)
+                        }
+                    }
+
+                    // Notes
+                    TextField("Notes (optional)", text: $store.checkInNote.sending(\.checkInNoteChanged))
+                        .textFieldStyle(.roundedBorder).padding(.horizontal)
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 24)
             }
-            .navigationTitle("Energy Check-In")
+            .navigationTitle("Check-In")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { store.send(.dismissCheckIn) } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { store.send(.submitCheckIn) }.fontWeight(.bold) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        store.send(.submitCheckIn)
+                        store.send(.addLogEntry)
+                    }.fontWeight(.bold)
+                }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    private func moodButton(mood: String, icon: String, color: Color) -> some View {
+        Button { store.send(.newLogMoodChanged(mood)) } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.title2)
+                Text(mood.capitalized)
+                    .font(.caption2)
+            }
+            .frame(width: 60, height: 56)
+            .background(store.newLogMood == mood ? color.opacity(0.2) : Color.clear)
+            .foregroundStyle(store.newLogMood == mood ? color : .secondary)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(store.newLogMood == mood ? color : .clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func energyColor(_ level: Int) -> Color {

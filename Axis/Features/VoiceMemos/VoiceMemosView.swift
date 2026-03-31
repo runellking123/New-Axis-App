@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 import ComposableArchitecture
 
 // MARK: - Selection Drag Helper
@@ -315,14 +317,14 @@ struct VoiceMemosView: View {
                     let body = memo.transcript
                     let encoded = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                     if let url = URL(string: "sms:&body=\(encoded)") {
-                        UIApplication.shared.open(url)
+                        PlatformServices.openURL(url)
                     }
                 } label: {
                     Label("Text Transcript", systemImage: "message")
                 }
 
                 Button {
-                    UIPasteboard.general.string = memo.transcript
+                    PlatformServices.copyToClipboard(memo.transcript)
                 } label: {
                     Label("Copy Transcript", systemImage: "doc.on.doc")
                 }
@@ -350,13 +352,7 @@ struct VoiceMemosView: View {
                 let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 let url = docs.appendingPathComponent(memo.audioFileName)
                 guard FileManager.default.fileExists(atPath: url.path) else { return }
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let rootVC = windowScene.windows.first?.rootViewController {
-                    var topVC = rootVC
-                    while let presented = topVC.presentedViewController { topVC = presented }
-                    let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-                    topVC.present(activityVC, animated: true)
-                }
+                PlatformServices.share(items: [url])
             } label: {
                 Label("Share Audio", systemImage: "square.and.arrow.up")
             }
@@ -401,7 +397,7 @@ struct MemoDetailSheet: View {
                         }
                         .submitLabel(.done)
                         .onSubmit {
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            PlatformServices.dismissKeyboard()
                         }
 
                     // Duration & date
@@ -480,7 +476,7 @@ struct MemoDetailSheet: View {
                                 // Copy & Text for original
                                 HStack(spacing: 12) {
                                     Button {
-                                        UIPasteboard.general.string = memo.transcript
+                                        PlatformServices.copyToClipboard(memo.transcript)
                                     } label: {
                                         Label("Copy", systemImage: "doc.on.doc")
                                             .font(.caption)
@@ -492,7 +488,7 @@ struct MemoDetailSheet: View {
                                         let body = memo.transcript
                                         let encoded = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                                         if let url = URL(string: "sms:&body=\(encoded)") {
-                                            UIApplication.shared.open(url)
+                                            PlatformServices.openURL(url)
                                         }
                                     } label: {
                                         Label("Text", systemImage: "message")
@@ -512,7 +508,7 @@ struct MemoDetailSheet: View {
                                 // Copy & Share for rewritten version
                                 HStack(spacing: 12) {
                                     Button {
-                                        UIPasteboard.general.string = memo.rewrittenTranscript
+                                        PlatformServices.copyToClipboard(memo.rewrittenTranscript)
                                     } label: {
                                         Label("Copy", systemImage: "doc.on.doc")
                                             .font(.caption)
@@ -524,7 +520,7 @@ struct MemoDetailSheet: View {
                                         let body = memo.rewrittenTranscript
                                         let encoded = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                                         if let url = URL(string: "sms:&body=\(encoded)") {
-                                            UIApplication.shared.open(url)
+                                            PlatformServices.openURL(url)
                                         }
                                     } label: {
                                         Label("Text", systemImage: "message")

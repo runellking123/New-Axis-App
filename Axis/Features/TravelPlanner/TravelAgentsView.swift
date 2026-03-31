@@ -243,14 +243,14 @@ struct AgentDetailView: View {
                         if let phone = agent.phone, !phone.isEmpty {
                             contactRow(icon: "phone.fill", label: phone, color: .green) {
                                 if let url = URL(string: "tel:\(phone.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: "").replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: ""))") {
-                                    UIApplication.shared.open(url)
+                                    PlatformServices.openURL(url)
                                 }
                             }
                         }
                         if let email = agent.email, !email.isEmpty {
                             contactRow(icon: "envelope.fill", label: email, color: .blue) {
                                 if let url = URL(string: "mailto:\(email)") {
-                                    UIApplication.shared.open(url)
+                                    PlatformServices.openURL(url)
                                 }
                             }
                         }
@@ -258,7 +258,7 @@ struct AgentDetailView: View {
                             var urlStr = agent.website
                             if !urlStr.hasPrefix("http") { urlStr = "https://\(urlStr)" }
                             if let url = URL(string: urlStr) {
-                                UIApplication.shared.open(url)
+                                PlatformServices.openURL(url)
                             }
                         }
                     }
@@ -356,12 +356,7 @@ struct AgentDetailView: View {
         text += "\nServices: \(agent.services.map(\.rawValue).joined(separator: ", "))\n"
         if let spec = agent.specialties, !spec.isEmpty { text += "\nSpecialties: \(spec)\n" }
 
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let vc = scene.windows.first?.rootViewController {
-            var top = vc
-            while let p = top.presentedViewController { top = p }
-            top.present(UIActivityViewController(activityItems: [text], applicationActivities: nil), animated: true)
-        }
+        PlatformServices.share(items: [text])
     }
 }
 
