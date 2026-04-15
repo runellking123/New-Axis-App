@@ -428,29 +428,38 @@ struct AIChatView: View {
                 }
 
                 // Message bubble
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: AxisSpacing.xs) {
                     Text(msg.content)
-                        .font(.subheadline)
+                        .font(.body)
+                        .textSelection(.enabled)
 
                     // Attachment count badge
                     if msg.hasAttachments {
-                        HStack(spacing: 4) {
+                        HStack(spacing: AxisSpacing.xs) {
                             Image(systemName: "paperclip")
                                 .font(.caption2)
                             Text("\(msg.attachmentCount) attachment\(msg.attachmentCount == 1 ? "" : "s")")
                                 .font(.caption2)
                         }
-                        .foregroundStyle(msg.role == "user" ? .white.opacity(0.8) : .secondary)
+                        .foregroundStyle(msg.role == "user" ? Color.black.opacity(0.7) : .secondary)
                     }
                 }
-                .padding(12)
-                .background(
-                    msg.role == "user"
-                        ? Color.axisGold
-                        : Color(.secondarySystemGroupedBackground)
-                )
-                .foregroundStyle(msg.role == "user" ? .white : .primary)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .padding(.horizontal, AxisSpacing.lg)
+                .padding(.vertical, AxisSpacing.md)
+                .background {
+                    if msg.role == "user" {
+                        RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
+                            .fill(AxisTheme.goldGradient)
+                    } else {
+                        RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
+                                    .strokeBorder(Color.axisDivider, lineWidth: 1)
+                            )
+                    }
+                }
+                .foregroundStyle(msg.role == "user" ? Color.black : .primary)
                 .contextMenu {
                     contextMenuItems(for: msg)
                 }
@@ -483,7 +492,7 @@ struct AIChatView: View {
                     }
                 }
             }
-            .frame(maxWidth: 300, alignment: msg.role == "user" ? .trailing : .leading)
+            .frame(maxWidth: .infinity, alignment: msg.role == "user" ? .trailing : .leading)
 
             if msg.role == "assistant" { Spacer(minLength: 48) }
         }

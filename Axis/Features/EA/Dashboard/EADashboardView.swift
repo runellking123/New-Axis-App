@@ -22,42 +22,44 @@ struct EADashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    // 1. Animated greeting banner
+                VStack(spacing: AxisSpacing.xl) {
+                    // Greeting first — quick orientation, then straight into what matters.
                     greetingBanner
+
+                    // Timeline-first hierarchy: the most useful thing on this screen
+                    // is "what does the rest of my day look like?" — show it immediately.
+                    todayTimeline
+
+                    if !store.isFocusMode {
+                        // AI recommendation — surface above the fold when present.
+                        if store.nextBestAction != nil { nextBestActionCard }
+
+                        // At-risk tasks — second-priority actionable content.
+                        if !store.atRiskTasks.isEmpty { priorityCarousel }
+                    }
+
+                    // Quick capture — after the user has reviewed today, let them add.
                     quickAddField
 
-                    // 8. Weather glance with actionable note (tap to drill down)
+                    // Stats + weather — supporting context, not hero content.
+                    animatedStatsRow
+
                     Button { showWeatherDetail = true } label: {
                         weatherGlance
                     }
                     .buttonStyle(.plain)
 
-                    // 6. Quick stats with animations
-                    animatedStatsRow
-
-                    // 3. Today's timeline
-                    todayTimeline
-
                     if !store.isFocusMode {
-                        // 5. AI Next Best Action
-                        if store.nextBestAction != nil { nextBestActionCard }
-
-                        // 4. Priority cards carousel
-                        if !store.atRiskTasks.isEmpty { priorityCarousel }
-
-                        // 9. Inbox pulse
                         if store.inboxCount > 0 { inboxPulse }
-
                         if !store.activeProjects.isEmpty { projectsScroll }
                         if !store.upcomingDeadlines.isEmpty { deadlinesSection }
                         if !store.recentChatSummary.isEmpty { recentChatSection }
                     }
 
-                    // 10. Daily quote
+                    // Daily quote — flavor, bottom of screen.
                     quoteCard
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, AxisSpacing.lg)
                 .padding(.bottom, 100)
             }
             .refreshable { store.send(.refreshTapped) }
@@ -72,23 +74,25 @@ struct EADashboardView: View {
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button { onSettingsTapped?() } label: {
-                        Image(systemName: "gearshape.fill")
-                            .foregroundStyle(Color.axisGold)
+                        Image(systemName: "gearshape")
+                            .foregroundStyle(.secondary)
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: AxisSpacing.md) {
                         Button { onToggleDarkMode?() } label: {
-                            Image(systemName: isDarkMode ? "sun.max.fill" : "moon.fill")
-                                .foregroundStyle(isDarkMode ? .yellow : Color.axisGold)
+                            Image(systemName: isDarkMode ? "sun.max" : "moon")
+                                .foregroundStyle(.secondary)
                         }
                         Button { store.send(.toggleFocusMode) } label: {
-                            Image(systemName: store.isFocusMode ? "eye.slash.fill" : "eye.fill")
-                                .foregroundStyle(store.isFocusMode ? .orange : Color.axisGold)
+                            Image(systemName: store.isFocusMode ? "eye.slash" : "eye")
+                                .foregroundStyle(store.isFocusMode ? Color.axisWarning : .secondary)
                         }
+                        // The ONE gold action in the toolbar — the primary "add" CTA.
                         Button { onAddTapped?() } label: {
                             Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(Color.axisGold)
+                                .foregroundStyle(Color.axisAccent)
+                                .font(.title3)
                         }
                     }
                 }
