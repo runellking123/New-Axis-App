@@ -1025,8 +1025,6 @@ struct AIChatView: View {
         switch provider {
         case .claude:
             return Image(systemName: "brain.head.profile")
-        case .gemini:
-            return Image(systemName: "sparkle")
         }
     }
 }

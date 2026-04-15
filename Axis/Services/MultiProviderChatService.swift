@@ -2,7 +2,6 @@ import Foundation
 
 enum AIModelProvider: String, CaseIterable, Identifiable {
     case claude = "Claude"
-    case gemini = "Gemini"
     var id: String { rawValue }
 }
 
@@ -15,8 +14,6 @@ struct AIModel: Identifiable, Equatable {
         AIModel(id: "claude-sonnet-4-20250514", displayName: "Claude Sonnet 4", provider: .claude),
         AIModel(id: "claude-haiku-4-5-20251001", displayName: "Claude Haiku 4.5", provider: .claude),
         AIModel(id: "claude-opus-4-20250514", displayName: "Claude Opus 4", provider: .claude),
-        AIModel(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", provider: .gemini),
-        AIModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", provider: .gemini),
     ]
 }
 
@@ -32,15 +29,16 @@ final class MultiProviderChatService: @unchecked Sendable {
 
     private(set) var isStreaming = false
     private static let defaultAnthropicKey: String = Secrets.anthropicAPIKey
-    private static let defaultGeminiKey: String = Secrets.geminiAPIKey
+    private static let apiKeyDefaultsKey = "anthropic_api_key"
 
     var anthropicAPIKey: String {
-        get { Self.defaultAnthropicKey }
-        set { /* embedded */ }
-    }
-    var geminiAPIKey: String {
-        get { Self.defaultGeminiKey }
-        set { /* embedded */ }
+        get {
+            let stored = UserDefaults.standard.string(forKey: Self.apiKeyDefaultsKey) ?? ""
+            return stored.isEmpty ? Self.defaultAnthropicKey : stored
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Self.apiKeyDefaultsKey)
+        }
     }
     var selectedModelId: String {
         get { UserDefaults.standard.string(forKey: "selected_ai_model") ?? "claude-sonnet-4-20250514" }
@@ -52,11 +50,7 @@ final class MultiProviderChatService: @unchecked Sendable {
     }
 
     var isConfigured: Bool {
-        let model = selectedModel
-        switch model.provider {
-        case .claude: return !anthropicAPIKey.isEmpty
-        case .gemini: return !geminiAPIKey.isEmpty
-        }
+        !anthropicAPIKey.isEmpty
     }
 
     private let systemPrompt = """
@@ -123,12 +117,7 @@ final class MultiProviderChatService: @unchecked Sendable {
         fileData: [Data] = []
     ) -> AsyncThrowingStream<ChatStreamChunk, Error> {
         let activeModel = model ?? selectedModel
-        switch activeModel.provider {
-        case .claude:
-            return streamClaude(messages: messages, model: activeModel.id, images: images, fileNames: fileNames, fileData: fileData)
-        case .gemini:
-            return streamGemini(messages: messages, model: activeModel.id)
-        }
+        return streamClaude(messages: messages, model: activeModel.id, images: images, fileNames: fileNames, fileData: fileData)
     }
 
     // MARK: - Claude (Anthropic Messages API)
@@ -142,6 +131,11 @@ final class MultiProviderChatService: @unchecked Sendable {
     ) -> AsyncThrowingStream<ChatStreamChunk, Error> {
         AsyncThrowingStream { continuation in
             Task {
+                guard !anthropicAPIKey.isEmpty else {
+                    continuation.yield(ChatStreamChunk(text: nil, isComplete: false, error: "Claude API key missing — add it in Secrets.swift or Settings."))
+                    continuation.finish()
+                    return
+                }
                 do {
                     let url = URL(string: "https://api.anthropic.com/v1/messages")!
                     var request = URLRequest(url: url)
@@ -287,94 +281,6 @@ final class MultiProviderChatService: @unchecked Sendable {
         }
     }
 
-    // MARK: - Gemini (Google AI API)
-
-    private func streamGemini(
-        messages: [(role: String, content: String)],
-        model: String
-    ) -> AsyncThrowingStream<ChatStreamChunk, Error> {
-        AsyncThrowingStream { continuation in
-            Task {
-                do {
-                    let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):streamGenerateContent?key=\(geminiAPIKey)&alt=sse")!
-                    var request = URLRequest(url: url)
-                    request.httpMethod = "POST"
-                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-                    // Build dynamic system prompt with current user data
-                    var dynamicSystem = self.systemPrompt
-                    let persistence = PersistenceService.shared
-                    let allTasks = persistence.fetchEATasks()
-                    let taskCount = allTasks.count
-                    let completedCount = allTasks.filter { $0.status == "completed" }.count
-                    let projectCount = persistence.fetchEAProjects().count
-                    dynamicSystem += "\n\nCURRENT USER DATA:\n- Total tasks: \(taskCount) (\(completedCount) completed)\n- Active projects: \(projectCount)\n- Current date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .short))"
-
-                    var contents: [[String: Any]] = []
-                    // Add system instruction
-                    let systemParts: [[String: Any]] = [["text": dynamicSystem]]
-
-                    for msg in messages {
-                        let role = msg.role == "assistant" ? "model" : "user"
-                        contents.append(["role": role, "parts": [["text": msg.content]]])
-                    }
-
-                    let body: [String: Any] = [
-                        "contents": contents,
-                        "systemInstruction": ["parts": systemParts],
-                        "generationConfig": [
-                            "maxOutputTokens": 4096,
-                            "temperature": 0.7
-                        ]
-                    ]
-                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                    guard let http = response as? HTTPURLResponse else {
-                        continuation.yield(ChatStreamChunk(text: nil, isComplete: false, error: "Invalid response"))
-                        continuation.finish()
-                        return
-                    }
-                    if http.statusCode != 200 {
-                        var errorBody = ""
-                        for try await line in bytes.lines { errorBody += line }
-                        continuation.yield(ChatStreamChunk(text: nil, isComplete: false, error: "HTTP \(http.statusCode): \(errorBody)"))
-                        continuation.finish()
-                        return
-                    }
-
-                    for try await line in bytes.lines {
-                        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard trimmed.hasPrefix("data: ") else { continue }
-                        let jsonStr = String(trimmed.dropFirst(6))
-                        guard let data = jsonStr.data(using: .utf8),
-                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-
-                        if let candidates = json["candidates"] as? [[String: Any]],
-                           let first = candidates.first,
-                           let content = first["content"] as? [String: Any],
-                           let parts = content["parts"] as? [[String: Any]],
-                           let text = parts.first?["text"] as? String {
-                            continuation.yield(ChatStreamChunk(text: text, isComplete: false, error: nil))
-                        }
-
-                        // Check for finish
-                        if let candidates = json["candidates"] as? [[String: Any]],
-                           let first = candidates.first,
-                           let finishReason = first["finishReason"] as? String,
-                           finishReason == "STOP" {
-                            continuation.yield(ChatStreamChunk(text: nil, isComplete: true, error: nil))
-                        }
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.yield(ChatStreamChunk(text: nil, isComplete: false, error: error.localizedDescription))
-                    continuation.finish()
-                }
-            }
-        }
-    }
-
     // MARK: - Single Message (Non-Streaming)
 
     /// Sends a single prompt to the AI and returns the full response.
@@ -386,12 +292,7 @@ final class MultiProviderChatService: @unchecked Sendable {
     ) async -> String? {
         let activeModel = model ?? AIModel.allModels.first { $0.id == "claude-haiku-4-5-20251001" } ?? selectedModel
 
-        switch activeModel.provider {
-        case .claude:
-            return await sendClaudeSingle(prompt: prompt, systemPrompt: systemPrompt, model: activeModel.id)
-        case .gemini:
-            return await sendGeminiSingle(prompt: prompt, systemPrompt: systemPrompt, model: activeModel.id)
-        }
+        return await sendClaudeSingle(prompt: prompt, systemPrompt: systemPrompt, model: activeModel.id)
     }
 
     private func sendClaudeSingle(prompt: String, systemPrompt: String?, model: String) async -> String? {
@@ -442,33 +343,4 @@ final class MultiProviderChatService: @unchecked Sendable {
         }
     }
 
-    private func sendGeminiSingle(prompt: String, systemPrompt: String?, model: String) async -> String? {
-        do {
-            let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(geminiAPIKey)")!
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-            var body: [String: Any] = [
-                "contents": [["role": "user", "parts": [["text": prompt]]]],
-                "generationConfig": ["maxOutputTokens": 4096, "temperature": 0.3]
-            ]
-            if let systemPrompt {
-                body["systemInstruction"] = ["parts": [["text": systemPrompt]]]
-            }
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let candidates = json["candidates"] as? [[String: Any]],
-                  let first = candidates.first,
-                  let content = first["content"] as? [String: Any],
-                  let parts = content["parts"] as? [[String: Any]],
-                  let text = parts.first?["text"] as? String else { return nil }
-            return text
-        } catch {
-            return nil
-        }
-    }
 }

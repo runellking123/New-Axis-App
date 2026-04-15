@@ -466,62 +466,72 @@ struct VoiceMemosReducer {
     }
 
     static func transcribeAudio(url: URL) async -> String {
+        print("[Transcribe] Start url=\(url.lastPathComponent) exists=\(FileManager.default.fileExists(atPath: url.path))")
         guard FileManager.default.fileExists(atPath: url.path) else {
             return "(Audio file missing)"
         }
+        let fileSize = ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int) ?? 0
+        print("[Transcribe] File size: \(fileSize) bytes")
         return await withCheckedContinuation { continuation in
             let resumed = TranscriptionResumeGuard()
             func finish(_ value: String) {
                 guard resumed.claim() else { return }
+                print("[Transcribe] Finish: \(value.prefix(120))")
                 continuation.resume(returning: value)
             }
 
             let current = SFSpeechRecognizer.authorizationStatus()
+            print("[Transcribe] Current auth status rawValue=\(current.rawValue)")
             guard current == .authorized || current == .notDetermined else {
-                finish("(Speech recognition not authorized)")
+                finish("(Speech recognition not authorized — enable in Settings › Privacy › Speech Recognition)")
                 return
             }
 
             SFSpeechRecognizer.requestAuthorization { status in
+                print("[Transcribe] Auth requestResult rawValue=\(status.rawValue)")
                 guard status == .authorized else {
-                    finish("(Speech recognition not authorized)")
+                    finish("(Speech recognition not authorized — enable in Settings › Privacy › Speech Recognition)")
                     return
                 }
 
-                guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")),
-                      recognizer.isAvailable else {
-                    finish("(Speech recognizer unavailable)")
+                guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) else {
+                    finish("(Speech recognizer unavailable — locale unsupported)")
+                    return
+                }
+                print("[Transcribe] Recognizer isAvailable=\(recognizer.isAvailable) supportsOnDevice=\(recognizer.supportsOnDeviceRecognition)")
+                guard recognizer.isAvailable else {
+                    finish("(Speech recognizer unavailable — check network/device)")
                     return
                 }
 
-                let request = SFSpeechURLRecognitionRequest(url: url)
-                request.shouldReportPartialResults = false
-                request.addsPunctuation = true
-                // On-device recognition removes the ~1-minute server limit so long memos work.
-                if recognizer.supportsOnDeviceRecognition {
-                    request.requiresOnDeviceRecognition = true
-                }
+                func runRecognition(onDevice: Bool) {
+                    let request = SFSpeechURLRecognitionRequest(url: url)
+                    request.shouldReportPartialResults = false
+                    request.addsPunctuation = true
+                    request.requiresOnDeviceRecognition = onDevice
 
-                let task = recognizer.recognitionTask(with: request) { result, error in
-                    if let error = error {
-                        let ns = error as NSError
-                        // 1107 / 1110 / -1 are transient kAFAssistantErrorDomain failures — retry once on-device
-                        let isTransient = ns.domain == "kAFAssistantErrorDomain" &&
-                            (ns.code == 1107 || ns.code == 1110 || ns.code == 203 || ns.code == 1101)
-                        if isTransient && recognizer.supportsOnDeviceRecognition && !request.requiresOnDeviceRecognition {
-                            // Won't reach here since we always set requiresOnDeviceRecognition above when supported.
+                    let task = recognizer.recognitionTask(with: request) { result, error in
+                        if let error = error {
+                            let ns = error as NSError
+                            let isTransient = ns.domain == "kAFAssistantErrorDomain" &&
+                                (ns.code == 1107 || ns.code == 1110 || ns.code == 203 || ns.code == 1101)
+                            if isTransient && onDevice {
+                                runRecognition(onDevice: false)
+                                return
+                            }
                             finish("(Transcription failed: \(error.localizedDescription))")
                             return
                         }
-                        finish("(Transcription failed: \(error.localizedDescription))")
-                        return
+                        if let result = result, result.isFinal {
+                            let text = result.bestTranscription.formattedString
+                            finish(text.isEmpty ? "(No speech detected)" : text)
+                        }
                     }
-                    if let result = result, result.isFinal {
-                        let text = result.bestTranscription.formattedString
-                        finish(text.isEmpty ? "(No speech detected)" : text)
-                    }
+                    _ = task
                 }
-                _ = task
+
+                // Prefer on-device (no ~1-minute server limit); fall back to server on transient failure.
+                runRecognition(onDevice: recognizer.supportsOnDeviceRecognition)
 
                 // Safety timeout — long memos can take a while; allow up to 10 minutes.
                 DispatchQueue.global().asyncAfter(deadline: .now() + 600) {
@@ -736,6 +746,10 @@ final class VoiceRecorder: NSObject, @unchecked Sendable {
         let url = recordingURL
         self.recorder = nil
         self.recordingURL = nil
+        #if os(iOS)
+        // Release the audio session so SFSpeechRecognizer isn't fighting an active playAndRecord session.
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        #endif
         if let url = url {
             return (url, duration)
         }

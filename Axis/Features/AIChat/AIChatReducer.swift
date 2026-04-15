@@ -206,23 +206,29 @@ struct AIChatReducer {
                 return .run { send in
                     let service = MultiProviderChatService.shared
                     let stream = service.streamChat(messages: history, images: capturedImages, fileNames: capturedFileNames, fileData: capturedFileData)
+                    let finalized = StreamFinalizedBox()
+                    let finish: @Sendable (AIChatReducer.Action) async -> Void = { action in
+                        guard finalized.claim() else { return }
+                        await send(action)
+                    }
                     do {
                         for try await chunk in stream {
                             if let text = chunk.text {
                                 await send(.streamChunkReceived(text))
                             }
                             if let error = chunk.error {
-                                await send(.streamError(error))
+                                await finish(.streamError(error))
                                 return
                             }
                             if chunk.isComplete {
-                                await send(.streamCompleted)
+                                await finish(.streamCompleted)
                                 return
                             }
                         }
-                        await send(.streamCompleted)
+                        await finish(.streamCompleted)
                     } catch {
-                        await send(.streamError(error.localizedDescription))
+                        print("[AIChat] Stream error: \(error.localizedDescription)")
+                        await finish(.streamError(error.localizedDescription))
                     }
                 }
 
@@ -296,7 +302,9 @@ struct AIChatReducer {
                            let suggestions = try? JSONSerialization.jsonObject(with: jsonData) as? [String] {
                             await send(.followUpsGenerated(Array(suggestions.prefix(3))))
                         }
-                    } catch {}
+                    } catch {
+                        print("[AIChat] Follow-up generation failed: \(error.localizedDescription)")
+                    }
                 }
 
             case let .streamError(error):
@@ -786,6 +794,18 @@ struct AIChatReducer {
             return lower
         }
         return words.joined(separator: " ")
+    }
+}
+
+// Ensures a terminal action is sent exactly once across all exit paths of a streaming task.
+final class StreamFinalizedBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    func claim() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if done { return false }
+        done = true
+        return true
     }
 }
 

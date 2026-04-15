@@ -251,14 +251,6 @@ struct SettingsView: View {
             .textInputAutocapitalization(.never)
             #endif
 
-            SecureField("Google Gemini API Key", text: Binding(
-                get: { MultiProviderChatService.shared.geminiAPIKey },
-                set: { MultiProviderChatService.shared.geminiAPIKey = $0 }
-            ))
-            #if os(iOS)
-            .textInputAutocapitalization(.never)
-            #endif
-
             HStack {
                 Text("Selected Model")
                 Spacer()
@@ -275,7 +267,7 @@ struct SettingsView: View {
         } header: {
             Text("AI Chat")
         } footer: {
-            Text("Get API keys from console.anthropic.com and aistudio.google.com")
+            Text("Get an API key at console.anthropic.com. Your key is saved on this device and persists across launches.")
         }
     }
 
