@@ -384,6 +384,89 @@ struct MemoDetailSheet: View {
     @State private var customTone: String = ""
     @Environment(\.dismiss) private var dismiss
 
+    private var isPlayingThisMemo: Bool {
+        store.playingMemoID == memo.id
+    }
+
+    private var playbackControls: some View {
+        let progress = memo.duration > 0 ? min(store.playbackPosition / memo.duration, 1.0) : 0
+        return VStack(spacing: 12) {
+            // Scrubber
+            VStack(spacing: 4) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.secondary.opacity(0.2))
+                        Capsule()
+                            .fill(Color.axisGold)
+                            .frame(width: max(0, geo.size.width * progress))
+                    }
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                guard memo.duration > 0, isPlayingThisMemo else { return }
+                                let pct = max(0, min(1, value.location.x / geo.size.width))
+                                store.send(.seekPlayback(to: pct * memo.duration))
+                            }
+                    )
+                }
+                .frame(height: 6)
+
+                HStack {
+                    Text(formatTime(store.playbackPosition))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(memo.formattedDuration)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // Transport controls
+            HStack(spacing: 36) {
+                Button {
+                    store.send(.skipPlayback(seconds: -15))
+                } label: {
+                    Image(systemName: "gobackward.15")
+                        .font(.system(size: 28))
+                        .foregroundStyle(isPlayingThisMemo ? Color.axisGold : .secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(!isPlayingThisMemo)
+
+                Button {
+                    store.send(.togglePlayback(id: memo.id))
+                } label: {
+                    Image(systemName: isPlayingThisMemo ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(Color.axisGold)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    store.send(.skipPlayback(seconds: 15))
+                } label: {
+                    Image(systemName: "goforward.15")
+                        .font(.system(size: 28))
+                        .foregroundStyle(isPlayingThisMemo ? Color.axisGold : .secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(!isPlayingThisMemo)
+            }
+        }
+        .padding(14)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func formatTime(_ s: Double) -> String {
+        let m = Int(s) / 60
+        let sec = Int(s) % 60
+        return String(format: "%d:%02d", m, sec)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -410,6 +493,9 @@ struct MemoDetailSheet: View {
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
+
+                    // Playback
+                    playbackControls
 
                     // Action Items
                     if !memo.extractedActions.isEmpty {
@@ -448,6 +534,31 @@ struct MemoDetailSheet: View {
                         .padding(12)
                         .background(.ultraThinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+
+                    // Retry transcription if it failed (transcript starts with "(")
+                    if memo.isTranscribed && memo.transcript.hasPrefix("(") {
+                        Button {
+                            store.send(.retryTranscription(id: memo.id))
+                        } label: {
+                            HStack {
+                                if store.isTranscribing {
+                                    ProgressView().controlSize(.small)
+                                    Text("Transcribing...")
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Retry Transcription")
+                                }
+                            }
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.axisGold.opacity(0.15))
+                            .foregroundStyle(Color.axisGold)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(store.isTranscribing)
                     }
 
                     // Full Transcript with Original/Rewritten toggle
@@ -632,11 +743,54 @@ struct MemoDetailSheet: View {
             .navigationTitle("Memo Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Button {
+                            shareMemo(includeAudio: true, includeTranscript: true)
+                        } label: {
+                            Label("Share Audio + Transcript", systemImage: "waveform.badge.plus")
+                        }
+                        Button {
+                            shareMemo(includeAudio: false, includeTranscript: true)
+                        } label: {
+                            Label("Share Transcript Only", systemImage: "text.alignleft")
+                        }
+                        Button {
+                            shareMemo(includeAudio: true, includeTranscript: false)
+                        } label: {
+                            Label("Share Audio Only", systemImage: "waveform")
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
         }
+    }
+
+    private func shareMemo(includeAudio: Bool, includeTranscript: Bool) {
+        var items: [Any] = []
+        if includeTranscript {
+            let text = !memo.rewrittenTranscript.isEmpty && !showingOriginal
+                ? memo.rewrittenTranscript
+                : memo.transcript
+            if !text.isEmpty && !text.hasPrefix("(") {
+                let header = memo.displayTitle
+                items.append("\(header)\n\n\(text)")
+            }
+        }
+        if includeAudio {
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let url = docs.appendingPathComponent(memo.audioFileName)
+            if FileManager.default.fileExists(atPath: url.path) {
+                items.append(url)
+            }
+        }
+        guard !items.isEmpty else { return }
+        PlatformServices.share(items: items)
     }
 }
 

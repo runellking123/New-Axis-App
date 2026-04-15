@@ -17,6 +17,8 @@ struct VoiceMemosReducer {
         var searchText: String = ""
         var isSelectMode: Bool = false
         var selectedMemoIDs: Set<UUID> = []
+        var playingMemoID: UUID? = nil
+        var playbackPosition: Double = 0
 
         struct MemoItem: Equatable, Identifiable {
             let id: UUID
@@ -80,6 +82,12 @@ struct VoiceMemosReducer {
         case updateTitle(id: UUID, title: String)
         case sendToTasks(String)
         case sendToNotes(String)
+        case togglePlayback(id: UUID)
+        case playbackTick(Double)
+        case playbackFinished
+        case retryTranscription(id: UUID)
+        case skipPlayback(seconds: Double)
+        case seekPlayback(to: Double)
     }
 
     @Dependency(\.axisPersistence) var persistence
@@ -309,6 +317,73 @@ struct VoiceMemosReducer {
                 persistence.saveNote(note)
                 return .none
 
+            case let .togglePlayback(id):
+                if state.playingMemoID == id {
+                    MemoAudioPlayer.shared.stop()
+                    state.playingMemoID = nil
+                    state.playbackPosition = 0
+                    return .cancel(id: CancelID.playback)
+                }
+                guard let memo = state.memos.first(where: { $0.id == id }) else { return .none }
+                let url = VoiceMemosReducer.audioURL(for: memo.audioFileName)
+                guard FileManager.default.fileExists(atPath: url.path) else { return .none }
+                let started = MemoAudioPlayer.shared.play(url: url) {
+                    Task { @MainActor in
+                        // Sent via notification below
+                        NotificationCenter.default.post(name: .axisMemoPlaybackFinished, object: nil)
+                    }
+                }
+                guard started else { return .none }
+                state.playingMemoID = id
+                state.playbackPosition = 0
+                return .merge(
+                    .run { send in
+                        while true {
+                            try await clock.sleep(for: .milliseconds(200))
+                            await send(.playbackTick(MemoAudioPlayer.shared.currentTime))
+                        }
+                    }.cancellable(id: CancelID.playback),
+                    .publisher {
+                        NotificationCenter.default.publisher(for: .axisMemoPlaybackFinished)
+                            .map { _ in Action.playbackFinished }
+                    }.cancellable(id: CancelID.playbackFinish)
+                )
+
+            case let .playbackTick(position):
+                state.playbackPosition = position
+                return .none
+
+            case .playbackFinished:
+                state.playingMemoID = nil
+                state.playbackPosition = 0
+                return .merge(
+                    .cancel(id: CancelID.playback),
+                    .cancel(id: CancelID.playbackFinish)
+                )
+
+            case let .skipPlayback(seconds):
+                guard state.playingMemoID != nil else { return .none }
+                let target = max(0, MemoAudioPlayer.shared.currentTime + seconds)
+                MemoAudioPlayer.shared.seek(to: target)
+                state.playbackPosition = MemoAudioPlayer.shared.currentTime
+                return .none
+
+            case let .seekPlayback(target):
+                guard state.playingMemoID != nil else { return .none }
+                MemoAudioPlayer.shared.seek(to: max(0, target))
+                state.playbackPosition = MemoAudioPlayer.shared.currentTime
+                return .none
+
+            case let .retryTranscription(id):
+                guard let memo = state.memos.first(where: { $0.id == id }) else { return .none }
+                let audioFile = memo.audioFileName
+                state.isTranscribing = true
+                return .run { send in
+                    let url = VoiceMemosReducer.audioURL(for: audioFile)
+                    let transcript = await VoiceMemosReducer.transcribeAudio(url: url)
+                    await send(.transcriptionCompleted(id: id, transcript: transcript))
+                }
+
             case let .rewriteTranscript(id, style):
                 state.isRewriting = true
                 let transcript: String
@@ -381,7 +456,7 @@ struct VoiceMemosReducer {
         }
     }
 
-    private enum CancelID { case timer }
+    private enum CancelID { case timer, playback, playbackFinish }
 
     // MARK: - Helpers
 
@@ -391,30 +466,66 @@ struct VoiceMemosReducer {
     }
 
     static func transcribeAudio(url: URL) async -> String {
-        await withCheckedContinuation { continuation in
-            guard SFSpeechRecognizer.authorizationStatus() == .authorized ||
-                  SFSpeechRecognizer.authorizationStatus() == .notDetermined else {
-                continuation.resume(returning: "(Speech recognition not authorized)")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return "(Audio file missing)"
+        }
+        return await withCheckedContinuation { continuation in
+            let resumed = TranscriptionResumeGuard()
+            func finish(_ value: String) {
+                guard resumed.claim() else { return }
+                continuation.resume(returning: value)
+            }
+
+            let current = SFSpeechRecognizer.authorizationStatus()
+            guard current == .authorized || current == .notDetermined else {
+                finish("(Speech recognition not authorized)")
                 return
             }
 
             SFSpeechRecognizer.requestAuthorization { status in
                 guard status == .authorized else {
-                    continuation.resume(returning: "(Speech recognition not authorized)")
+                    finish("(Speech recognition not authorized)")
                     return
                 }
 
-                let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+                guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")),
+                      recognizer.isAvailable else {
+                    finish("(Speech recognizer unavailable)")
+                    return
+                }
+
                 let request = SFSpeechURLRecognitionRequest(url: url)
                 request.shouldReportPartialResults = false
                 request.addsPunctuation = true
+                // On-device recognition removes the ~1-minute server limit so long memos work.
+                if recognizer.supportsOnDeviceRecognition {
+                    request.requiresOnDeviceRecognition = true
+                }
 
-                recognizer?.recognitionTask(with: request) { result, error in
-                    if let result = result, result.isFinal {
-                        continuation.resume(returning: result.bestTranscription.formattedString)
-                    } else if let error = error {
-                        continuation.resume(returning: "(Transcription failed: \(error.localizedDescription))")
+                let task = recognizer.recognitionTask(with: request) { result, error in
+                    if let error = error {
+                        let ns = error as NSError
+                        // 1107 / 1110 / -1 are transient kAFAssistantErrorDomain failures — retry once on-device
+                        let isTransient = ns.domain == "kAFAssistantErrorDomain" &&
+                            (ns.code == 1107 || ns.code == 1110 || ns.code == 203 || ns.code == 1101)
+                        if isTransient && recognizer.supportsOnDeviceRecognition && !request.requiresOnDeviceRecognition {
+                            // Won't reach here since we always set requiresOnDeviceRecognition above when supported.
+                            finish("(Transcription failed: \(error.localizedDescription))")
+                            return
+                        }
+                        finish("(Transcription failed: \(error.localizedDescription))")
+                        return
                     }
+                    if let result = result, result.isFinal {
+                        let text = result.bestTranscription.formattedString
+                        finish(text.isEmpty ? "(No speech detected)" : text)
+                    }
+                }
+                _ = task
+
+                // Safety timeout — long memos can take a while; allow up to 10 minutes.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 600) {
+                    finish("(Transcription timed out)")
                 }
             }
         }
@@ -602,7 +713,7 @@ final class VoiceRecorder: NSObject, @unchecked Sendable {
     func startRecording(to url: URL) {
         #if os(iOS)
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .default)
+        try? session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
         try? session.setActive(true)
         #endif
 
@@ -629,5 +740,72 @@ final class VoiceRecorder: NSObject, @unchecked Sendable {
             return (url, duration)
         }
         return nil
+    }
+}
+
+// MARK: - Memo Audio Player
+
+extension Notification.Name {
+    static let axisMemoPlaybackFinished = Notification.Name("AxisMemoPlaybackFinished")
+}
+
+final class TranscriptionResumeGuard: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    func claim() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if done { return false }
+        done = true
+        return true
+    }
+}
+
+final class MemoAudioPlayer: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
+    static let shared = MemoAudioPlayer()
+    private var player: AVAudioPlayer?
+    private var onFinish: (() -> Void)?
+
+    var currentTime: Double { player?.currentTime ?? 0 }
+    var isPlaying: Bool { player?.isPlaying ?? false }
+
+    func play(url: URL, onFinish: @escaping () -> Void) -> Bool {
+        #if os(iOS)
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+        try? session.overrideOutputAudioPort(.speaker)
+        try? session.setActive(true)
+        #endif
+
+        do {
+            let p = try AVAudioPlayer(contentsOf: url)
+            p.delegate = self
+            p.prepareToPlay()
+            guard p.play() else { return false }
+            self.player = p
+            self.onFinish = onFinish
+            return true
+        } catch {
+            print("[MemoAudioPlayer] play failed: \(error)")
+            return false
+        }
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
+        onFinish = nil
+    }
+
+    func seek(to time: TimeInterval) {
+        guard let player = player else { return }
+        let clamped = max(0, min(time, player.duration))
+        player.currentTime = clamped
+    }
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        self.player = nil
+        let cb = onFinish
+        onFinish = nil
+        cb?()
     }
 }
