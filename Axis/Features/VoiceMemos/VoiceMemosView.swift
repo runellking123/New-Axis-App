@@ -273,13 +273,13 @@ struct VoiceMemosView: View {
                 }
 
                 if !memo.extractedActions.isEmpty {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle")
+                    HStack(spacing: AxisSpacing.xs) {
+                        Image(systemName: "checkmark.circle.fill")
                             .font(.caption2)
-                            .foregroundStyle(Color.axisGold)
+                            .foregroundStyle(Color.axisAccent)
                         Text("\(memo.extractedActions.count) action item\(memo.extractedActions.count == 1 ? "" : "s")")
                             .font(.caption2)
-                            .foregroundStyle(Color.axisGold)
+                            .foregroundStyle(.secondary)
                     }
                 }
 

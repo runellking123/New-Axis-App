@@ -11,16 +11,17 @@ struct EATaskListView: View {
                 // Natural language input
                 taskInputBar
 
-                // Filter segments
+                // Filter segments — compact strip so the list dominates the viewport.
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: AxisSpacing.sm) {
                         ForEach(EATaskReducer.State.TaskFilter.allCases, id: \.self) { filter in
                             filterChip(filter)
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, AxisSpacing.lg)
+                    .padding(.vertical, AxisSpacing.xs)
                 }
+                .scrollClipDisabled()
 
                 // Task list
                 if store.filteredTasks.isEmpty {
@@ -38,10 +39,10 @@ struct EATaskListView: View {
                     Button(store.isSelectMode ? "Done" : "Select") {
                         store.send(.toggleSelectMode)
                     }
-                    .foregroundStyle(Color.axisGold)
+                    .foregroundStyle(store.isSelectMode ? Color.axisAccent : .secondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: AxisSpacing.md) {
                         Menu {
                             ForEach(EATaskReducer.State.TaskSort.allCases, id: \.self) { sort in
                                 Button {
@@ -57,14 +58,16 @@ struct EATaskListView: View {
                             }
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
-                                .foregroundStyle(Color.axisGold)
+                                .foregroundStyle(.secondary)
                         }
 
+                        // Single gold action on this screen — adding a task.
                         Button {
                             store.send(.showAddTaskSheet)
                         } label: {
                             Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(Color.axisGold)
+                                .foregroundStyle(Color.axisAccent)
+                                .font(.title3)
                         }
                     }
                 }
