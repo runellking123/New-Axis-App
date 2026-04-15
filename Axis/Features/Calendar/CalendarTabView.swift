@@ -345,7 +345,7 @@ struct CalendarTabView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Calendar")
-                        .font(.system(size: 18, weight: .bold, design: .serif))
+                        .font(.system(.title3, design: .serif).weight(.bold))
                         .foregroundStyle(Color.axisGold)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
