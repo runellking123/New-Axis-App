@@ -136,8 +136,12 @@ final class MultiProviderChatService: @unchecked Sendable {
                     continuation.finish()
                     return
                 }
+                guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
+                    continuation.yield(ChatStreamChunk(text: nil, isComplete: false, error: "Invalid Anthropic URL"))
+                    continuation.finish()
+                    return
+                }
                 do {
-                    let url = URL(string: "https://api.anthropic.com/v1/messages")!
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -296,9 +300,12 @@ final class MultiProviderChatService: @unchecked Sendable {
     }
 
     private func sendClaudeSingle(prompt: String, systemPrompt: String?, model: String) async -> String? {
+        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
+            print("[Claude Single] Invalid Anthropic URL")
+            return nil
+        }
         do {
             print("[Claude Single] Sending request to model: \(model), key prefix: \(String(anthropicAPIKey.prefix(12)))...")
-            let url = URL(string: "https://api.anthropic.com/v1/messages")!
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.timeoutInterval = 30

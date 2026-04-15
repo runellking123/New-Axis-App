@@ -309,7 +309,9 @@ struct AppView: View {
                     Image(systemName: "square.grid.2x2.fill")
                         .font(.system(size: 20))
                     Text("Gallery")
-                        .font(.system(size: 10))
+                        .font(.caption2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
                 .foregroundStyle(showGallery ? Color.axisGold : .secondary)
@@ -336,7 +338,9 @@ struct AppView: View {
                 Image(systemName: item.icon)
                     .font(.system(size: 20))
                 Text(item.title)
-                    .font(.system(size: 10))
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity)
             .foregroundStyle(!showGallery && store.selectedTab == item.tab ? Color.axisGold : .secondary)
