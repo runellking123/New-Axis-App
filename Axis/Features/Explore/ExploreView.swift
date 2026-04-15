@@ -535,7 +535,7 @@ struct ExploreView: View {
     private var exploreToolbar: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             Text("Explore")
-                .font(.system(size: 18, weight: .bold, design: .serif))
+                .font(.system(.title3, design: .serif).weight(.bold))
                 .foregroundStyle(.orange)
         }
         ToolbarItem(placement: .navigationBarTrailing) {

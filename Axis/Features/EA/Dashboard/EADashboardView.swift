@@ -69,8 +69,8 @@ struct EADashboardView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Executive Assistant")
-                        .font(.system(size: 16, weight: .bold, design: .serif))
-                        .foregroundStyle(Color.axisGold)
+                        .font(.system(.headline, design: .serif).weight(.bold))
+                        .foregroundStyle(Color.axisAccent)
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button { onSettingsTapped?() } label: {
@@ -195,11 +195,12 @@ struct EADashboardView: View {
                         .rotationEffect(.degrees(-90))
                     VStack(spacing: 0) {
                         Text("\(store.energyScore)")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.system(.callout, design: .rounded).weight(.bold))
                             .foregroundStyle(energyColor)
                         Text("Energy")
                             .font(.system(size: 7))
                             .foregroundStyle(.secondary)
+                            .minimumScaleFactor(0.7)
                     }
                 }
             }
@@ -251,7 +252,8 @@ struct EADashboardView: View {
                         .frame(width: 40)
 
                     Text(store.weatherTemp)
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                        .minimumScaleFactor(0.7)
 
                     Text(store.weatherCondition)
                         .font(.subheadline)
@@ -708,7 +710,7 @@ struct EADashboardView: View {
                             .foregroundStyle(Color.axisGold.opacity(0.6))
 
                         Text(store.dailyQuote)
-                            .font(.system(size: 15, weight: .medium, design: .serif))
+                            .font(.system(.subheadline, design: .serif).weight(.medium))
                             .multilineTextAlignment(.center)
                             .italic()
                             .foregroundStyle(.primary)
@@ -734,7 +736,7 @@ struct EADashboardView: View {
                             }
 
                             Text("\"\(store.dailyQuoteGrandma)\"")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.footnote.weight(.medium))
                                 .multilineTextAlignment(.center)
                                 .foregroundStyle(.primary)
                         }

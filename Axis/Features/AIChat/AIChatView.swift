@@ -68,8 +68,8 @@ struct AIChatView: View {
                     Button { store.send(.toggleModelPicker) } label: {
                         VStack(spacing: 0) {
                             Text("AXIS")
-                                .font(.system(size: 16, weight: .bold, design: .serif))
-                                .foregroundStyle(Color.axisGold)
+                                .font(.system(.headline, design: .serif).weight(.bold))
+                                .foregroundStyle(Color.axisAccent)
                             Text(store.selectedModelName)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -500,7 +500,7 @@ struct AIChatView: View {
 
     private func modelBadge(_ modelName: String) -> some View {
         Text(modelName)
-            .font(.system(size: 10, weight: .medium))
+            .font(.caption2.weight(.medium))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 2)

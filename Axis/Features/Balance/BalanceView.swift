@@ -25,7 +25,7 @@ struct BalanceView: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Balance")
-                        .font(.system(size: 18, weight: .bold, design: .serif))
+                        .font(.system(.title3, design: .serif).weight(.bold))
                         .foregroundStyle(.green)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -233,7 +233,7 @@ struct BalanceView: View {
                     // Energy level
                     VStack(spacing: 8) {
                         Text("Energy Level").font(.headline)
-                        Text("\(store.checkInLevel)").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundStyle(energyColor(store.checkInLevel))
+                        Text("\(store.checkInLevel)").font(.system(.largeTitle, design: .rounded).weight(.bold)).minimumScaleFactor(0.7).foregroundStyle(energyColor(store.checkInLevel))
                         Slider(value: Binding(
                             get: { Double(store.checkInLevel) },
                             set: { store.send(.checkInLevelChanged(Int($0))) }
