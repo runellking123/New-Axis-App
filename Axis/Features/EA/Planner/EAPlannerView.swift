@@ -1,8 +1,10 @@
 import ComposableArchitecture
+import EventKit
 import SwiftUI
 
 struct EAPlannerView: View {
     @Bindable var store: StoreOf<EAPlannerReducer>
+    @State private var selectedPlannerBlock: EAPlannerReducer.State.TimeBlockState?
 
     var body: some View {
         NavigationStack {
@@ -65,6 +67,10 @@ struct EAPlannerView: View {
                 set: { _ in store.send(.dismissAddBlockSheet) }
             )) {
                 addBlockSheet
+            }
+            .sheet(item: $selectedPlannerBlock) { block in
+                PlannerBlockDetailSheet(block: block)
+                    .presentationDetents([.medium, .large])
             }
             .onAppear { store.send(.onAppear) }
         }
@@ -149,7 +155,12 @@ struct EAPlannerView: View {
                                     }
                                 }
 
-                                timeBlockRow(block)
+                                Button {
+                                    selectedPlannerBlock = block
+                                } label: {
+                                    timeBlockRow(block)
+                                }
+                                .buttonStyle(.plain)
                                     .contextMenu {
                                         Button {
                                             store.send(.showAddBlockSheet)
@@ -514,4 +525,261 @@ struct EAPlannerView: View {
             EAPlannerReducer()
         }
     )
+}
+
+// MARK: - Planner Block Detail Sheet
+// Shown when the user taps a row in the Planner. For blocks linked to a real
+// calendar event (eventId present), we look up the EKEvent so we can surface
+// notes, full location, and a one-tap Join button for video meetings.
+
+struct PlannerBlockDetailSheet: View {
+    let block: EAPlannerReducer.State.TimeBlockState
+    @Environment(\.dismiss) private var dismiss
+    @State private var notes: String?
+    @State private var fullLocation: String?
+    @State private var calendarURL: URL?
+    @State private var meeting: PlannerMeetingLink?
+
+    private var blockLabel: String {
+        switch block.blockType {
+        case "meeting": return "Event"
+        case "focusBlock": return "Focus Block"
+        case "break": return "Break"
+        case "task": return "Task"
+        case "reminder": return "Reminder"
+        default: return "Block"
+        }
+    }
+
+    private var blockIcon: String {
+        switch block.blockType {
+        case "meeting": return "person.2.fill"
+        case "focusBlock": return "target"
+        case "break": return "cup.and.saucer.fill"
+        case "task": return "checkmark.circle.fill"
+        case "reminder": return "bell.fill"
+        default: return "clock"
+        }
+    }
+
+    private var blockTint: Color {
+        switch block.blockType {
+        case "meeting": return .purple
+        case "focusBlock": return .blue
+        case "break": return .green
+        case "task": return Color.axisAccent
+        case "reminder": return .orange
+        default: return .gray
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AxisSpacing.xl) {
+                    VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+                        HStack(spacing: AxisSpacing.sm) {
+                            Image(systemName: blockIcon).foregroundStyle(blockTint)
+                            Text(blockLabel)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(blockTint)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
+                        }
+                        Text(block.title)
+                            .font(.system(.title2, design: .serif).weight(.bold))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    // Time + duration card
+                    VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+                        HStack {
+                            Image(systemName: "clock").foregroundStyle(.secondary)
+                            Text("\(formattedTime(block.startTime)) – \(formattedTime(block.endTime))")
+                                .font(.body.weight(.medium))
+                            Spacer()
+                            Text("\(block.durationMinutes) min").font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        Text(formattedDate(block.startTime))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(AxisSpacing.lg)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+
+                    // Join button (when a video meeting link is found)
+                    if let meeting {
+                        Button {
+                            PlatformServices.openURL(meeting.url)
+                        } label: {
+                            HStack {
+                                Image(systemName: meeting.icon)
+                                Text("Join \(meeting.service)")
+                            }
+                        }
+                        .buttonStyle(.axisPrimary)
+                    }
+
+                    // Location
+                    if let loc = fullLocation ?? block.location, !loc.isEmpty {
+                        VStack(alignment: .leading, spacing: AxisSpacing.xs) {
+                            Label("Location", systemImage: "mappin.and.ellipse")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(loc)
+                                .font(.body)
+                                .textSelection(.enabled)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AxisSpacing.lg)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+                    }
+
+                    // Notes / description
+                    if let notes, !notes.isEmpty {
+                        VStack(alignment: .leading, spacing: AxisSpacing.xs) {
+                            Label("Notes", systemImage: "text.alignleft")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(notes)
+                                .font(.body)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AxisSpacing.lg)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+                    }
+
+                    // External event URL fallback (non-meeting links)
+                    if let calendarURL, meeting == nil {
+                        Button {
+                            PlatformServices.openURL(calendarURL)
+                        } label: {
+                            HStack {
+                                Image(systemName: "link")
+                                Text("Open Event Link")
+                            }
+                        }
+                        .buttonStyle(.axisSecondary)
+                    }
+
+                    // AI reasoning (for AI-generated blocks)
+                    if let reasoning = block.aiReasoning, !reasoning.isEmpty {
+                        VStack(alignment: .leading, spacing: AxisSpacing.xs) {
+                            Label("Why this block", systemImage: "sparkles")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(reasoning)
+                                .font(.subheadline)
+                                .italic()
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AxisSpacing.lg)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(AxisSpacing.lg)
+            }
+            .navigationTitle("Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task {
+                await loadCalendarDetails()
+            }
+        }
+    }
+
+    private func formattedTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f.string(from: date)
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateStyle = .full
+        f.timeStyle = .none
+        return f.string(from: date)
+    }
+
+    private func loadCalendarDetails() async {
+        guard let eventId = block.eventId else { return }
+        let store = EKEventStore()
+        guard let ek = store.calendarItem(withIdentifier: eventId) as? EKEvent else { return }
+        await MainActor.run {
+            self.notes = ek.notes
+            self.fullLocation = ek.location
+            self.calendarURL = ek.url
+            self.meeting = PlannerMeetingLink.detect(notes: ek.notes, location: ek.location, url: ek.url)
+        }
+    }
+}
+
+// Same meeting-link detection used in the Calendar tab — duplicated here to
+// keep the Planner module self-contained. If a third caller appears, hoist
+// this into Shared/.
+struct PlannerMeetingLink {
+    let url: URL
+    let service: String
+    let icon: String
+    let tint: Color
+
+    static func detect(notes: String?, location: String?, url: URL?) -> PlannerMeetingLink? {
+        let haystack = [notes ?? "", location ?? "", url?.absoluteString ?? ""]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !haystack.isEmpty else { return nil }
+
+        let patterns: [(service: String, icon: String, tint: Color, host: [String], scheme: [String])] = [
+            ("Zoom", "video.fill", .blue, ["zoom.us", "zoomgov.com"], ["zoommtg"]),
+            ("Teams", "person.2.fill", .indigo, ["teams.microsoft.com", "teams.live.com"], ["msteams"]),
+            ("Google Meet", "video.badge.waveform", .green, ["meet.google.com"], []),
+            ("Webex", "video.circle.fill", .teal, ["webex.com"], []),
+            ("GoToMeeting", "video.fill", .orange, ["gotomeeting.com", "gotomeet.me"], []),
+            ("BlueJeans", "video.fill", .cyan, ["bluejeans.com"], []),
+            ("Whereby", "video.fill", .pink, ["whereby.com"], []),
+            ("Skype", "phone.bubble.fill", .blue, ["skype.com"], ["skype"]),
+            ("Chime", "video.fill", .orange, ["chime.aws"], []),
+        ]
+
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let range = NSRange(haystack.startIndex..<haystack.endIndex, in: haystack)
+        let matches = detector?.matches(in: haystack, options: [], range: range) ?? []
+        for match in matches {
+            guard let url = match.url else { continue }
+            let host = (url.host ?? "").lowercased()
+            let scheme = (url.scheme ?? "").lowercased()
+            for pattern in patterns {
+                if pattern.host.contains(where: { host.contains($0) }) || pattern.scheme.contains(scheme) {
+                    return PlannerMeetingLink(url: url, service: pattern.service, icon: pattern.icon, tint: pattern.tint)
+                }
+            }
+        }
+
+        let lowered = haystack.lowercased()
+        if let range = lowered.range(of: #"(https?://[\w.\-]*(zoom\.us|zoomgov\.com|teams\.(microsoft|live)\.com|meet\.google\.com|webex\.com|gotomeeting\.com|gotomeet\.me|bluejeans\.com|whereby\.com|chime\.aws)[^\s<>"']*)"#, options: .regularExpression) {
+            let raw = String(haystack[range])
+            if let url = URL(string: raw) {
+                let host = (url.host ?? "").lowercased()
+                for pattern in patterns {
+                    if pattern.host.contains(where: { host.contains($0) }) {
+                        return PlannerMeetingLink(url: url, service: pattern.service, icon: pattern.icon, tint: pattern.tint)
+                    }
+                }
+            }
+        }
+        return nil
+    }
 }
