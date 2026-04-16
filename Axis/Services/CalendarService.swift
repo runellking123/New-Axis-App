@@ -182,6 +182,153 @@ final class CalendarService {
         }
     }
 
+    func uncompleteReminder(id: String) -> Bool {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return false }
+        guard let item = store.calendarItem(withIdentifier: id) as? EKReminder else { return false }
+        item.isCompleted = false
+        do { try store.save(item, commit: true); return true } catch { return false }
+    }
+
+    func deleteReminder(id: String) -> Bool {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return false }
+        guard let item = store.calendarItem(withIdentifier: id) as? EKReminder else { return false }
+        do { try store.remove(item, commit: true); return true } catch { return false }
+    }
+
+    /// Creates a new reminder. `meetingInfo` is stored in notes as a delimited
+    /// section so the detail sheet and link detector can find it later.
+    @discardableResult
+    func createReminder(
+        title: String,
+        notes: String? = nil,
+        meetingInfo: String? = nil,
+        dueDate: Date? = nil,
+        includeDueTime: Bool = false,
+        priority: Int = 0
+    ) -> String? {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return nil }
+        let reminder = EKReminder(eventStore: store)
+        reminder.title = title
+        reminder.priority = priority
+        reminder.calendar = store.defaultCalendarForNewReminders()
+        reminder.notes = AxisReminderNotes.encode(notes: notes, meetingInfo: meetingInfo)
+        if let dueDate {
+            var comps: Set<Calendar.Component> = [.year, .month, .day]
+            if includeDueTime { comps.formUnion([.hour, .minute]) }
+            reminder.dueDateComponents = Calendar.current.dateComponents(comps, from: dueDate)
+            if includeDueTime {
+                let alarm = EKAlarm(absoluteDate: dueDate)
+                reminder.addAlarm(alarm)
+            }
+        }
+        do {
+            try store.save(reminder, commit: true)
+            return reminder.calendarItemIdentifier
+        } catch {
+            return nil
+        }
+    }
+
+    /// Updates any subset of fields on an existing reminder.
+    @discardableResult
+    func updateReminder(
+        id: String,
+        title: String? = nil,
+        notes: String? = nil,
+        meetingInfo: String? = nil,
+        dueDate: Date? = nil,
+        clearDueDate: Bool = false,
+        includeDueTime: Bool? = nil,
+        priority: Int? = nil,
+        isCompleted: Bool? = nil
+    ) -> Bool {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return false }
+        guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else { return false }
+        if let title { reminder.title = title }
+        if notes != nil || meetingInfo != nil {
+            // Preserve whichever half wasn't provided by decoding current notes first.
+            let current = AxisReminderNotes.decode(reminder.notes)
+            reminder.notes = AxisReminderNotes.encode(
+                notes: notes ?? current.notes,
+                meetingInfo: meetingInfo ?? current.meetingInfo
+            )
+        }
+        if clearDueDate {
+            reminder.dueDateComponents = nil
+            reminder.alarms?.forEach { reminder.removeAlarm($0) }
+        } else if let dueDate {
+            let wantsTime = includeDueTime ?? (reminder.dueDateComponents?.hour != nil)
+            var comps: Set<Calendar.Component> = [.year, .month, .day]
+            if wantsTime { comps.formUnion([.hour, .minute]) }
+            reminder.dueDateComponents = Calendar.current.dateComponents(comps, from: dueDate)
+            reminder.alarms?.forEach { reminder.removeAlarm($0) }
+            if wantsTime {
+                reminder.addAlarm(EKAlarm(absoluteDate: dueDate))
+            }
+        }
+        if let priority { reminder.priority = priority }
+        if let isCompleted { reminder.isCompleted = isCompleted }
+        do { try store.save(reminder, commit: true); return true } catch { return false }
+    }
+
+    /// Fetches every incomplete reminder regardless of due date and groups them
+    /// into Overdue / Today / Upcoming / No Date buckets for the Workflow UI.
+    func fetchAllReminders() async -> [ReminderItem] {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return [] }
+        let predicate = store.predicateForReminders(in: nil)
+        let reminders = await withCheckedContinuation { (continuation: CheckedContinuation<[EKReminder], Never>) in
+            store.fetchReminders(matching: predicate) { result in
+                continuation.resume(returning: result ?? [])
+            }
+        }
+        let calendar = Calendar.current
+        return reminders.map { reminder in
+            let dueDate = reminder.dueDateComponents.flatMap { calendar.date(from: $0) }
+            return ReminderItem(
+                id: reminder.calendarItemIdentifier,
+                title: reminder.title ?? "Untitled",
+                dueDate: dueDate,
+                hasDueTime: reminder.dueDateComponents?.hour != nil || reminder.dueDateComponents?.minute != nil,
+                isCompleted: reminder.isCompleted,
+                priority: reminder.priority,
+                calendarTitle: reminder.calendar?.title
+            )
+        }
+    }
+
+    /// Returns the full notes (structured: user notes + meeting info) for a reminder by id.
+    func reminderDetails(id: String) -> (notes: String?, meetingInfo: String?)? {
+        guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else { return nil }
+        return AxisReminderNotes.decode(reminder.notes)
+    }
+
+    /// Creates a calendar event that mirrors a reminder — title, date/time, and
+    /// notes (including meeting info). Returns the new event identifier.
+    @discardableResult
+    func createEventFromReminder(
+        title: String,
+        startDate: Date,
+        endDate: Date,
+        location: String? = nil,
+        notes: String? = nil,
+        meetingInfo: String? = nil
+    ) -> String? {
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return nil }
+        let event = EKEvent(eventStore: store)
+        event.title = title
+        event.startDate = startDate
+        event.endDate = endDate
+        event.location = location
+        event.notes = AxisReminderNotes.encode(notes: notes, meetingInfo: meetingInfo)
+        event.calendar = store.defaultCalendarForNewEvents
+        do {
+            try store.save(event, span: .thisEvent, commit: true)
+            return event.calendarItemIdentifier
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - Calendar Creation & Time Blocks
 
     func createAxisCalendar() -> EKCalendar? {
@@ -242,5 +389,31 @@ final class CalendarService {
                 isAllDay: event.isAllDay
             )
         }.sorted { $0.startDate < $1.startDate }
+    }
+}
+
+// Reminders don't have a first-class "meeting info" field, so we keep it inside
+// notes using a sentinel delimiter. This lets AI Chat, the reminder detail
+// sheet, and the meeting-link detector share a single source of truth.
+enum AxisReminderNotes {
+    private static let marker = "--- Meeting Info ---"
+
+    static func encode(notes: String?, meetingInfo: String?) -> String? {
+        let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedInfo = meetingInfo?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmedNotes.isEmpty && trimmedInfo.isEmpty { return nil }
+        if trimmedInfo.isEmpty { return trimmedNotes }
+        if trimmedNotes.isEmpty { return "\(marker)\n\(trimmedInfo)" }
+        return "\(trimmedNotes)\n\n\(marker)\n\(trimmedInfo)"
+    }
+
+    static func decode(_ raw: String?) -> (notes: String?, meetingInfo: String?) {
+        guard let raw, !raw.isEmpty else { return (nil, nil) }
+        guard let range = raw.range(of: marker) else { return (raw, nil) }
+        let beforeRaw = String(raw[..<range.lowerBound])
+        let afterRaw = String(raw[range.upperBound...])
+        let notes = beforeRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let info = afterRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (notes.isEmpty ? nil : notes, info.isEmpty ? nil : info)
     }
 }
