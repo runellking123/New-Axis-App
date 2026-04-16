@@ -395,11 +395,21 @@ struct AIChatView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .defaultScrollAnchor(.bottom)
             .onTapGesture {
                 isInputFocused = false
             }
+            .simultaneousGesture(
+                // A downward drag anywhere on the chat transcript also dismisses
+                // the keyboard — matches the native Messages app feel.
+                DragGesture(minimumDistance: 20)
+                    .onChanged { value in
+                        if value.translation.height > 30 {
+                            isInputFocused = false
+                        }
+                    }
+            )
             .onChange(of: store.messages.count) {
                 if let last = store.messages.last {
                     withAnimation(.easeOut(duration: 0.3)) {
@@ -818,6 +828,22 @@ struct AIChatView: View {
                     .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .submitLabel(.done)
+                    .toolbar {
+                        // Keyboard accessory toolbar — guarantees a way to
+                        // dismiss without scrolling or tapping empty space.
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button {
+                                isInputFocused = false
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "keyboard.chevron.compact.down")
+                                    Text("Dismiss")
+                                }
+                                .font(.subheadline.weight(.medium))
+                            }
+                        }
+                    }
 
                 // Mic button — real speech-to-text via SpeechService
                 Button {
