@@ -417,3 +417,85 @@ enum AxisReminderNotes {
         return (notes.isEmpty ? nil : notes, info.isEmpty ? nil : info)
     }
 }
+
+// One-shot migration that lifts existing EATask / EAProject SwiftData rows
+// into iOS Reminders so the user's existing to-dos survive the Workflow-tab
+// redesign. Runs at most once per install; guarded by UserDefaults flag.
+enum ReminderMigrationService {
+    private static let flagKey = "axis_migrated_eatasks_v1"
+
+    static func runIfNeeded() async {
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        let granted = await CalendarService.shared.requestRemindersAccess()
+        guard granted else {
+            print("[Migration] Reminders access not granted — deferring.")
+            return
+        }
+
+        let persistence = PersistenceService.shared
+        let tasks = persistence.fetchEATasks()
+        let projects = persistence.fetchEAProjects()
+        guard !tasks.isEmpty || !projects.isEmpty else {
+            UserDefaults.standard.set(true, forKey: flagKey)
+            print("[Migration] Nothing to migrate; marking complete.")
+            return
+        }
+
+        var migratedTasks = 0
+        for task in tasks {
+            let status = task.status.lowercased()
+            if status == "completed" || status == "cancelled" { continue }
+
+            let priorityInt: Int = {
+                switch task.priority.lowercased() {
+                case "critical", "high": return 1
+                case "medium": return 5
+                case "low": return 9
+                default: return 0
+                }
+            }()
+
+            var parts: [String] = []
+            if let desc = task.taskDescription, !desc.isEmpty { parts.append(desc) }
+            if let reasoning = task.aiReasoning, !reasoning.isEmpty { parts.append("AI: \(reasoning)") }
+            if !task.category.isEmpty { parts.append("Category: \(task.category.capitalized)") }
+            if let minutes = task.estimatedMinutes { parts.append("Estimate: \(minutes) min") }
+            let notesBlob: String? = parts.isEmpty ? nil : parts.joined(separator: "\n")
+
+            let newId = CalendarService.shared.createReminder(
+                title: task.title,
+                notes: notesBlob,
+                meetingInfo: nil,
+                dueDate: task.deadline,
+                includeDueTime: false,
+                priority: priorityInt
+            )
+            if newId != nil { migratedTasks += 1 }
+        }
+
+        var migratedProjects = 0
+        for project in projects {
+            let status = project.status.lowercased()
+            if status == "completed" { continue }
+
+            let title = "[Project] \(project.title)"
+            var parts: [String] = []
+            if !project.category.isEmpty { parts.append("Category: \(project.category.capitalized)") }
+            let notesBlob: String? = parts.isEmpty ? nil : parts.joined(separator: "\n")
+
+            let newId = CalendarService.shared.createReminder(
+                title: title,
+                notes: notesBlob,
+                meetingInfo: nil,
+                dueDate: project.deadline,
+                includeDueTime: false,
+                priority: 0
+            )
+            if newId != nil { migratedProjects += 1 }
+        }
+
+        UserDefaults.standard.set(true, forKey: flagKey)
+        print("[Migration] Migrated \(migratedTasks) tasks and \(migratedProjects) projects to iOS Reminders.")
+    }
+}

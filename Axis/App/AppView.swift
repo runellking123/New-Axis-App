@@ -23,6 +23,7 @@ struct AppView: View {
         }
         .animation(.easeInOut(duration: 0.5), value: store.showOnboarding)
         .onAppear { store.send(.onAppear) }
+        .task { await ReminderMigrationService.runIfNeeded() }
         .onOpenURL { url in store.send(.handleDeepLink(url)) }
         .preferredColorScheme(colorScheme(for: store.settings.darkModeOverride))
     }
