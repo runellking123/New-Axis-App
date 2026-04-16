@@ -537,20 +537,53 @@ struct AIChatReducer {
                     print("[AXIS_ACTION] Executing: \(action.type) with params: \(params)")
 
                     switch action.type {
-                    case "create_task":
-                        let title = params["title"] ?? "Untitled Task"
-                        let priority = params["priority"] ?? "medium"
-                        let category = params["category"] ?? "general"
-                        let task = EATask(title: title, priority: priority, category: category)
-                        if let deadlineStr = params["deadline"],
+                    case "create_task", "create_reminder":
+                        // Both action names now route to iOS Reminders. The old
+                        // create_task tag is preserved as an alias so prompts
+                        // and cached chat history keep working.
+                        let title = params["title"] ?? "Untitled Reminder"
+                        let priorityStr = params["priority"] ?? "medium"
+                        let priorityInt: Int = {
+                            switch priorityStr.lowercased() {
+                            case "high", "critical": return 1
+                            case "medium": return 5
+                            case "low": return 9
+                            default: return 0
+                            }
+                        }()
+                        var dueDate: Date?
+                        var includeTime = false
+                        if let deadlineStr = params["deadline"] ?? params["dueDate"] ?? params["date"],
                            let date = Self.parseDate(deadlineStr) {
-                            task.deadline = date
+                            dueDate = date
                         }
-                        persistence.saveEATask(task)
-                        print("[AXIS_ACTION] Task created: \(title)")
+                        if let timeStr = params["dueTime"] ?? params["time"] {
+                            dueDate = Self.combineDateAndTime(date: dueDate ?? Date(), time: timeStr)
+                            includeTime = true
+                        }
+                        let meetingInfo = params["meetingInfo"] ?? params["meeting"] ?? params["joinLink"]
+                        let notesText = params["notes"]
+                        let newId = CalendarService.shared.createReminder(
+                            title: title,
+                            notes: notesText,
+                            meetingInfo: meetingInfo,
+                            dueDate: dueDate,
+                            includeDueTime: includeTime,
+                            priority: priorityInt
+                        )
+                        print("[AXIS_ACTION] Reminder created: \(title) id=\(newId ?? "?")")
+                        let detailParts: [String] = [
+                            priorityStr != "medium" && priorityInt != 0 ? "Priority: \(priorityStr.capitalized)" : nil,
+                            dueDate.map { d in
+                                let f = DateFormatter(); f.dateStyle = .medium
+                                if includeTime { f.timeStyle = .short }
+                                return "Due: \(f.string(from: d))"
+                            },
+                            meetingInfo != nil ? "Meeting link attached" : nil
+                        ].compactMap { $0 }
                         state.executedActions.append(State.ExecutedAction(
-                            type: "task", title: title,
-                            details: "Priority: \(priority.capitalized)" + (params["deadline"] != nil ? " | Due: \(params["deadline"]!)" : ""),
+                            type: "reminder", title: title,
+                            details: detailParts.isEmpty ? "Added to Reminders" : detailParts.joined(separator: " | "),
                             icon: "checkmark.circle.fill", messageId: messageId
                         ))
 

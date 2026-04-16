@@ -308,8 +308,10 @@ struct VoiceMemosReducer {
                 return .none
 
             case let .sendToTasks(text):
-                let task = EATask(title: text, category: "personal")
-                persistence.saveEATask(task)
+                // "Send to Tasks" now creates an iOS Reminder since the Tasks
+                // feature has been folded into Reminders. Action name is kept
+                // so existing UI strings and action chips do not break.
+                _ = CalendarService.shared.createReminder(title: text)
                 return .none
 
             case let .sendToNotes(text):

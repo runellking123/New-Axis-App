@@ -304,7 +304,7 @@ struct VoiceMemosView: View {
                 Button {
                     store.send(.sendToTasks(memo.transcript))
                 } label: {
-                    Label("Send to Tasks", systemImage: "checklist")
+                    Label("Send to Reminders", systemImage: "checklist")
                 }
 
                 Button {
@@ -516,7 +516,7 @@ struct MemoDetailSheet: View {
                                         Button {
                                             store.send(.sendToTasks(action))
                                         } label: {
-                                            Label("Send to Tasks", systemImage: "checklist")
+                                            Label("Send to Reminders", systemImage: "checklist")
                                         }
                                         Button {
                                             store.send(.sendToNotes(action))

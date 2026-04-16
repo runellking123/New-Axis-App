@@ -78,14 +78,15 @@ final class MultiProviderChatService: @unchecked Sendable {
 
     Available actions (use EXACTLY this format, one per line, at the END of your response):
 
-    [AXIS_ACTION:create_task|title=TITLE|priority=high|category=university|deadline=YYYY-MM-DD]
-    - priority: critical, high, medium, low (default: medium)
-    - category: university, consulting, personal, general (default: general)
-    - deadline: optional, use YYYY-MM-DD format
+    [AXIS_ACTION:create_reminder|title=TITLE|priority=high|deadline=YYYY-MM-DD|dueTime=HH:MM|meetingInfo=LINK_OR_DETAILS|notes=NOTES]
+    - priority: high, medium, low (default: medium; "critical" also accepted)
+    - deadline: optional YYYY-MM-DD for a due date
+    - dueTime: optional HH:MM (24-hour) — adds an alarm when set
+    - meetingInfo: optional. Paste Zoom/Teams/Meet join links or dial-in details here; the Reminders tab surfaces a Join button when a URL is present
+    - notes: optional free-form notes
+    - create_task is still accepted as an alias for this action
 
-    [AXIS_ACTION:create_project|title=TITLE|category=university|status=active]
-    - category: university, consulting, personal (default: personal)
-    - status: active, onHold (default: active)
+    Tasks and Projects have been retired. Any user request that sounds like "add a task", "todo", "remind me", "don't let me forget" maps to create_reminder. Only use create_event when the user explicitly wants something on their calendar.
 
     [AXIS_ACTION:create_event|title=TITLE|date=YYYY-MM-DD|startTime=HH:MM|endTime=HH:MM]
     - date is required. startTime and endTime are optional — default to 09:00 and 10:00 if not specified
