@@ -229,7 +229,11 @@ final class CalendarService {
         let ekEvents = store.events(matching: predicate)
         return ekEvents.map { event in
             CalendarEvent(
-                id: event.eventIdentifier ?? UUID().uuidString,
+                // calendarItemIdentifier is stable across recurring-event occurrences
+                // and works reliably with EKEventStore.calendarItem(withIdentifier:)
+                // when looking up the source EKEvent later (e.g., from the planner
+                // detail sheet when surfacing notes / Zoom links from Outlook).
+                id: event.calendarItemIdentifier,
                 title: event.title ?? "Untitled",
                 startDate: event.startDate,
                 endDate: event.endDate,

@@ -539,6 +539,16 @@ struct PlannerBlockDetailSheet: View {
     @State private var fullLocation: String?
     @State private var calendarURL: URL?
     @State private var meeting: PlannerMeetingLink?
+    @State private var organizerName: String?
+    @State private var organizerEmail: String?
+    @State private var attendees: [(name: String, email: String, status: String)] = []
+    @State private var calendarSource: String?
+    @State private var calendarTitle: String?
+    @State private var availability: String?
+    @State private var recurrenceSummary: String?
+    @State private var alarmCount: Int = 0
+    @State private var detectedURLs: [URL] = []
+    @State private var lookupAttempted = false
 
     private var blockLabel: String {
         switch block.blockType {
@@ -637,6 +647,121 @@ struct PlannerBlockDetailSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
                     }
 
+                    // Calendar source (which Outlook / iCloud / Google account)
+                    if let calendarTitle {
+                        HStack(spacing: AxisSpacing.sm) {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(calendarTitle)
+                                    .font(.subheadline.weight(.medium))
+                                if let calendarSource, calendarSource != calendarTitle {
+                                    Text(calendarSource)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            if let availability, !availability.isEmpty {
+                                Text(availability)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, AxisSpacing.sm)
+                                    .padding(.vertical, AxisSpacing.xxs)
+                                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                            }
+                        }
+                        .padding(AxisSpacing.lg)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+                    }
+
+                    // Organizer
+                    if let organizerName {
+                        VStack(alignment: .leading, spacing: AxisSpacing.xs) {
+                            Label("Organizer", systemImage: "person.crop.circle.badge.checkmark")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            HStack {
+                                Text(organizerName).font(.body.weight(.medium))
+                                Spacer()
+                                if let email = organizerEmail {
+                                    Button {
+                                        if let url = URL(string: "mailto:\(email)") { PlatformServices.openURL(url) }
+                                    } label: {
+                                        Image(systemName: "envelope.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            if let email = organizerEmail {
+                                Text(email)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AxisSpacing.lg)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+                    }
+
+                    // Attendees
+                    if !attendees.isEmpty {
+                        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+                            Label("Attendees (\(attendees.count))", systemImage: "person.2.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            ForEach(Array(attendees.enumerated()), id: \.offset) { _, person in
+                                HStack {
+                                    Image(systemName: statusIcon(person.status))
+                                        .foregroundStyle(statusColor(person.status))
+                                        .frame(width: 18)
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        Text(person.name).font(.subheadline)
+                                        if !person.email.isEmpty {
+                                            Text(person.email)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    if !person.email.isEmpty {
+                                        Button {
+                                            if let url = URL(string: "mailto:\(person.email)") { PlatformServices.openURL(url) }
+                                        } label: {
+                                            Image(systemName: "envelope")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AxisSpacing.lg)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+                    }
+
+                    // Recurrence
+                    if let recurrenceSummary {
+                        HStack(spacing: AxisSpacing.sm) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .foregroundStyle(.secondary)
+                            Text(recurrenceSummary)
+                                .font(.subheadline)
+                            Spacer()
+                        }
+                        .padding(AxisSpacing.lg)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+                    }
+
                     // Notes / description
                     if let notes, !notes.isEmpty {
                         VStack(alignment: .leading, spacing: AxisSpacing.xs) {
@@ -654,8 +779,39 @@ struct PlannerBlockDetailSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
                     }
 
-                    // External event URL fallback (non-meeting links)
-                    if let calendarURL, meeting == nil {
+                    // Other links found in the event (non-meeting)
+                    let otherLinks = detectedURLs.filter { meeting == nil || $0 != meeting?.url }
+                    if !otherLinks.isEmpty {
+                        VStack(alignment: .leading, spacing: AxisSpacing.xs) {
+                            Label("Links", systemImage: "link")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            ForEach(Array(otherLinks.prefix(8).enumerated()), id: \.offset) { _, url in
+                                Button {
+                                    PlatformServices.openURL(url)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "arrow.up.right.square")
+                                            .font(.caption)
+                                        Text(url.absoluteString)
+                                            .font(.caption)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                            .foregroundStyle(Color.axisInfo)
+                                        Spacer()
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AxisSpacing.lg)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+                    }
+
+                    // External event URL fallback (non-meeting top-level url)
+                    if let calendarURL, meeting == nil, !detectedURLs.contains(calendarURL) {
                         Button {
                             PlatformServices.openURL(calendarURL)
                         } label: {
@@ -665,6 +821,18 @@ struct PlannerBlockDetailSheet: View {
                             }
                         }
                         .buttonStyle(.axisSecondary)
+                    }
+
+                    // Alarms / reminders set on the event
+                    if alarmCount > 0 {
+                        HStack(spacing: AxisSpacing.sm) {
+                            Image(systemName: "bell.fill").foregroundStyle(.secondary)
+                            Text("\(alarmCount) reminder\(alarmCount == 1 ? "" : "s") set")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, AxisSpacing.lg)
                     }
 
                     // AI reasoning (for AI-generated blocks)
@@ -715,14 +883,121 @@ struct PlannerBlockDetailSheet: View {
     }
 
     private func loadCalendarDetails() async {
-        guard let eventId = block.eventId else { return }
+        guard let eventId = block.eventId, !lookupAttempted else { return }
+        lookupAttempted = true
         let store = EKEventStore()
-        guard let ek = store.calendarItem(withIdentifier: eventId) as? EKEvent else { return }
+        // Try calendarItem first (works for both events and reminders, and is
+        // what we now persist). Fall back to event(withIdentifier:) for blocks
+        // that were saved before the identifier switch.
+        let ek: EKEvent? = (store.calendarItem(withIdentifier: eventId) as? EKEvent)
+            ?? store.event(withIdentifier: eventId)
+        guard let ek else { return }
+
+        // Build URL list from notes/location/url combined
+        let haystack = [ek.notes ?? "", ek.location ?? "", ek.url?.absoluteString ?? ""]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        var urls: [URL] = []
+        if !haystack.isEmpty,
+           let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
+            let range = NSRange(haystack.startIndex..<haystack.endIndex, in: haystack)
+            urls = detector.matches(in: haystack, options: [], range: range).compactMap { $0.url }
+        }
+        if let u = ek.url, !urls.contains(u) { urls.insert(u, at: 0) }
+
+        // Organizer
+        var orgName: String?
+        var orgEmail: String?
+        if let org = ek.organizer {
+            orgName = org.name ?? org.url.absoluteString.replacingOccurrences(of: "mailto:", with: "")
+            if org.url.scheme == "mailto" { orgEmail = org.url.absoluteString.replacingOccurrences(of: "mailto:", with: "") }
+        }
+
+        // Attendees
+        var people: [(name: String, email: String, status: String)] = []
+        for participant in ek.attendees ?? [] {
+            let name = participant.name ?? participant.url.absoluteString.replacingOccurrences(of: "mailto:", with: "")
+            let email = participant.url.scheme == "mailto"
+                ? participant.url.absoluteString.replacingOccurrences(of: "mailto:", with: "")
+                : ""
+            let status: String
+            switch participant.participantStatus {
+            case .accepted: status = "accepted"
+            case .declined: status = "declined"
+            case .tentative: status = "tentative"
+            case .pending: status = "pending"
+            default: status = "unknown"
+            }
+            people.append((name: name, email: email, status: status))
+        }
+
+        // Availability
+        let avail: String? = {
+            switch ek.availability {
+            case .busy: return "Busy"
+            case .free: return "Free"
+            case .tentative: return "Tentative"
+            case .unavailable: return "Out of Office"
+            default: return nil
+            }
+        }()
+
+        // Recurrence summary (best-effort, single rule)
+        var recurrence: String?
+        if let rule = ek.recurrenceRules?.first {
+            let freq: String
+            switch rule.frequency {
+            case .daily: freq = "Daily"
+            case .weekly: freq = "Weekly"
+            case .monthly: freq = "Monthly"
+            case .yearly: freq = "Yearly"
+            @unknown default: freq = "Recurring"
+            }
+            var summary = freq
+            if rule.interval > 1 { summary += " (every \(rule.interval))" }
+            if let endDate = rule.recurrenceEnd?.endDate {
+                let f = DateFormatter(); f.dateStyle = .medium
+                summary += " until \(f.string(from: endDate))"
+            } else if let count = rule.recurrenceEnd?.occurrenceCount, count > 0 {
+                summary += " (\(count) occurrences)"
+            }
+            recurrence = summary
+        }
+
         await MainActor.run {
             self.notes = ek.notes
             self.fullLocation = ek.location
             self.calendarURL = ek.url
             self.meeting = PlannerMeetingLink.detect(notes: ek.notes, location: ek.location, url: ek.url)
+            self.organizerName = orgName
+            self.organizerEmail = orgEmail
+            self.attendees = people
+            self.calendarTitle = ek.calendar?.title
+            self.calendarSource = ek.calendar?.source.title
+            self.availability = avail
+            self.recurrenceSummary = recurrence
+            self.alarmCount = ek.alarms?.count ?? 0
+            self.detectedURLs = urls
+        }
+    }
+
+    private func statusIcon(_ status: String) -> String {
+        switch status {
+        case "accepted": return "checkmark.circle.fill"
+        case "declined": return "xmark.circle.fill"
+        case "tentative": return "questionmark.circle.fill"
+        case "pending": return "clock.fill"
+        default: return "person.crop.circle"
+        }
+    }
+
+    private func statusColor(_ status: String) -> Color {
+        switch status {
+        case "accepted": return .green
+        case "declined": return .red
+        case "tentative": return .orange
+        case "pending": return .gray
+        default: return .secondary
         }
     }
 }
