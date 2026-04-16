@@ -17,6 +17,7 @@ struct EADashboardView: View {
     @State private var animateStats = false
     @State private var pulseInbox = false
     @State private var showWeatherDetail = false
+    @State private var selectedTimeBlock: EADashboardReducer.State.TimeBlockState?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -96,6 +97,20 @@ struct EADashboardView: View {
                         }
                     }
                 }
+            }
+            .sheet(item: $selectedTimeBlock) { block in
+                TimeBlockDetailSheet(
+                    block: block,
+                    onOpenPlanner: {
+                        selectedTimeBlock = nil
+                        onNavigateToPlanner?()
+                    },
+                    onOpenTasks: {
+                        selectedTimeBlock = nil
+                        onNavigateToTasks?()
+                    }
+                )
+                .presentationDetents([.medium])
             }
             .sheet(isPresented: $showWeatherDetail) {
                 if let weather = WeatherService.shared.currentWeather {
@@ -403,48 +418,57 @@ struct EADashboardView: View {
                         }()
 
                         ForEach(Array(store.planTimeBlocks.prefix(6).enumerated()), id: \.element.id) { index, block in
-                            HStack(alignment: .top, spacing: 12) {
-                                // Timeline line + dot
-                                VStack(spacing: 0) {
-                                    Circle()
-                                        .fill(blockColor(block.blockType))
-                                        .frame(width: 10, height: 10)
-                                    if index < min(store.planTimeBlocks.count - 1, 5) {
-                                        Rectangle()
-                                            .fill(Color.secondary.opacity(0.2))
-                                            .frame(width: 2, height: 32)
+                            Button { selectedTimeBlock = block } label: {
+                                HStack(alignment: .top, spacing: 12) {
+                                    // Timeline line + dot
+                                    VStack(spacing: 0) {
+                                        Circle()
+                                            .fill(blockColor(block.blockType))
+                                            .frame(width: 10, height: 10)
+                                        if index < min(store.planTimeBlocks.count - 1, 5) {
+                                            Rectangle()
+                                                .fill(Color.secondary.opacity(0.2))
+                                                .frame(width: 2, height: 32)
+                                        }
                                     }
-                                }
 
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(block.title)
-                                        .font(.subheadline)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(block.title)
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .lineLimit(1)
+                                            .foregroundStyle(.primary)
+                                        HStack(spacing: 4) {
+                                            Text(block.startTime)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            Text("–")
+                                                .font(.caption2)
+                                                .foregroundStyle(.tertiary)
+                                            Text(block.endTime)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    Text(block.blockType == "meeting" ? "Meeting" : block.blockType == "task" ? "Task" : block.blockType == "focusBlock" ? "Focus" : "Break")
+                                        .font(.caption2)
                                         .fontWeight(.medium)
-                                        .lineLimit(1)
-                                    HStack(spacing: 4) {
-                                        Text(block.startTime)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                        Text("–")
-                                            .font(.caption2)
-                                            .foregroundStyle(.tertiary)
-                                        Text(block.endTime)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
+                                        .foregroundStyle(blockColor(block.blockType))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(blockColor(block.blockType).opacity(0.12))
+                                        .clipShape(Capsule())
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
                                 }
-
-                                Spacer()
-
-                                Text(block.blockType == "meeting" ? "Meeting" : block.blockType == "task" ? "Task" : block.blockType == "focusBlock" ? "Focus" : "Break")
-                                    .font(.caption2)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(blockColor(block.blockType))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(blockColor(block.blockType).opacity(0.12))
-                                    .clipShape(Capsule())
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
 
                         if store.planTimeBlocks.count > 6 {
@@ -824,4 +848,138 @@ struct EADashboardView: View {
             EADashboardReducer()
         }
     )
+}
+
+// MARK: - Time Block Detail Sheet
+
+struct TimeBlockDetailSheet: View {
+    let block: EADashboardReducer.State.TimeBlockState
+    let onOpenPlanner: () -> Void
+    let onOpenTasks: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var blockLabel: String {
+        switch block.blockType {
+        case "meeting": return "Meeting"
+        case "focusBlock": return "Focus Block"
+        case "break": return "Break"
+        case "task": return "Task"
+        default: return "Block"
+        }
+    }
+
+    private var blockIcon: String {
+        switch block.blockType {
+        case "meeting": return "person.2.fill"
+        case "focusBlock": return "target"
+        case "break": return "cup.and.saucer.fill"
+        case "task": return "checkmark.circle.fill"
+        default: return "clock"
+        }
+    }
+
+    private var blockTint: Color {
+        switch block.blockType {
+        case "meeting": return .purple
+        case "focusBlock": return .blue
+        case "break": return .green
+        case "task": return Color.axisAccent
+        default: return .gray
+        }
+    }
+
+    private var durationText: String {
+        // Parse "h:mm a" formatted strings back into Dates on today's calendar
+        // to compute a friendly duration string. Best-effort: if parsing fails,
+        // we just omit the duration.
+        let df = DateFormatter()
+        df.dateFormat = "h:mm a"
+        guard let start = df.date(from: block.startTime),
+              let end = df.date(from: block.endTime) else { return "" }
+        let minutes = Int(end.timeIntervalSince(start) / 60)
+        if minutes <= 0 { return "" }
+        if minutes < 60 { return "\(minutes) min" }
+        let h = minutes / 60
+        let m = minutes % 60
+        return m == 0 ? "\(h) hr" : "\(h) hr \(m) min"
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AxisSpacing.xl) {
+                    // Title + type badge
+                    VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+                        HStack(spacing: AxisSpacing.sm) {
+                            Image(systemName: blockIcon)
+                                .foregroundStyle(blockTint)
+                            Text(blockLabel)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(blockTint)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
+                        }
+                        Text(block.title)
+                            .font(.system(.title2, design: .serif).weight(.bold))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    // Time card
+                    VStack(alignment: .leading, spacing: AxisSpacing.md) {
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundStyle(.secondary)
+                            Text("\(block.startTime) – \(block.endTime)")
+                                .font(.body.weight(.medium))
+                            Spacer()
+                            if !durationText.isEmpty {
+                                Text(durationText)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(AxisSpacing.lg)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+
+                    // Actions
+                    VStack(spacing: AxisSpacing.md) {
+                        Button {
+                            onOpenPlanner()
+                        } label: {
+                            HStack {
+                                Image(systemName: "calendar.badge.clock")
+                                Text("Open in Planner")
+                            }
+                        }
+                        .buttonStyle(.axisPrimary)
+
+                        if block.blockType == "task" {
+                            Button {
+                                onOpenTasks()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "checklist")
+                                    Text("View Tasks")
+                                }
+                            }
+                            .buttonStyle(.axisSecondary)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, AxisSpacing.lg)
+                .padding(.top, AxisSpacing.lg)
+            }
+            .navigationTitle("Timeline Block")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
 }
