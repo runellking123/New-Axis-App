@@ -248,36 +248,39 @@ struct AIChatView: View {
 
     private var quickActionChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chipButton("My Day", icon: "calendar", prompt: "Give me a quick summary of my day — schedule, priorities, and any deadlines.")
-                chipButton("Morning Brief", icon: "newspaper", prompt: "Generate my executive morning briefing.")
-                chipButton("Compose", icon: "envelope", prompt: "Help me compose a professional message.")
-                chipButton("Data Report", icon: "chart.bar", prompt: "Help me structure a data analysis report.")
-                chipButton("Prep Notes", icon: "person.3", prompt: "Help me prepare talking points for my next meeting.")
-                chipButton("Compliance", icon: "building.columns", prompt: "Help me with accreditation and compliance requirements.")
+            HStack(spacing: AxisSpacing.sm) {
+                // Action chips — execute immediately. Give the AI a directive.
+                chipButton("Plan my day", icon: "sun.max", run: { store.send(.quickAction("Plan my day based on today's calendar, overdue reminders, and priorities. Be concise.")) })
+                chipButton("Today", icon: "calendar", run: { store.send(.quickAction("Summarize my calendar and open reminders for today.")) })
+                chipButton("Recap memos", icon: "waveform", run: { store.send(.quickAction("Summarize my most recent voice memos and extract action items as reminders.")) })
+                // Prefill chips — user finishes the sentence.
+                chipButton("Add reminder…", icon: "checkmark.circle", run: { store.send(.prefillInput("Add a reminder for ")); isInputFocused = true })
+                chipButton("Schedule…", icon: "calendar.badge.plus", run: { store.send(.prefillInput("Schedule a meeting on ")); isInputFocused = true })
+                chipButton("Draft email…", icon: "envelope", run: { store.send(.prefillInput("Draft a professional email to ")); isInputFocused = true })
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.horizontal, AxisSpacing.lg)
+            .padding(.vertical, AxisSpacing.sm)
         }
         .background(Color(.systemGroupedBackground))
     }
 
-    private func chipButton(_ title: String, icon: String, prompt: String) -> some View {
-        Button {
-            store.send(.quickAction(prompt))
-        } label: {
-            HStack(spacing: 4) {
+    private func chipButton(_ title: String, icon: String, run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            HStack(spacing: AxisSpacing.xs) {
                 Image(systemName: icon)
                     .font(.caption2)
                 Text(title)
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.caption.weight(.medium))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .foregroundStyle(Color.axisGold)
-            .background(Color.axisGold.opacity(0.12))
-            .clipShape(Capsule())
+            .padding(.horizontal, AxisSpacing.md)
+            .padding(.vertical, AxisSpacing.xs + 2)
+            .foregroundStyle(Color.axisAccent)
+            .background(
+                Capsule().fill(Color.axisAccent.opacity(0.12))
+            )
+            .overlay(
+                Capsule().strokeBorder(Color.axisAccent.opacity(0.25), lineWidth: 0.5)
+            )
         }
         .buttonStyle(.plain)
     }
@@ -335,32 +338,40 @@ struct AIChatView: View {
     }
 
     private var emptyStateQuickActionGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            gridActionButton("My Day", icon: "calendar", color: .blue, prompt: "Give me a quick summary of my day — schedule, priorities, and any deadlines.")
-            gridActionButton("Morning Brief", icon: "newspaper", color: .purple, prompt: "Generate my executive morning briefing.")
-            gridActionButton("Compose", icon: "envelope", color: .orange, prompt: "Help me compose a professional message.")
-            gridActionButton("Data Report", icon: "chart.bar", color: .green, prompt: "Help me structure a data analysis report.")
-            gridActionButton("Prep Notes", icon: "person.3", color: .cyan, prompt: "Help me prepare talking points for my next meeting.")
-            gridActionButton("Compliance", icon: "building.columns", color: .red, prompt: "Help me with accreditation and compliance requirements.")
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AxisSpacing.sm) {
+            gridActionButton("Plan my day", icon: "sun.max", color: .orange, prompt: "Plan my day based on today's calendar, overdue reminders, and priorities. Be concise.")
+            gridActionButton("What's today?", icon: "calendar", color: .blue, prompt: "Summarize my calendar and open reminders for today.")
+            gridActionButton("Add reminder", icon: "checkmark.circle", color: Color.axisAccent, prompt: "Add a reminder for ")
+            gridActionButton("Schedule meeting", icon: "calendar.badge.plus", color: .purple, prompt: "Schedule a meeting on ")
+            gridActionButton("Recap memos", icon: "waveform", color: .teal, prompt: "Summarize my most recent voice memos and extract action items as reminders.")
+            gridActionButton("Draft email", icon: "envelope", color: .indigo, prompt: "Draft a professional email to ")
         }
     }
 
     private func gridActionButton(_ title: String, icon: String, color: Color, prompt: String) -> some View {
-        Button { store.send(.quickAction(prompt)) } label: {
-            VStack(spacing: 6) {
+        Button {
+            // Prompts ending with a trailing space are prefill chips — let the
+            // user finish the sentence before sending. Everything else fires.
+            if prompt.hasSuffix(" ") {
+                store.send(.prefillInput(prompt))
+                isInputFocused = true
+            } else {
+                store.send(.quickAction(prompt))
+            }
+        } label: {
+            VStack(spacing: AxisSpacing.xs + 2) {
                 Image(systemName: icon)
                     .font(.title3)
                     .foregroundStyle(color)
                 Text(title)
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.caption.weight(.medium))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.primary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .padding(.vertical, AxisSpacing.lg)
             .background(color.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card))
         }
         .buttonStyle(.plain)
     }

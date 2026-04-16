@@ -76,6 +76,7 @@ struct AIChatReducer {
         case modelSelected(String)
         case dismissError
         case quickAction(String)
+        case prefillInput(String)
 
         // Follow-up actions
         case followUpsGenerated([String])
@@ -363,6 +364,12 @@ struct AIChatReducer {
             case let .quickAction(prompt):
                 state.inputText = prompt
                 return .send(.sendMessage)
+
+            case let .prefillInput(prompt):
+                // Used by chips that need the user to complete the sentence
+                // (e.g., "Add a reminder for ") before sending.
+                state.inputText = prompt
+                return .none
 
             // MARK: - Follow-Up Actions
 
