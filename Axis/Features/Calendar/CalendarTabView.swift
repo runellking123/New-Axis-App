@@ -47,6 +47,8 @@ struct CalendarTabView: View {
         let calendarName: String
         let calendarColor: CGColor?
         let isAllDay: Bool
+        let notes: String?
+        let url: URL?
     }
 
     struct CalSourceInfo: Identifiable {
@@ -408,6 +410,30 @@ struct CalendarTabView: View {
                     Text(event.calendarName).font(.caption2).foregroundStyle(.tertiary)
                 }
                 Spacer()
+                // Inline Join button — one-tap to open Zoom/Teams/Meet/etc.
+                if let meeting = meetingLink(for: event) {
+                    Button {
+                        PlatformServices.openURL(meeting.url)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: meeting.icon)
+                                .font(.caption2)
+                            Text("Join")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .padding(.horizontal, AxisSpacing.md)
+                        .padding(.vertical, AxisSpacing.xs)
+                        .background(
+                            Capsule().fill(meeting.tint.opacity(0.15))
+                        )
+                        .overlay(
+                            Capsule().strokeBorder(meeting.tint.opacity(0.45), lineWidth: 1)
+                        )
+                        .foregroundStyle(meeting.tint)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Join \(meeting.service) meeting")
+                }
                 Image(systemName: expandedEventId == event.id ? "chevron.up" : "chevron.down")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -431,6 +457,20 @@ struct CalendarTabView: View {
                             Text(loc).font(.caption).foregroundStyle(.secondary)
                         }
                     }
+                }
+
+                // Prominent Join button when the expanded row has a meeting link.
+                if let meeting = meetingLink(for: event) {
+                    Button {
+                        PlatformServices.openURL(meeting.url)
+                    } label: {
+                        HStack {
+                            Image(systemName: meeting.icon)
+                            Text("Join \(meeting.service)")
+                        }
+                    }
+                    .buttonStyle(.axisPrimary(fullWidth: true))
+                    .padding(.top, AxisSpacing.xs)
                 }
 
                 // Quick action buttons
@@ -804,6 +844,69 @@ struct CalendarTabView: View {
         PersistenceService.shared.saveEATask(task)
     }
 
+    // MARK: - Meeting Link Detection
+    // Extracts a join URL from the event's notes/location/url for common
+    // video-conferencing services. Returns nil if no link is present.
+
+    struct MeetingLink {
+        let url: URL
+        let service: String
+        let icon: String
+        let tint: Color
+    }
+
+    private func meetingLink(for event: CalEventItem) -> MeetingLink? {
+        let haystack = [event.notes ?? "", event.location ?? "", event.url?.absoluteString ?? ""]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !haystack.isEmpty else { return nil }
+
+        // Known services, in detection priority order.
+        let patterns: [(service: String, icon: String, tint: Color, host: [String], scheme: [String])] = [
+            ("Zoom", "video.fill", .blue, ["zoom.us", "zoomgov.com"], ["zoommtg"]),
+            ("Teams", "person.2.fill", .indigo, ["teams.microsoft.com", "teams.live.com"], ["msteams"]),
+            ("Google Meet", "video.badge.waveform", .green, ["meet.google.com"], []),
+            ("Webex", "video.circle.fill", .teal, ["webex.com"], []),
+            ("GoToMeeting", "video.fill", .orange, ["gotomeeting.com", "gotomeet.me"], []),
+            ("BlueJeans", "video.fill", .cyan, ["bluejeans.com"], []),
+            ("Whereby", "video.fill", .pink, ["whereby.com"], []),
+            ("Skype", "phone.bubble.fill", .blue, ["skype.com"], ["skype"]),
+            ("Chime", "video.fill", .orange, ["chime.aws"], []),
+        ]
+
+        // Find every URL in the haystack; pick the first that matches a known service.
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let range = NSRange(haystack.startIndex..<haystack.endIndex, in: haystack)
+        let matches = detector?.matches(in: haystack, options: [], range: range) ?? []
+
+        for match in matches {
+            guard let url = match.url else { continue }
+            let host = (url.host ?? "").lowercased()
+            let scheme = (url.scheme ?? "").lowercased()
+            for pattern in patterns {
+                if pattern.host.contains(where: { host.contains($0) }) || pattern.scheme.contains(scheme) {
+                    return MeetingLink(url: url, service: pattern.service, icon: pattern.icon, tint: pattern.tint)
+                }
+            }
+        }
+
+        // Fallback: look for scheme-less patterns the data detector missed (e.g. Teams deep-links pasted without https://).
+        let lowered = haystack.lowercased()
+        if let range = lowered.range(of: #"(https?://[\w.\-]*(zoom\.us|zoomgov\.com|teams\.(microsoft|live)\.com|meet\.google\.com|webex\.com|gotomeeting\.com|gotomeet\.me|bluejeans\.com|whereby\.com|chime\.aws)[^\s<>"']*)"#, options: .regularExpression) {
+            let raw = String(haystack[range])
+            if let url = URL(string: raw) {
+                let host = (url.host ?? "").lowercased()
+                for pattern in patterns {
+                    if pattern.host.contains(where: { host.contains($0) }) {
+                        return MeetingLink(url: url, service: pattern.service, icon: pattern.icon, tint: pattern.tint)
+                    }
+                }
+            }
+        }
+
+        return nil
+    }
+
     // MARK: - EventKit
 
     private func requestAccess() async {
@@ -837,7 +940,9 @@ struct CalendarTabView: View {
                 location: e.location,
                 calendarName: e.calendar?.title ?? "Calendar",
                 calendarColor: e.calendar?.cgColor,
-                isAllDay: e.isAllDay
+                isAllDay: e.isAllDay,
+                notes: e.notes,
+                url: e.url
             )
         }
     }
@@ -856,7 +961,9 @@ struct CalendarTabView: View {
                 location: e.location,
                 calendarName: e.calendar?.title ?? "Calendar",
                 calendarColor: e.calendar?.cgColor,
-                isAllDay: e.isAllDay
+                isAllDay: e.isAllDay,
+                notes: e.notes,
+                url: e.url
             )
         }
     }
