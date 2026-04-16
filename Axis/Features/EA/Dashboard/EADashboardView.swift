@@ -18,6 +18,8 @@ struct EADashboardView: View {
     @State private var pulseInbox = false
     @State private var showWeatherDetail = false
     @State private var selectedTimeBlock: EADashboardReducer.State.TimeBlockState?
+    @State private var todaysReminders: [CalendarService.ReminderItem] = []
+    @State private var overdueReminders: [CalendarService.ReminderItem] = []
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -35,7 +37,14 @@ struct EADashboardView: View {
                         // AI recommendation — surface above the fold when present.
                         if store.nextBestAction != nil { nextBestActionCard }
 
-                        // At-risk tasks — second-priority actionable content.
+                        // Overdue reminders — top priority since they're already past due.
+                        if !overdueReminders.isEmpty { overdueRemindersSection }
+
+                        // Today's reminders — what's on deck today.
+                        if !todaysReminders.isEmpty { todaysRemindersSection }
+
+                        // Legacy at-risk tasks (from SwiftData EATask). Shows
+                        // only if the user still has un-migrated tasks.
                         if !store.atRiskTasks.isEmpty { priorityCarousel }
                     }
 
@@ -52,6 +61,8 @@ struct EADashboardView: View {
 
                     if !store.isFocusMode {
                         if store.inboxCount > 0 { inboxPulse }
+                        // Projects retired. If legacy EAProject rows still exist,
+                        // they're quietly shown here for visibility only.
                         if !store.activeProjects.isEmpty { projectsScroll }
                         if !store.upcomingDeadlines.isEmpty { deadlinesSection }
                         if !store.recentChatSummary.isEmpty { recentChatSection }
@@ -130,6 +141,8 @@ struct EADashboardView: View {
                     pulseInbox = true
                 }
             }
+            .task { await loadReminders() }
+            .refreshable { await loadReminders() }
         }
     }
 
@@ -826,6 +839,133 @@ struct EADashboardView: View {
                 .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
             }
+        }
+    }
+
+    // MARK: - Reminders sections
+
+    private var overdueRemindersSection: some View {
+        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+            HStack(spacing: AxisSpacing.sm) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(Color.axisDanger)
+                Text("Overdue Reminders")
+                    .font(.headline)
+                    .foregroundStyle(Color.axisDanger)
+                Spacer()
+                Text("\(overdueReminders.count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.axisDanger)
+            }
+            ForEach(overdueReminders.prefix(3)) { item in
+                reminderRow(item, accent: Color.axisDanger)
+            }
+            if overdueReminders.count > 3 {
+                Text("+\(overdueReminders.count - 3) more overdue")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, AxisSpacing.lg)
+            }
+        }
+        .padding(AxisSpacing.lg)
+        .background(.ultraThinMaterial)
+        .overlay(
+            RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
+                .strokeBorder(Color.axisDanger.opacity(0.3), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+    }
+
+    private var todaysRemindersSection: some View {
+        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+            HStack(spacing: AxisSpacing.sm) {
+                Image(systemName: "checklist")
+                    .foregroundStyle(Color.axisAccent)
+                Text("Today's Reminders")
+                    .font(.headline)
+                Spacer()
+                Text("\(todaysReminders.count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(todaysReminders.prefix(4)) { item in
+                reminderRow(item, accent: Color.axisAccent)
+            }
+            if todaysReminders.count > 4 {
+                Text("+\(todaysReminders.count - 4) more today")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, AxisSpacing.lg)
+            }
+        }
+        .padding(AxisSpacing.lg)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+    }
+
+    private func reminderRow(_ item: CalendarService.ReminderItem, accent: Color) -> some View {
+        Button {
+            Task {
+                _ = CalendarService.shared.completeReminder(id: item.id)
+                await loadReminders()
+            }
+        } label: {
+            HStack(alignment: .top, spacing: AxisSpacing.sm) {
+                Image(systemName: "circle")
+                    .foregroundStyle(accent)
+                    .font(.body)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    if let due = item.dueDate {
+                        Text(formattedReminderDue(due, hasTime: item.hasDueTime))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+    }
+
+    private func formattedReminderDue(_ date: Date, hasTime: Bool) -> String {
+        let f = DateFormatter()
+        if hasTime { f.dateStyle = .none; f.timeStyle = .short } else { f.dateStyle = .medium; f.timeStyle = .none }
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return hasTime ? f.string(from: date) : "Today" }
+        if cal.isDateInYesterday(date) { return "Yesterday" }
+        if cal.isDateInTomorrow(date) { return "Tomorrow" }
+        let df = DateFormatter(); df.dateStyle = .medium
+        if hasTime { df.timeStyle = .short }
+        return df.string(from: date)
+    }
+
+    private func loadReminders() async {
+        let granted = await CalendarService.shared.requestRemindersAccess()
+        guard granted else { return }
+        let all = await CalendarService.shared.fetchAllReminders()
+        let cal = Calendar.current
+        let startOfDay = cal.startOfDay(for: Date())
+        let startOfTomorrow = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+        var today: [CalendarService.ReminderItem] = []
+        var overdue: [CalendarService.ReminderItem] = []
+        for item in all where !item.isCompleted {
+            guard let due = item.dueDate else { continue }
+            if due < startOfDay {
+                overdue.append(item)
+            } else if due < startOfTomorrow {
+                today.append(item)
+            }
+        }
+        overdue.sort { ($0.dueDate ?? .distantPast) < ($1.dueDate ?? .distantPast) }
+        today.sort { ($0.dueDate ?? .distantPast) < ($1.dueDate ?? .distantPast) }
+        await MainActor.run {
+            self.overdueReminders = overdue
+            self.todaysReminders = today
         }
     }
 
