@@ -268,42 +268,12 @@ struct AIChatReducer {
                 let capturedRaw = rawContent
                 let capturedMsgId = msgId
 
-                // Execute actions if present, then generate follow-ups
-                let lastContent = displayContent
+                // Execute actions if present. Follow-up suggestions are disabled
+                // intentionally — the goal is direct, Claude-like responses, not
+                // an auto-generated "what next?" carousel.
                 return .run { send in
-                    // Execute any AXIS_ACTION commands
                     if hasActions {
                         await send(.executeActions(capturedRaw, capturedMsgId))
-                    }
-
-                    // Generate follow-up suggestions
-                    let service = MultiProviderChatService.shared
-                    let key = service.anthropicAPIKey
-                    guard !key.isEmpty else { return }
-                    let url = URL(string: "https://api.anthropic.com/v1/messages")!
-                    var request = URLRequest(url: url)
-                    request.httpMethod = "POST"
-                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    request.setValue(key, forHTTPHeaderField: "x-api-key")
-                    request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-                    request.timeoutInterval = 10
-                    let body: [String: Any] = [
-                        "model": "claude-sonnet-4-20250514",
-                        "max_tokens": 80,
-                        "messages": [["role": "user", "content": "Based on this response, suggest 3 short follow-up questions (max 6 words each). Return ONLY a JSON array of 3 strings. Response: \(String(lastContent.prefix(300)))"]]
-                    ]
-                    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-                    do {
-                        let (data, _) = try await URLSession.shared.data(for: request)
-                        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                           let content = json["content"] as? [[String: Any]],
-                           let text = content.first?["text"] as? String,
-                           let jsonData = text.data(using: .utf8),
-                           let suggestions = try? JSONSerialization.jsonObject(with: jsonData) as? [String] {
-                            await send(.followUpsGenerated(Array(suggestions.prefix(3))))
-                        }
-                    } catch {
-                        print("[AIChat] Follow-up generation failed: \(error.localizedDescription)")
                     }
                 }
 
@@ -683,6 +653,133 @@ struct AIChatReducer {
                             icon: "airplane", messageId: messageId
                         ))
 
+                    case "delete_event":
+                        let eventStore = EKEventStore()
+                        let auth = EKEventStore.authorizationStatus(for: .event)
+                        guard auth == .fullAccess || auth == .authorized else {
+                            print("[AXIS_ACTION] delete_event: calendar not authorized")
+                            state.executedActions.append(State.ExecutedAction(
+                                type: "event_error", title: "Calendar access needed",
+                                details: "Enable calendar access in Settings to delete events",
+                                icon: "exclamationmark.triangle.fill", messageId: messageId
+                            ))
+                            break
+                        }
+                        let matches = Self.findCalendarEvents(
+                            store: eventStore,
+                            title: params["title"],
+                            date: params["date"],
+                            startTime: params["startTime"]
+                        )
+                        let span: EKSpan = (params["span"] == "series") ? .futureEvents : .thisEvent
+                        var deletedCount = 0
+                        var deletedTitle = params["title"] ?? "Event"
+                        for ek in matches.prefix(5) {
+                            do {
+                                try eventStore.remove(ek, span: span, commit: false)
+                                deletedCount += 1
+                                deletedTitle = ek.title ?? deletedTitle
+                            } catch {
+                                print("[AXIS_ACTION] delete_event failed for \(ek.title ?? "?"): \(error)")
+                            }
+                        }
+                        if deletedCount > 0 {
+                            try? eventStore.commit()
+                        }
+                        print("[AXIS_ACTION] Deleted \(deletedCount) event(s) matching title=\(params["title"] ?? "-") date=\(params["date"] ?? "-")")
+                        if deletedCount == 0 {
+                            state.executedActions.append(State.ExecutedAction(
+                                type: "event_error", title: "No matching event found",
+                                details: "Tried: \(params["title"] ?? "-") on \(params["date"] ?? "-")",
+                                icon: "magnifyingglass", messageId: messageId
+                            ))
+                        } else {
+                            state.executedActions.append(State.ExecutedAction(
+                                type: "event_deleted", title: deletedTitle,
+                                details: "Removed \(deletedCount) \(deletedCount == 1 ? "event" : "events")" + (span == .futureEvents ? " (series)" : ""),
+                                icon: "trash.fill", messageId: messageId
+                            ))
+                        }
+
+                    case "update_event":
+                        let eventStore = EKEventStore()
+                        let auth = EKEventStore.authorizationStatus(for: .event)
+                        guard auth == .fullAccess || auth == .authorized else {
+                            print("[AXIS_ACTION] update_event: calendar not authorized")
+                            state.executedActions.append(State.ExecutedAction(
+                                type: "event_error", title: "Calendar access needed",
+                                details: "Enable calendar access in Settings to edit events",
+                                icon: "exclamationmark.triangle.fill", messageId: messageId
+                            ))
+                            break
+                        }
+                        let matches = Self.findCalendarEvents(
+                            store: eventStore,
+                            title: params["title"],
+                            date: params["date"],
+                            startTime: params["startTime"]
+                        )
+                        guard let target = matches.first else {
+                            print("[AXIS_ACTION] update_event: no match for title=\(params["title"] ?? "-") date=\(params["date"] ?? "-")")
+                            state.executedActions.append(State.ExecutedAction(
+                                type: "event_error", title: "No matching event found",
+                                details: "Tried: \(params["title"] ?? "-") on \(params["date"] ?? "-")",
+                                icon: "magnifyingglass", messageId: messageId
+                            ))
+                            break
+                        }
+                        let originalTitle = target.title ?? ""
+                        if let newTitle = params["newTitle"], !newTitle.isEmpty {
+                            target.title = Self.toSentenceCase(newTitle)
+                        }
+                        if let newLocation = params["newLocation"] {
+                            target.location = newLocation
+                        }
+                        if let newNotes = params["newNotes"] {
+                            target.notes = newNotes
+                        }
+                        // Date + time updates. newDate resets both endpoints to the same day;
+                        // newStartTime / newEndTime adjust the time-of-day on whichever day ends up active.
+                        let baseDay: Date = {
+                            if let d = params["newDate"], let parsed = Self.parseDate(d) { return parsed }
+                            return target.startDate
+                        }()
+                        if params["newStartTime"] != nil || params["newEndTime"] != nil || params["newDate"] != nil {
+                            let startTimeStr: String = {
+                                if let s = params["newStartTime"] { return s }
+                                let f = DateFormatter(); f.dateFormat = "HH:mm"
+                                return f.string(from: target.startDate)
+                            }()
+                            let endTimeStr: String = {
+                                if let e = params["newEndTime"] { return e }
+                                let f = DateFormatter(); f.dateFormat = "HH:mm"
+                                return f.string(from: target.endDate)
+                            }()
+                            target.startDate = Self.combineDateAndTime(date: baseDay, time: startTimeStr)
+                            target.endDate = Self.combineDateAndTime(date: baseDay, time: endTimeStr)
+                            if target.endDate <= target.startDate {
+                                target.endDate = target.startDate.addingTimeInterval(60 * 60)
+                            }
+                        }
+                        let span: EKSpan = (params["span"] == "series") ? .futureEvents : .thisEvent
+                        do {
+                            try eventStore.save(target, span: span, commit: true)
+                            print("[AXIS_ACTION] Updated event: \(originalTitle) -> \(target.title ?? "?")")
+                            let dateFmt = DateFormatter(); dateFmt.dateStyle = .medium; dateFmt.timeStyle = .short
+                            state.executedActions.append(State.ExecutedAction(
+                                type: "event_updated", title: target.title ?? originalTitle,
+                                details: "\(dateFmt.string(from: target.startDate))" + (span == .futureEvents ? " (series)" : ""),
+                                icon: "calendar.badge.checkmark", messageId: messageId
+                            ))
+                        } catch {
+                            print("[AXIS_ACTION] update_event save failed: \(error)")
+                            state.executedActions.append(State.ExecutedAction(
+                                type: "event_error", title: "Update failed",
+                                details: error.localizedDescription,
+                                icon: "exclamationmark.triangle.fill", messageId: messageId
+                            ))
+                        }
+
                     default:
                         print("[AXIS_ACTION] Unknown action type: \(action.type)")
                     }
@@ -782,6 +879,44 @@ struct AIChatReducer {
         let hour = Int(parts.first ?? "9") ?? 9
         let minute = Int(parts.count > 1 ? parts[1] : "0") ?? 0
         return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+    }
+
+    /// Finds EKEvents matching an optional title (fuzzy, case-insensitive substring)
+    /// and optional date (YYYY-MM-DD or relative). Used by delete_event / update_event.
+    /// If both title and date are provided, the match must satisfy both. If only one is
+    /// provided, the match satisfies just that. Results are sorted by start date.
+    static func findCalendarEvents(
+        store: EKEventStore,
+        title: String?,
+        date: String?,
+        startTime: String?
+    ) -> [EKEvent] {
+        let calendar = Calendar.current
+        let windowStart: Date
+        let windowEnd: Date
+        if let dateStr = date, let day = Self.parseDate(dateStr) {
+            windowStart = calendar.startOfDay(for: day)
+            windowEnd = calendar.date(byAdding: .day, value: 1, to: windowStart) ?? windowStart.addingTimeInterval(86400)
+        } else {
+            windowStart = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+            windowEnd = calendar.date(byAdding: .day, value: 60, to: Date()) ?? Date().addingTimeInterval(86400 * 60)
+        }
+        let predicate = store.predicateForEvents(withStart: windowStart, end: windowEnd, calendars: nil)
+        var events = store.events(matching: predicate)
+
+        if let rawTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines), !rawTitle.isEmpty {
+            let needle = rawTitle.lowercased()
+            events = events.filter { ($0.title ?? "").lowercased().contains(needle) }
+        }
+
+        if let timeStr = startTime {
+            let targetStart = Self.combineDateAndTime(date: windowStart, time: timeStr)
+            // Allow a 15-minute window on either side for fuzzy time matching.
+            let tolerance: TimeInterval = 15 * 60
+            events = events.filter { abs($0.startDate.timeIntervalSince(targetStart)) <= tolerance }
+        }
+
+        return events.sorted { $0.startDate < $1.startDate }
     }
 
     static func toSentenceCase(_ text: String) -> String {
