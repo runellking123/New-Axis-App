@@ -62,9 +62,12 @@ struct VoiceMemosReducer {
         case memosLoaded([State.MemoItem])
         case searchTextChanged(String)
         case startRecording
+        case recordingPermissionGranted
+        case recordingFailed(String)
         case stopRecording
         case recordingTick
         case recordingCompleted(audioFile: String, duration: Double)
+        case deleteAll
         case transcriptionCompleted(id: UUID, transcript: String)
         case polishCompleted(id: UUID, polishedText: String)
         case summaryCompleted(id: UUID, summary: String, actions: [String])
@@ -126,17 +129,43 @@ struct VoiceMemosReducer {
                 return .none
 
             case .startRecording:
-                state.isRecording = true
-                state.recordingDuration = 0
+                // Request mic + speech permission BEFORE starting recorder.
+                // Previously record() could fire before iOS granted permission,
+                // producing a silent file that SFSpeech reported as "(No speech detected)".
                 let fileName = "voice_memo_\(UUID().uuidString).m4a"
                 let url = VoiceMemosReducer.audioURL(for: fileName)
-                VoiceRecorder.shared.startRecording(to: url)
+                return .run { send in
+                    let micGranted = await VoiceRecorder.shared.requestPermission()
+                    guard micGranted else {
+                        await send(.recordingFailed("Microphone access denied. Enable it in Settings › AXIS."))
+                        return
+                    }
+                    // Pre-warm speech-recognition auth so transcription doesn't block later.
+                    _ = await withCheckedContinuation { (c: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
+                        SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) }
+                    }
+                    guard VoiceRecorder.shared.startRecording(to: url) else {
+                        let msg = VoiceRecorder.shared.lastErrorMessage ?? "Recording failed to start."
+                        await send(.recordingFailed(msg))
+                        return
+                    }
+                    await send(.recordingPermissionGranted)
+                }
+
+            case .recordingPermissionGranted:
+                state.isRecording = true
+                state.recordingDuration = 0
                 return .run { send in
                     while true {
                         try await clock.sleep(for: .seconds(1))
                         await send(.recordingTick)
                     }
                 }.cancellable(id: CancelID.timer)
+
+            case let .recordingFailed(message):
+                print("[VoiceMemo] Recording failed: \(message)")
+                state.isRecording = false
+                return .cancel(id: CancelID.timer)
 
             case .stopRecording:
                 state.isRecording = false
@@ -276,6 +305,19 @@ struct VoiceMemosReducer {
                 } else {
                     state.selectedMemoIDs = Set(state.filteredMemos.map(\.id))
                 }
+                return .none
+
+            case .deleteAll:
+                let stored = PersistenceService.shared.fetchVoiceMemos()
+                for memo in stored {
+                    let url = VoiceMemosReducer.audioURL(for: memo.audioFileName)
+                    try? FileManager.default.removeItem(at: url)
+                    PersistenceService.shared.deleteVoiceMemo(memo)
+                }
+                state.memos.removeAll()
+                state.selectedMemo = nil
+                state.selectedMemoIDs.removeAll()
+                state.isSelectMode = false
                 return .none
 
             case .deleteSelected:
@@ -469,11 +511,19 @@ struct VoiceMemosReducer {
 
     static func transcribeAudio(url: URL) async -> String {
         print("[Transcribe] Start url=\(url.lastPathComponent) exists=\(FileManager.default.fileExists(atPath: url.path))")
+        // Give AVAudioRecorder a moment to flush the final encoded frames.
+        try? await Task.sleep(nanoseconds: 300_000_000)
         guard FileManager.default.fileExists(atPath: url.path) else {
             return "(Audio file missing)"
         }
         let fileSize = ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int) ?? 0
         print("[Transcribe] File size: \(fileSize) bytes")
+        // ~2KB is an empty AAC container with no captured audio. Surface a clearer
+        // message than "(No speech detected)" which misleads the user into thinking
+        // they didn't speak loudly enough.
+        if fileSize < 4_000 {
+            return "(Recording captured no audio — check that AXIS has microphone permission in Settings.)"
+        }
         return await withCheckedContinuation { continuation in
             let resumed = TranscriptionResumeGuard()
             func finish(_ value: String) {
@@ -717,16 +767,39 @@ enum WritingStyle: String, CaseIterable, Equatable, Identifiable {
 
 // MARK: - Voice Recorder
 
-final class VoiceRecorder: NSObject, @unchecked Sendable {
+final class VoiceRecorder: NSObject, AVAudioRecorderDelegate, @unchecked Sendable {
     static let shared = VoiceRecorder()
     private var recorder: AVAudioRecorder?
     private var recordingURL: URL?
+    private(set) var lastErrorMessage: String?
 
-    func startRecording(to url: URL) {
+    func requestPermission() async -> Bool {
         #if os(iOS)
+        if AVAudioApplication.shared.recordPermission == .granted { return true }
+        return await AVAudioApplication.requestRecordPermission()
+        #else
+        return true
+        #endif
+    }
+
+    @discardableResult
+    func startRecording(to url: URL) -> Bool {
+        lastErrorMessage = nil
+
+        #if os(iOS)
+        // `.record` + `.measurement` is Apple's recommended combination for speech
+        // capture. The previous `.playAndRecord` with `.defaultToSpeaker` rerouted
+        // the mic on some devices and produced silent files that SFSpeech reported
+        // as "(No speech detected)".
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
-        try? session.setActive(true)
+        do {
+            try session.setCategory(.record, mode: .measurement, options: [.allowBluetooth])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            lastErrorMessage = "Audio session error: \(error.localizedDescription)"
+            print("[VoiceRecorder] \(lastErrorMessage!)")
+            return false
+        }
         #endif
 
         let settings: [String: Any] = [
@@ -736,9 +809,29 @@ final class VoiceRecorder: NSObject, @unchecked Sendable {
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
 
-        recorder = try? AVAudioRecorder(url: url, settings: settings)
-        recordingURL = url
-        recorder?.record()
+        do {
+            let r = try AVAudioRecorder(url: url, settings: settings)
+            r.delegate = self
+            r.isMeteringEnabled = true
+            guard r.prepareToRecord() else {
+                lastErrorMessage = "Could not prepare recorder (check disk space / file path)."
+                print("[VoiceRecorder] \(lastErrorMessage!)")
+                return false
+            }
+            guard r.record() else {
+                lastErrorMessage = "Recorder.record() returned false — microphone in use or permission not granted."
+                print("[VoiceRecorder] \(lastErrorMessage!)")
+                return false
+            }
+            recorder = r
+            recordingURL = url
+            print("[VoiceRecorder] Recording started → \(url.lastPathComponent)")
+            return true
+        } catch {
+            lastErrorMessage = "Recorder init failed: \(error.localizedDescription)"
+            print("[VoiceRecorder] \(lastErrorMessage!)")
+            return false
+        }
     }
 
     func stopRecording() -> (URL, Double)? {
@@ -749,13 +842,26 @@ final class VoiceRecorder: NSObject, @unchecked Sendable {
         self.recorder = nil
         self.recordingURL = nil
         #if os(iOS)
-        // Release the audio session so SFSpeechRecognizer isn't fighting an active playAndRecord session.
+        // Release so SFSpeechRecognizer has exclusive access.
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
         #endif
         if let url = url {
+            let size = ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int) ?? 0
+            print("[VoiceRecorder] Stopped. duration=\(duration)s size=\(size)B")
             return (url, duration)
         }
         return nil
+    }
+
+    func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
+        if let error {
+            print("[VoiceRecorder] Encode error: \(error)")
+            lastErrorMessage = "Encoding error: \(error.localizedDescription)"
+        }
+    }
+
+    func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+        print("[VoiceRecorder] didFinish success=\(flag)")
     }
 }
 

@@ -75,10 +75,18 @@ struct AxisApp: App {
             TripExpense.self,
             TripActivity.self,
         ])
+        // CloudKit mirroring requires a valid iCloud container entitlement. Unsigned
+        // simulator builds don't have that, which makes CoreData's CloudKit setup
+        // assert inside PFCloudKitContainerProvider at launch. Skip CloudKit for
+        // simulator builds — real-device/signed builds still sync normally.
+        #if targetEnvironment(simulator)
+        let config = ModelConfiguration(schema: schema)
+        #else
         let config = ModelConfiguration(
             schema: schema,
             cloudKitDatabase: .private("iCloud.com.runellking.axis")
         )
+        #endif
         do {
             container = try ModelContainer(for: schema, configurations: [config])
         } catch {

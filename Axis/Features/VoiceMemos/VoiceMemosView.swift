@@ -18,6 +18,7 @@ struct VoiceMemosView: View {
     @State private var memoFrames: [UUID: CGRect] = [:]
     @State private var dragSelectedIDs: Set<UUID> = []
     @State private var isDraggingSelection = false
+    @State private var showDeleteAllConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -47,20 +48,55 @@ struct VoiceMemosView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if !store.filteredMemos.isEmpty {
-                        Button(store.isSelectMode ? "Done" : "Select") {
-                            store.send(.toggleSelectMode)
+                        Menu {
+                            Button {
+                                store.send(.toggleSelectMode)
+                            } label: {
+                                Label(store.isSelectMode ? "Exit Select" : "Select", systemImage: "checkmark.circle")
+                            }
+                            Button {
+                                store.send(.selectAll)
+                                if !store.isSelectMode { store.send(.toggleSelectMode) }
+                            } label: {
+                                Label("Select All", systemImage: "checkmark.circle.fill")
+                            }
+                            Divider()
+                            Button(role: .destructive) {
+                                showDeleteAllConfirm = true
+                            } label: {
+                                Label("Delete All Memos", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
                         }
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     if store.isSelectMode {
-                        Button(store.selectedMemoIDs.count == store.filteredMemos.count ? "Deselect All" : "Select All") {
-                            store.send(.selectAll)
+                        HStack(spacing: 8) {
+                            Button(store.selectedMemoIDs.count == store.filteredMemos.count ? "Deselect All" : "Select All") {
+                                store.send(.selectAll)
+                            }
+                            Button("Done") {
+                                store.send(.toggleSelectMode)
+                            }
                         }
                     } else {
                         recordButton
                     }
                 }
+            }
+            .confirmationDialog(
+                "Delete all \(store.memos.count) memo\(store.memos.count == 1 ? "" : "s")?",
+                isPresented: $showDeleteAllConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete All", role: .destructive) {
+                    store.send(.deleteAll)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes all recordings and transcripts. This cannot be undone.")
             }
             .safeAreaInset(edge: .bottom) {
                 if store.isSelectMode && !store.selectedMemoIDs.isEmpty {
