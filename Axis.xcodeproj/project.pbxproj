@@ -308,6 +308,10 @@
 		FC6E5E2E9614F5FC04911A82 /* EATaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD23A5D1271ABB59BBE4117C /* EATaskListView.swift */; };
 		FC9FC005042E2F75A51059C5 /* MealLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1MEAL0LOG000000000001 /* MealLog.swift */; };
 		FE28E1DAF760E7F69E972D67 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* AppView.swift */; };
+		3090FCB21B2D27BCE946137B /* ForgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2047276C08D2D842A371DE55 /* ForgeView.swift */; };
+		342533BFC2BAD0774584BC36 /* ForgeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9047634F725F39266D7C28 /* ForgeService.swift */; };
+		5E4D4FCB0D144C0B1DE3734F /* ForgeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A260554843606DC916961025 /* ForgeModels.swift */; };
+		D547D4A16F3BFBFE9AF3B448 /* ForgeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776879D9A8032478F14D2EFC /* ForgeViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -496,6 +500,10 @@
 		F650BFA260516CEA83FD58D3 /* TrendSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrendSnapshot.swift; sourceTree = "<group>"; };
 		FC3930CDE9809D1327237FA6 /* AxisMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AxisMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC61CE163D4FE43A1F42698A /* EAQuickCaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EAQuickCaptureOverlay.swift; sourceTree = "<group>"; };
+		2047276C08D2D842A371DE55 /* ForgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgeView.swift; sourceTree = "<group>"; };
+		776879D9A8032478F14D2EFC /* ForgeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgeViewModel.swift; sourceTree = "<group>"; };
+		7B9047634F725F39266D7C28 /* ForgeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgeService.swift; sourceTree = "<group>"; };
+		A260554843606DC916961025 /* ForgeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgeModels.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -755,6 +763,7 @@
 				00BC3D77D620663202E3670A /* VoiceMemos */,
 				E38F065E2C53DC4AC20D74E4 /* TravelPlanner */,
 				A9254A38A56D17E3E0392399 /* Clipboard */,
+				CB8DF6DD267F401E5254FDD9 /* Forge */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -895,6 +904,7 @@
 				E7F3F06821DF2F1F7099C4BD /* EnergyCheckIn.swift */,
 				929F327DAE4B97D6A5959743 /* TripExpense.swift */,
 				F17719035378F9A2EAABC32B /* TripActivity.swift */,
+				A260554843606DC916961025 /* ForgeModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -916,6 +926,7 @@
 				B306755418842A07083FCE5E /* AIExecutiveService.swift */,
 				7FC00000000000000000AC05 /* MultiProviderChatService.swift */,
 				7FC00000000000000000AC08 /* YelpService.swift */,
+				7B9047634F725F39266D7C28 /* ForgeService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1062,6 +1073,15 @@
 				D6D3EDD585C6AC05B7BD853E /* WeatherDetailView.swift */,
 			);
 			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		CB8DF6DD267F401E5254FDD9 /* Forge */ = {
+			isa = PBXGroup;
+			children = (
+				2047276C08D2D842A371DE55 /* ForgeView.swift */,
+				776879D9A8032478F14D2EFC /* ForgeViewModel.swift */,
+			);
+			path = Forge;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1351,6 +1371,10 @@
 				B9D784283E0A388D5DD27E7F /* MacAppView.swift in Sources */,
 				92C08170D3CE7C4A428A563C /* PlatformServices.swift in Sources */,
 				5A948B4B298361218312B22D /* MacOSCompat.swift in Sources */,
+				5E4D4FCB0D144C0B1DE3734F /* ForgeModels.swift in Sources */,
+				342533BFC2BAD0774584BC36 /* ForgeService.swift in Sources */,
+				D547D4A16F3BFBFE9AF3B448 /* ForgeViewModel.swift in Sources */,
+				3090FCB21B2D27BCE946137B /* ForgeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

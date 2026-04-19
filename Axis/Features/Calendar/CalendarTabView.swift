@@ -312,6 +312,11 @@ struct CalendarTabView: View {
                                             } label: {
                                                 Label("Add to Tasks", systemImage: "checklist")
                                             }
+                                            Button {
+                                                addEventToReminders(event)
+                                            } label: {
+                                                Label("Add to Reminders", systemImage: "bell.badge")
+                                            }
                                             Divider()
                                             Button(role: .destructive) {
                                                 deleteEvent(event)
@@ -483,6 +488,9 @@ struct CalendarTabView: View {
                     }
                     quickActionButton("Copy", icon: "doc.on.doc") {
                         PlatformServices.copyToClipboard(eventDetailsText(event))
+                    }
+                    quickActionButton("Reminders", icon: "bell.badge") {
+                        addEventToReminders(event)
                     }
                     quickActionButton("Delete", icon: "trash", destructive: true) {
                         deleteEvent(event)
@@ -842,6 +850,33 @@ struct CalendarTabView: View {
             task.deadline = event.startDate
         }
         PersistenceService.shared.saveEATask(task)
+    }
+
+    /// Creates a Reminders.app item via EventKit (due at event start; notes include location/calendar notes; meeting link preserved for Join).
+    private func addEventToReminders(_ event: CalEventItem) {
+        Task {
+            let status = EKEventStore.authorizationStatus(for: .reminder)
+            if status != .fullAccess {
+                let granted = await CalendarService.shared.requestRemindersAccess()
+                guard granted else { return }
+            }
+            var noteLines: [String] = []
+            if let loc = event.location?.trimmingCharacters(in: .whitespacesAndNewlines), !loc.isEmpty {
+                noteLines.append(loc)
+            }
+            if let n = event.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
+                noteLines.append(n)
+            }
+            let notes = noteLines.isEmpty ? nil : noteLines.joined(separator: "\n\n")
+            let meeting = meetingLink(for: event)
+            CalendarService.shared.createReminder(
+                title: event.title,
+                notes: notes,
+                meetingInfo: meeting?.url.absoluteString,
+                dueDate: event.startDate,
+                includeDueTime: !event.isAllDay
+            )
+        }
     }
 
     // MARK: - Meeting Link Detection

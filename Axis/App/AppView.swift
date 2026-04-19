@@ -76,6 +76,7 @@ struct AppView: View {
         GalleryTile(tab: .trends, title: "News", subtitle: "Feed & trends", icon: "newspaper.fill", color: .teal),
         GalleryTile(tab: .travel, title: "Travel", subtitle: "Trip planner", icon: "airplane", color: .cyan),
         GalleryTile(tab: .clipboard, title: "Clipboard", subtitle: "Saved clips", icon: "doc.on.clipboard", color: .mint),
+        GalleryTile(tab: .forge, title: "Forge", subtitle: "AI routing & prompts", icon: "hammer.fill", color: .orange),
         GalleryTile(tab: .settings, title: "Settings", subtitle: "Preferences", icon: "gearshape.fill", color: .gray),
     ]
 
@@ -215,6 +216,8 @@ struct AppView: View {
             TravelPlannerView(store: store.scope(state: \.travelPlanner, action: \.travelPlanner))
         case .clipboard:
             ClipboardView(store: store.scope(state: \.clipboard, action: \.clipboard))
+        case .forge:
+            ForgeView()
         case .settings:
             SettingsView(store: store.scope(state: \.settings, action: \.settings))
         default:
@@ -285,6 +288,8 @@ struct AppView: View {
             TravelPlannerView(store: store.scope(state: \.travelPlanner, action: \.travelPlanner))
         case .clipboard:
             ClipboardView(store: store.scope(state: \.clipboard, action: \.clipboard))
+        case .forge:
+            ForgeView()
         case .settings:
             SettingsView(store: store.scope(state: \.settings, action: \.settings))
         }

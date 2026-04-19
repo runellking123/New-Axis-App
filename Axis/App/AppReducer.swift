@@ -323,6 +323,7 @@ struct AppReducer {
             case travel = 14
             case clipboard = 15
             case settings = 16
+            case forge = 17
 
             var id: Int { rawValue }
 
@@ -345,6 +346,7 @@ struct AppReducer {
                 case .travel: return "Travel"
                 case .clipboard: return "Clipboard"
                 case .settings: return "Settings"
+                case .forge: return "Forge"
                 }
             }
 
@@ -367,6 +369,7 @@ struct AppReducer {
                 case .travel: return "airplane"
                 case .clipboard: return "doc.on.clipboard"
                 case .settings: return "gearshape.fill"
+                case .forge: return "hammer.fill"
                 }
             }
 
@@ -544,6 +547,7 @@ struct AppReducer {
                 case "travel": state.selectedTab = .travel
                 case "chat": state.selectedTab = .aiChat
                 case "note": state.selectedTab = .notes
+                case "forge": state.selectedTab = .forge
                 case "meal":
                     state.selectedTab = .familyHQ
                     state.familyHQ.selectedSection = .meals
