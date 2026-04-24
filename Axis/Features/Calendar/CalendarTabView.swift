@@ -29,6 +29,7 @@ struct CalendarTabView: View {
     @State private var showMeetingPrep = false
     @State private var prepForEvent: CalEventItem?
     @State private var expandedEventId: String? = nil
+    @State private var reminderBanner: String? = nil
     @State private var showEditEvent = false
     @State private var editingEvent: CalEventItem? = nil
     @State private var dailySummary = ""
@@ -270,11 +271,6 @@ struct CalendarTabView: View {
                                                     .padding(6)
                                             }
                                         }
-                                        .onTapGesture {
-                                            withAnimation(.easeInOut(duration: 0.2)) {
-                                                expandedEventId = expandedEventId == event.id ? nil : event.id
-                                            }
-                                        }
                                         .contextMenu {
                                             Button {
                                                 editingEvent = event
@@ -385,6 +381,20 @@ struct CalendarTabView: View {
                 loadEvents()
                 loadSources()
             }
+            .overlay(alignment: .bottom) {
+                if let banner = reminderBanner {
+                    Text(banner)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(Color.axisGold))
+                        .shadow(radius: 4)
+                        .padding(.bottom, 32)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .animation(.easeInOut, value: reminderBanner)
+                }
+            }
         }
     }
 
@@ -442,6 +452,12 @@ struct CalendarTabView: View {
                 Image(systemName: expandedEventId == event.id ? "chevron.up" : "chevron.down")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    expandedEventId = expandedEventId == event.id ? nil : event.id
+                }
             }
 
             // Expanded details + action buttons
@@ -854,11 +870,15 @@ struct CalendarTabView: View {
 
     /// Creates a Reminders.app item via EventKit (due at event start; notes include location/calendar notes; meeting link preserved for Join).
     private func addEventToReminders(_ event: CalEventItem) {
-        Task {
+        Task { @MainActor in
             let status = EKEventStore.authorizationStatus(for: .reminder)
             if status != .fullAccess {
                 let granted = await CalendarService.shared.requestRemindersAccess()
-                guard granted else { return }
+                guard granted else {
+                    reminderBanner = "Reminders access denied — enable in Settings → AXIS → Reminders"
+                    dismissBannerAfterDelay()
+                    return
+                }
             }
             var noteLines: [String] = []
             if let loc = event.location?.trimmingCharacters(in: .whitespacesAndNewlines), !loc.isEmpty {
@@ -869,13 +889,27 @@ struct CalendarTabView: View {
             }
             let notes = noteLines.isEmpty ? nil : noteLines.joined(separator: "\n\n")
             let meeting = meetingLink(for: event)
-            CalendarService.shared.createReminder(
+            let id = CalendarService.shared.createReminder(
                 title: event.title,
                 notes: notes,
                 meetingInfo: meeting?.url.absoluteString,
                 dueDate: event.startDate,
                 includeDueTime: !event.isAllDay
             )
+            if id != nil {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                reminderBanner = "Added to Reminders"
+            } else {
+                reminderBanner = "Failed to create reminder"
+            }
+            dismissBannerAfterDelay()
+        }
+    }
+
+    private func dismissBannerAfterDelay() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation { reminderBanner = nil }
         }
     }
 

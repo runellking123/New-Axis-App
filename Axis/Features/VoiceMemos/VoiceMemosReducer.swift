@@ -524,69 +524,150 @@ struct VoiceMemosReducer {
         if fileSize < 4_000 {
             return "(Recording captured no audio — check that AXIS has microphone permission in Settings.)"
         }
+
+        // Ensure speech recognition is authorized.
+        let authStatus = await withCheckedContinuation { (c: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
+            SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0) }
+        }
+        print("[Transcribe] Auth status rawValue=\(authStatus.rawValue)")
+        guard authStatus == .authorized else {
+            return "(Speech recognition not authorized — enable in Settings › Privacy › Speech Recognition)"
+        }
+
+        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) else {
+            return "(Speech recognizer unavailable — locale unsupported)"
+        }
+        print("[Transcribe] Recognizer isAvailable=\(recognizer.isAvailable) supportsOnDevice=\(recognizer.supportsOnDeviceRecognition)")
+        guard recognizer.isAvailable else {
+            return "(Speech recognizer unavailable — check network/device)"
+        }
+
+        // Try on-device recognition first (no server-side ~1-minute cap).
+        // If on-device returns empty or fails, fall back to server.
+        if recognizer.supportsOnDeviceRecognition {
+            let onDeviceResult = await runSingleRecognition(url: url, recognizer: recognizer, onDevice: true, timeout: 60)
+            if !onDeviceResult.isEmpty {
+                print("[Transcribe] On-device succeeded: \(onDeviceResult.prefix(120))")
+                return onDeviceResult
+            }
+            print("[Transcribe] On-device returned empty, falling back to server")
+        }
+
+        // Server-based recognition as fallback — chunk long audio to avoid
+        // Apple's ~1-minute server limit.
+        let serverResult = await transcribeChunked(url: url, recognizer: recognizer)
+        let final = serverResult.isEmpty ? "(No speech detected)" : serverResult
+        print("[Transcribe] Finish: \(final.prefix(120))")
+        return final
+    }
+
+    /// Splits audio longer than 50 seconds into chunks so server-based
+    /// recognition can handle the full recording (Apple caps server requests
+    /// at roughly 1 minute of audio).
+    private static func transcribeChunked(url: URL, recognizer: SFSpeechRecognizer) async -> String {
+        let asset = AVURLAsset(url: url)
+        let totalSeconds: Double
+        do {
+            let duration = try await asset.load(.duration)
+            totalSeconds = CMTimeGetSeconds(duration)
+        } catch {
+            print("[Transcribe] Could not load duration, trying single request")
+            return await runSingleRecognition(url: url, recognizer: recognizer, onDevice: false, timeout: 600)
+        }
+        print("[Transcribe] Audio duration: \(totalSeconds)s")
+
+        // Short audio — single request is fine.
+        guard totalSeconds > 50 else {
+            return await runSingleRecognition(url: url, recognizer: recognizer, onDevice: false, timeout: 600)
+        }
+
+        // Chunk into ~50-second segments.
+        let chunkSeconds: Double = 50
+        var transcripts: [String] = []
+        var start: Double = 0
+        var chunkIndex = 0
+
+        while start < totalSeconds {
+            let end = min(start + chunkSeconds, totalSeconds)
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("axis_chunk_\(chunkIndex)_\(UUID().uuidString).m4a")
+
+            print("[Transcribe] Chunk \(chunkIndex): \(String(format: "%.1f", start))s–\(String(format: "%.1f", end))s")
+            if await exportAudioChunk(from: url, to: tempURL, startSeconds: start, endSeconds: end) {
+                let result = await runSingleRecognition(url: tempURL, recognizer: recognizer, onDevice: false, timeout: 120)
+                if !result.isEmpty && !result.hasPrefix("(") {
+                    transcripts.append(result)
+                }
+            }
+
+            try? FileManager.default.removeItem(at: tempURL)
+            start = end
+            chunkIndex += 1
+        }
+
+        print("[Transcribe] Chunked transcription: \(transcripts.count)/\(chunkIndex) chunks succeeded")
+        return transcripts.joined(separator: " ")
+    }
+
+    /// Exports a time-range slice of an audio file to a new M4A file.
+    private static func exportAudioChunk(from source: URL, to dest: URL, startSeconds: Double, endSeconds: Double) async -> Bool {
+        let asset = AVURLAsset(url: source)
+        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+            print("[Transcribe] Could not create export session")
+            return false
+        }
+        let startTime = CMTime(seconds: startSeconds, preferredTimescale: 44100)
+        let endTime = CMTime(seconds: endSeconds, preferredTimescale: 44100)
+        session.timeRange = CMTimeRange(start: startTime, end: endTime)
+        session.outputURL = dest
+        session.outputFileType = .m4a
+        await session.export()
+        if session.status != .completed {
+            print("[Transcribe] Export chunk failed: \(session.error?.localizedDescription ?? "unknown")")
+        }
+        return session.status == .completed
+    }
+
+    /// Runs a single speech recognition attempt. Returns the transcript text,
+    /// or an empty string if recognition produced no usable result (so the
+    /// caller can try a different strategy).
+    private static func runSingleRecognition(url: URL, recognizer: SFSpeechRecognizer, onDevice: Bool, timeout: TimeInterval) async -> String {
+        let label = onDevice ? "OnDevice" : "Server"
         return await withCheckedContinuation { continuation in
             let resumed = TranscriptionResumeGuard()
             func finish(_ value: String) {
                 guard resumed.claim() else { return }
-                print("[Transcribe] Finish: \(value.prefix(120))")
                 continuation.resume(returning: value)
             }
 
-            let current = SFSpeechRecognizer.authorizationStatus()
-            print("[Transcribe] Current auth status rawValue=\(current.rawValue)")
-            guard current == .authorized || current == .notDetermined else {
-                finish("(Speech recognition not authorized — enable in Settings › Privacy › Speech Recognition)")
-                return
+            let request = SFSpeechURLRecognitionRequest(url: url)
+            request.shouldReportPartialResults = false
+            request.addsPunctuation = true
+            request.requiresOnDeviceRecognition = onDevice
+
+            let task = recognizer.recognitionTask(with: request) { result, error in
+                if let error = error {
+                    print("[Transcribe] \(label) error: \(error)")
+                    if onDevice {
+                        finish("")  // Empty signals caller to try server fallback
+                    } else {
+                        finish("(Transcription failed: \(error.localizedDescription))")
+                    }
+                    return
+                }
+                if let result = result, result.isFinal {
+                    let text = result.bestTranscription.formattedString
+                    print("[Transcribe] \(label) final: \(text.prefix(120))")
+                    finish(text)
+                }
             }
 
-            SFSpeechRecognizer.requestAuthorization { status in
-                print("[Transcribe] Auth requestResult rawValue=\(status.rawValue)")
-                guard status == .authorized else {
-                    finish("(Speech recognition not authorized — enable in Settings › Privacy › Speech Recognition)")
-                    return
-                }
-
-                guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) else {
-                    finish("(Speech recognizer unavailable — locale unsupported)")
-                    return
-                }
-                print("[Transcribe] Recognizer isAvailable=\(recognizer.isAvailable) supportsOnDevice=\(recognizer.supportsOnDeviceRecognition)")
-                guard recognizer.isAvailable else {
-                    finish("(Speech recognizer unavailable — check network/device)")
-                    return
-                }
-
-                func runRecognition(onDevice: Bool) {
-                    let request = SFSpeechURLRecognitionRequest(url: url)
-                    request.shouldReportPartialResults = false
-                    request.addsPunctuation = true
-                    request.requiresOnDeviceRecognition = onDevice
-
-                    let task = recognizer.recognitionTask(with: request) { result, error in
-                        if let error = error {
-                            let ns = error as NSError
-                            let isTransient = ns.domain == "kAFAssistantErrorDomain" &&
-                                (ns.code == 1107 || ns.code == 1110 || ns.code == 203 || ns.code == 1101)
-                            if isTransient && onDevice {
-                                runRecognition(onDevice: false)
-                                return
-                            }
-                            finish("(Transcription failed: \(error.localizedDescription))")
-                            return
-                        }
-                        if let result = result, result.isFinal {
-                            let text = result.bestTranscription.formattedString
-                            finish(text.isEmpty ? "(No speech detected)" : text)
-                        }
-                    }
-                    _ = task
-                }
-
-                // Prefer on-device (no ~1-minute server limit); fall back to server on transient failure.
-                runRecognition(onDevice: recognizer.supportsOnDeviceRecognition)
-
-                // Safety timeout — long memos can take a while; allow up to 10 minutes.
-                DispatchQueue.global().asyncAfter(deadline: .now() + 600) {
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                print("[Transcribe] \(label) timeout after \(Int(timeout))s")
+                task.cancel()
+                if onDevice {
+                    finish("")
+                } else {
                     finish("(Transcription timed out)")
                 }
             }
