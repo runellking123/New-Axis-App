@@ -542,21 +542,24 @@ struct VoiceMemosReducer {
             return "(Speech recognizer unavailable — check network/device)"
         }
 
-        // Try on-device recognition first (no server-side ~1-minute cap).
-        // If on-device returns empty or fails, fall back to server.
-        if recognizer.supportsOnDeviceRecognition {
-            let onDeviceResult = await runSingleRecognition(url: url, recognizer: recognizer, onDevice: true, timeout: 60)
-            if !onDeviceResult.isEmpty {
-                print("[Transcribe] On-device succeeded: \(onDeviceResult.prefix(120))")
-                return onDeviceResult
-            }
-            print("[Transcribe] On-device returned empty, falling back to server")
+        // Prefer server recognition in bounded chunks. Whole-file on-device recognition
+        // can produce a non-empty but truncated final result for longer memo files.
+        let serverResult = await transcribeChunked(url: url, recognizer: recognizer, onDevice: false)
+        if !serverResult.isEmpty {
+            print("[Transcribe] Server chunking succeeded: \(serverResult.prefix(120))")
+            return serverResult
         }
 
-        // Server-based recognition as fallback — chunk long audio to avoid
-        // Apple's ~1-minute server limit.
-        let serverResult = await transcribeChunked(url: url, recognizer: recognizer)
-        let final = serverResult.isEmpty ? "(No speech detected)" : serverResult
+        if recognizer.supportsOnDeviceRecognition {
+            print("[Transcribe] Server returned empty, trying chunked on-device fallback")
+            let onDeviceResult = await transcribeChunked(url: url, recognizer: recognizer, onDevice: true)
+            if !onDeviceResult.isEmpty {
+                print("[Transcribe] On-device chunking succeeded: \(onDeviceResult.prefix(120))")
+                return onDeviceResult
+            }
+        }
+
+        let final = "(No speech detected)"
         print("[Transcribe] Finish: \(final.prefix(120))")
         return final
     }
@@ -564,7 +567,7 @@ struct VoiceMemosReducer {
     /// Splits audio longer than 50 seconds into chunks so server-based
     /// recognition can handle the full recording (Apple caps server requests
     /// at roughly 1 minute of audio).
-    private static func transcribeChunked(url: URL, recognizer: SFSpeechRecognizer) async -> String {
+    private static func transcribeChunked(url: URL, recognizer: SFSpeechRecognizer, onDevice: Bool) async -> String {
         let asset = AVURLAsset(url: url)
         let totalSeconds: Double
         do {
@@ -572,13 +575,13 @@ struct VoiceMemosReducer {
             totalSeconds = CMTimeGetSeconds(duration)
         } catch {
             print("[Transcribe] Could not load duration, trying single request")
-            return await runSingleRecognition(url: url, recognizer: recognizer, onDevice: false, timeout: 600)
+            return await runSingleRecognition(url: url, recognizer: recognizer, onDevice: onDevice, timeout: onDevice ? 120 : 600)
         }
         print("[Transcribe] Audio duration: \(totalSeconds)s")
 
         // Short audio — single request is fine.
         guard totalSeconds > 50 else {
-            return await runSingleRecognition(url: url, recognizer: recognizer, onDevice: false, timeout: 600)
+            return await runSingleRecognition(url: url, recognizer: recognizer, onDevice: onDevice, timeout: onDevice ? 120 : 600)
         }
 
         // Chunk into ~50-second segments.
@@ -594,7 +597,7 @@ struct VoiceMemosReducer {
 
             print("[Transcribe] Chunk \(chunkIndex): \(String(format: "%.1f", start))s–\(String(format: "%.1f", end))s")
             if await exportAudioChunk(from: url, to: tempURL, startSeconds: start, endSeconds: end) {
-                let result = await runSingleRecognition(url: tempURL, recognizer: recognizer, onDevice: false, timeout: 120)
+                let result = await runSingleRecognition(url: tempURL, recognizer: recognizer, onDevice: onDevice, timeout: 120)
                 if !result.isEmpty && !result.hasPrefix("(") {
                     transcripts.append(result)
                 }
@@ -641,13 +644,18 @@ struct VoiceMemosReducer {
             }
 
             let request = SFSpeechURLRecognitionRequest(url: url)
-            request.shouldReportPartialResults = false
+            request.shouldReportPartialResults = true
             request.addsPunctuation = true
             request.requiresOnDeviceRecognition = onDevice
+            let accumulator = TranscriptionResultAccumulator()
 
             let task = recognizer.recognitionTask(with: request) { result, error in
                 if let error = error {
                     print("[Transcribe] \(label) error: \(error)")
+                    if let best = accumulator.best {
+                        finish(best)
+                        return
+                    }
                     if onDevice {
                         finish("")  // Empty signals caller to try server fallback
                     } else {
@@ -655,16 +663,24 @@ struct VoiceMemosReducer {
                     }
                     return
                 }
-                if let result = result, result.isFinal {
+                if let result {
                     let text = result.bestTranscription.formattedString
-                    print("[Transcribe] \(label) final: \(text.prefix(120))")
-                    finish(text)
+                    accumulator.record(text)
+                    if result.isFinal {
+                        let finalText = accumulator.best ?? text
+                        print("[Transcribe] \(label) final: \(finalText.prefix(120))")
+                        finish(finalText)
+                    }
                 }
             }
 
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
                 print("[Transcribe] \(label) timeout after \(Int(timeout))s")
                 task.cancel()
+                if let best = accumulator.best {
+                    finish(best)
+                    return
+                }
                 if onDevice {
                     finish("")
                 } else {
@@ -726,12 +742,28 @@ struct VoiceMemosReducer {
             prompt: prompt,
             systemPrompt: "You are a transcription editor. Return only the corrected text. Never censor, remove, or replace any words including explicit language, profanity, or slang. Preserve the speaker's exact vocabulary."
         ) {
-            print("[VoiceMemo Polish] AI success: \(polished.prefix(80))...")
-            return polished.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = polished.trimmingCharacters(in: .whitespacesAndNewlines)
+            if looksSubstantiallyTruncated(original: text, candidate: trimmed) {
+                print("[VoiceMemo Polish] Rejected truncated AI output; keeping raw transcript")
+                return text
+            }
+            print("[VoiceMemo Polish] AI success: \(trimmed.prefix(80))...")
+            return trimmed
         }
         print("[VoiceMemo Polish] AI failed, using fallback grammar correction")
         // Fallback to rule-based correction
         return SpeechService.correctGrammar(text)
+    }
+
+    private static func looksSubstantiallyTruncated(original: String, candidate: String) -> Bool {
+        let originalWords = wordCount(in: original)
+        let candidateWords = wordCount(in: candidate)
+        guard originalWords >= 20 else { return candidateWords == 0 }
+        return candidateWords < Int(Double(originalWords) * 0.85)
+    }
+
+    private static func wordCount(in text: String) -> Int {
+        text.split { !$0.isLetter && !$0.isNumber }.count
     }
 
     static func rewriteTranscript(_ text: String, style: WritingStyle) async -> String {
@@ -960,6 +992,27 @@ final class TranscriptionResumeGuard: @unchecked Sendable {
         if done { return false }
         done = true
         return true
+    }
+}
+
+final class TranscriptionResultAccumulator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bestText = ""
+
+    var best: String? {
+        lock.lock(); defer { lock.unlock() }
+        return bestText.isEmpty ? nil : bestText
+    }
+
+    func record(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        lock.lock()
+        if trimmed.count > bestText.count {
+            bestText = trimmed
+        }
+        lock.unlock()
     }
 }
 
