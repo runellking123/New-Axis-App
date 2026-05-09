@@ -28,6 +28,8 @@
     <string>AXIS uses your contacts to power the Social Circle and meeting intelligence features.</string>
     <key>NSHealthShareUsageDescription</key>
     <string>AXIS reads sleep and activity data to calculate your Energy Score and suggest optimal work windows.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>AXIS saves wellness insights and activity summaries to Health so you can track trends over time.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>AXIS uses your location for contextual weather, nearby restaurant suggestions, and automatic mode switching.</string>
     <key>NSRemindersUsageDescription</key>
@@ -46,7 +48,7 @@
                 <string>axis</string>
             </array>
             <key>CFBundleURLName</key>
-            <string>com.axis.app</string>
+            <string>com.runellking.axis</string>
         </dict>
     </array>
     <key>UILaunchScreen</key>
@@ -54,6 +56,9 @@
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>LSApplicationQueriesSchemes</key>
     <array>
