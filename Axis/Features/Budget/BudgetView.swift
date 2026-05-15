@@ -20,6 +20,11 @@ struct BudgetView: View {
                     // Summary card
                     summaryCard
 
+                    // Spending breakdown
+                    if !store.bills.isEmpty {
+                        spendingChart
+                    }
+
                     // Bills grouped by category
                     billsList
                 }
@@ -139,34 +144,86 @@ struct BudgetView: View {
 
     private var summaryCard: some View {
         GlassCard {
-            VStack(spacing: 12) {
+            VStack(spacing: 14) {
                 HStack {
                     Text("Summary")
                         .font(.headline)
                     Spacer()
                 }
 
-                HStack(spacing: 0) {
-                    summaryItem(title: "Total Bills", value: store.totalBills, color: .primary)
-                    summaryItem(title: "Paid", value: store.totalPaid, color: .green)
-                    summaryItem(title: "Unpaid", value: store.totalUnpaid, color: .red)
-                    summaryItem(title: "Remaining", value: store.remaining, color: store.remaining >= 0 ? .green : .red)
+                HStack(spacing: 16) {
+                    AxisRingChart(
+                        progress: budgetUsage,
+                        lineWidth: 10,
+                        tint: store.remaining >= 0 ? .green : .red
+                    ) {
+                        VStack(spacing: 0) {
+                            Text("$\(String(format: "%.0f", abs(store.remaining)))")
+                                .font(.system(.callout, design: .rounded).weight(.bold))
+                                .minimumScaleFactor(0.5)
+                                .lineLimit(1)
+                            Text(store.remaining >= 0 ? "left" : "over")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(width: 96, height: 96)
+
+                    VStack(spacing: 10) {
+                        summaryRow("Total Bills", store.totalBills, .primary)
+                        summaryRow("Paid", store.totalPaid, .green)
+                        summaryRow("Unpaid", store.totalUnpaid, .red)
+                    }
                 }
             }
         }
     }
 
-    private func summaryItem(title: String, value: Double, color: Color) -> some View {
-        VStack(spacing: 4) {
+    private var budgetUsage: Double {
+        guard store.monthlyIncome > 0 else { return store.totalBills > 0 ? 1 : 0 }
+        return min(store.totalBills / store.monthlyIncome, 1)
+    }
+
+    private func summaryRow(_ title: String, _ value: Double, _ color: Color) -> some View {
+        HStack {
             Text(title)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
+            Spacer()
             Text("$\(String(format: "%.0f", abs(value)))")
                 .font(.subheadline)
                 .fontWeight(.bold)
                 .foregroundStyle(color)
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Spending Breakdown
+
+    private var spendingChart: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "chart.bar.fill")
+                        .foregroundStyle(.green)
+                    Text("Spending by Category")
+                        .font(.headline)
+                    Spacer()
+                }
+                AxisBarChart(bars: spendingBars, showValues: true)
+                    .frame(height: 160)
+            }
+        }
+    }
+
+    private var spendingBars: [AxisBarChart.Bar] {
+        store.groupedBills.map { group in
+            let total = group.bills.reduce(0.0) { $0 + $1.amount }
+            return AxisBarChart.Bar(
+                label: group.category.capitalized,
+                value: total,
+                tint: categoryColor(group.category)
+            )
+        }
     }
 
     // MARK: - Bills List

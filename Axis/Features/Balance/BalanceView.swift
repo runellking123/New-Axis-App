@@ -4,6 +4,13 @@ import SwiftUI
 struct BalanceView: View {
     @Bindable var store: StoreOf<BalanceReducer>
 
+    @State private var detailSheet: BalanceDetail?
+
+    enum BalanceDetail: String, Identifiable {
+        case sleep, steps, energy
+        var id: String { rawValue }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -43,6 +50,22 @@ struct BalanceView: View {
                 get: { store.showCheckIn },
                 set: { if !$0 { store.send(.dismissCheckIn) } }
             )) { checkInSheet }
+            .sheet(item: $detailSheet) { detail in
+                switch detail {
+                case .sleep:
+                    SleepDetailView(sleepHours: store.sleepHours)
+                case .steps:
+                    StepsDetailView(stepsToday: store.stepsToday, stepsGoal: store.stepsGoal)
+                case .energy:
+                    MetricDetailView(
+                        metricName: "Energy",
+                        currentValue: String(format: "%.1f", store.todayAverageEnergy),
+                        unit: "avg / 10",
+                        color: .green,
+                        history: store.weeklyEnergyAverages
+                    )
+                }
+            }
             .onAppear { store.send(.onAppear) }
         }
     }
@@ -75,18 +98,13 @@ struct BalanceView: View {
                 Spacer()
                 Text("Avg: \(String(format: "%.1f", store.todayAverageEnergy))").font(.caption).fontWeight(.bold).foregroundStyle(.green)
             }
-            HStack(alignment: .bottom, spacing: 4) {
-                ForEach(store.todayCheckIns) { checkIn in
-                    VStack(spacing: 4) {
-                        Text("\(checkIn.level)").font(.system(size: 9, weight: .bold)).foregroundStyle(energyColor(checkIn.level))
-                        RoundedRectangle(cornerRadius: 3).fill(energyColor(checkIn.level))
-                            .frame(width: 28, height: max(8, CGFloat(checkIn.level) * 6))
-                        Text(checkIn.timeLabel).font(.system(size: 7)).foregroundStyle(.tertiary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .frame(height: 80)
+            AxisTrendChart(
+                values: store.todayCheckIns.map { Double($0.level) },
+                labels: store.todayCheckIns.map(\.timeLabel),
+                tint: .green,
+                showYAxis: false
+            )
+            .frame(height: 120)
             ForEach(store.todayCheckIns.filter { !$0.note.isEmpty }) { checkIn in
                 HStack(spacing: 6) {
                     Circle().fill(energyColor(checkIn.level)).frame(width: 6, height: 6)
@@ -107,10 +125,26 @@ struct BalanceView: View {
                 else if store.healthKitConnected { Image(systemName: "checkmark.circle.fill").font(.caption).foregroundStyle(.green) }
             }
             if store.healthKitConnected {
+                HStack(spacing: 12) {
+                    healthRing(
+                        title: "Steps",
+                        progress: store.stepsProgress,
+                        centerTop: "\(store.stepsToday)",
+                        centerBottom: "of \(store.stepsGoal)",
+                        tint: .green,
+                        detail: .steps
+                    )
+                    healthRing(
+                        title: "Sleep",
+                        progress: store.sleepGoalHours > 0 ? min(store.sleepHours / store.sleepGoalHours, 1) : 0,
+                        centerTop: String(format: "%.1fh", store.sleepHours),
+                        centerBottom: "goal \(String(format: "%.0f", store.sleepGoalHours))h",
+                        tint: .indigo,
+                        detail: .sleep
+                    )
+                }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        healthMetric("Sleep", value: String(format: "%.1fh", store.sleepHours), icon: "bed.double.fill", color: .indigo)
-                        healthMetric("Steps", value: "\(store.stepsToday)", icon: "figure.walk", color: .green)
                         healthMetric("Calories", value: "\(store.activeCalories)", icon: "flame.fill", color: .orange)
                         healthMetric("Heart", value: "\(Int(store.heartRate))", icon: "heart.fill", color: .red)
                         healthMetric("Stand", value: "\(store.standHours)h", icon: "figure.stand", color: .blue)
@@ -121,6 +155,31 @@ struct BalanceView: View {
             }
         }
         .padding(14).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func healthRing(title: String, progress: Double, centerTop: String, centerBottom: String, tint: Color, detail: BalanceDetail) -> some View {
+        Button { detailSheet = detail } label: {
+            VStack(spacing: 8) {
+                AxisRingChart(progress: progress, lineWidth: 9, tint: tint) {
+                    VStack(spacing: 0) {
+                        Text(centerTop)
+                            .font(.system(.callout, design: .rounded).weight(.bold))
+                            .minimumScaleFactor(0.6)
+                            .lineLimit(1)
+                        Text(centerBottom)
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 92, height: 92)
+                Text(title).font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.axisPressable)
     }
 
     private func healthMetric(_ label: String, value: String, icon: String, color: Color) -> some View {
@@ -163,29 +222,32 @@ struct BalanceView: View {
     }
 
     private var weeklyEnergyChart: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "chart.bar.fill").foregroundStyle(.green)
-                Text("7-Day Energy").font(.headline)
-                Spacer()
-            }
-            let days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-            HStack(alignment: .bottom, spacing: 8) {
-                ForEach(0..<7, id: \.self) { i in
-                    let avg = i < store.weeklyEnergyAverages.count ? store.weeklyEnergyAverages[i] : 0
-                    VStack(spacing: 4) {
-                        if avg > 0 {
-                            Text(String(format: "%.0f", avg)).font(.system(size: 9, weight: .bold)).foregroundStyle(energyColor(Int(avg)))
-                        }
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(avg > 0 ? energyColor(Int(avg)) : Color.gray.opacity(0.2))
-                            .frame(height: max(4, CGFloat(avg) * 8))
-                        Text(days[i]).font(.system(size: 9)).foregroundStyle(.tertiary)
-                    }.frame(maxWidth: .infinity)
+        Button { detailSheet = .energy } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: "chart.bar.fill").foregroundStyle(.green)
+                    Text("7-Day Energy").font(.headline)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
                 }
-            }.frame(height: 100)
+                AxisBarChart(bars: weeklyEnergyBars, showValues: true)
+                    .frame(height: 130)
+            }
+            .padding(14).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 14))
         }
-        .padding(14).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 14))
+        .buttonStyle(.axisPressable)
+    }
+
+    private var weeklyEnergyBars: [AxisBarChart.Bar] {
+        let days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        return (0..<7).map { i in
+            let avg = i < store.weeklyEnergyAverages.count ? store.weeklyEnergyAverages[i] : 0
+            return AxisBarChart.Bar(
+                label: days[i],
+                value: avg,
+                tint: avg > 0 ? energyColor(Int(avg)) : Color.gray.opacity(0.3)
+            )
+        }
     }
 
     private var suggestionsCard: some View {

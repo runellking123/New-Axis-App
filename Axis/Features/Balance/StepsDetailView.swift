@@ -10,15 +10,11 @@ struct StepsDetailView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     // Progress ring
-                    ZStack {
-                        Circle()
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 16)
-                            .frame(width: 160, height: 160)
-                        Circle()
-                            .trim(from: 0, to: min(Double(stepsToday) / Double(stepsGoal), 1.0))
-                            .stroke(progressColor, style: StrokeStyle(lineWidth: 16, lineCap: .round))
-                            .frame(width: 160, height: 160)
-                            .rotationEffect(.degrees(-90))
+                    AxisRingChart(
+                        progress: min(Double(stepsToday) / Double(stepsGoal), 1.0),
+                        lineWidth: 16,
+                        tint: progressColor
+                    ) {
                         VStack(spacing: 4) {
                             Text("\(stepsToday)")
                                 .font(.system(size: 28, weight: .bold))
@@ -27,6 +23,7 @@ struct StepsDetailView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .frame(width: 170, height: 170)
 
                     // Stats
                     HStack(spacing: 16) {

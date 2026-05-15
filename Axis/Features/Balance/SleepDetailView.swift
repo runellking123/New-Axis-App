@@ -9,15 +9,7 @@ struct SleepDetailView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     // Sleep ring
-                    ZStack {
-                        Circle()
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 16)
-                            .frame(width: 160, height: 160)
-                        Circle()
-                            .trim(from: 0, to: min(sleepHours / 8.0, 1.0))
-                            .stroke(sleepColor, style: StrokeStyle(lineWidth: 16, lineCap: .round))
-                            .frame(width: 160, height: 160)
-                            .rotationEffect(.degrees(-90))
+                    AxisRingChart(progress: min(sleepHours / 8.0, 1.0), lineWidth: 16, tint: sleepColor) {
                         VStack(spacing: 4) {
                             Text(String(format: "%.1f", sleepHours))
                                 .font(.system(size: 36, weight: .bold))
@@ -26,6 +18,7 @@ struct SleepDetailView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .frame(width: 170, height: 170)
 
                     // Goal comparison
                     GlassCard {

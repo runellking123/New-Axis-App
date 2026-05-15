@@ -5,6 +5,7 @@ struct MetricDetailView: View {
     let currentValue: String
     let unit: String
     let color: Color
+    var history: [Double] = []
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -22,27 +23,13 @@ struct MetricDetailView: View {
                     }
                     .padding(.top, 20)
 
-                    // Placeholder chart area
+                    // 7-day trend
                     GlassCard {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("7-Day Trend")
                                 .font(.headline)
-
-                            // Simple bar chart placeholder
-                            HStack(alignment: .bottom, spacing: 8) {
-                                ForEach(0..<7, id: \.self) { day in
-                                    VStack(spacing: 4) {
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(color.opacity(day == 6 ? 1.0 : 0.4))
-                                            .frame(width: 30, height: CGFloat.random(in: 30...120))
-                                        Text(dayLabel(daysAgo: 6 - day))
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 140)
+                            AxisTrendChart(values: history, tint: color)
+                                .frame(height: 160)
                         }
                     }
 
@@ -54,7 +41,7 @@ struct MetricDetailView: View {
 
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("This Week")
+                                    Text("Now")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     Text(currentValue)
@@ -63,10 +50,10 @@ struct MetricDetailView: View {
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 4) {
-                                    Text("Last Week")
+                                    Text("7-Day Avg")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    Text("--")
+                                    Text(historyAverage)
                                         .font(.title3)
                                         .fontWeight(.semibold)
                                         .foregroundStyle(.secondary)
@@ -88,14 +75,19 @@ struct MetricDetailView: View {
         }
     }
 
-    private func dayLabel(daysAgo: Int) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        let date = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date()) ?? Date()
-        return formatter.string(from: date)
+    private var historyAverage: String {
+        let valid = history.filter { $0 > 0 }
+        guard !valid.isEmpty else { return "--" }
+        return String(format: "%.1f", valid.reduce(0, +) / Double(valid.count))
     }
 }
 
 #Preview {
-    MetricDetailView(metricName: "Sleep", currentValue: "7.2", unit: "hours", color: .purple)
+    MetricDetailView(
+        metricName: "Energy",
+        currentValue: "7.2",
+        unit: "avg / 10",
+        color: .green,
+        history: [5, 6, 4, 7, 8, 6, 7]
+    )
 }
