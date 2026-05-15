@@ -28,10 +28,12 @@ struct EADashboardView: View {
                 VStack(spacing: AxisSpacing.xl) {
                     // Greeting first — quick orientation, then straight into what matters.
                     greetingBanner
+                        .axisAppear()
 
                     // Timeline-first hierarchy: the most useful thing on this screen
                     // is "what does the rest of my day look like?" — show it immediately.
                     todayTimeline
+                        .axisAppear(delay: 0.08)
 
                     if !store.isFocusMode {
                         // AI recommendation — surface above the fold when present.
@@ -53,6 +55,7 @@ struct EADashboardView: View {
 
                     // Stats + weather — supporting context, not hero content.
                     animatedStatsRow
+                        .axisAppear(delay: 0.12)
 
                     Button { showWeatherDetail = true } label: {
                         weatherGlance
@@ -76,6 +79,7 @@ struct EADashboardView: View {
             }
             .refreshable { store.send(.refreshTapped) }
             .background(timeOfDayGradient)
+            .axisConfetti(trigger: store.streakDays > 0 && store.streakDays % 7 == 0)
             .scrollDismissesKeyboard(.immediately)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -178,59 +182,29 @@ struct EADashboardView: View {
     // MARK: 1 - Animated Greeting Banner
 
     private var greetingBanner: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(store.currentGreeting)
-                    .font(.title3)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-                Text(store.userName.isEmpty ? "Commander" : store.userName)
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color.axisGold)
-
-                if store.streakDays > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .foregroundStyle(.orange)
-                            .font(.caption)
-                        Text("\(store.streakDays) day streak")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.orange)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.orange.opacity(0.15))
-                    .clipShape(.capsule)
-                }
-            }
-            Spacer()
-
-            // Energy ring
+        AxisHeroHeader(
+            eyebrow: store.currentGreeting,
+            title: store.userName.isEmpty ? "Commander" : store.userName,
+            subtitle: store.streakDays > 0 ? "🔥 \(store.streakDays) day streak" : nil
+        ) {
             if store.isEnergyLoaded {
-                ZStack {
-                    Circle()
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 6)
-                        .frame(width: 56, height: 56)
-                    Circle()
-                        .trim(from: 0, to: animateStats ? CGFloat(store.energyScore) / 10.0 : 0)
-                        .stroke(
-                            energyColor,
-                            style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                        )
-                        .frame(width: 56, height: 56)
-                        .rotationEffect(.degrees(-90))
+                AxisRingChart(
+                    progress: Double(store.energyScore) / 10.0,
+                    lineWidth: 6,
+                    tint: energyColor,
+                    trackColor: Color.white.opacity(0.18)
+                ) {
                     VStack(spacing: 0) {
                         Text("\(store.energyScore)")
                             .font(.system(.callout, design: .rounded).weight(.bold))
-                            .foregroundStyle(energyColor)
+                            .foregroundStyle(.white)
                         Text("Energy")
                             .font(.system(size: 7))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.7))
                             .minimumScaleFactor(0.7)
                     }
                 }
+                .frame(width: 58, height: 58)
             }
         }
         .padding(.top, 8)
@@ -346,56 +320,37 @@ struct EADashboardView: View {
     // MARK: 6 - Animated Stats Row
 
     private var animatedStatsRow: some View {
-        HStack(spacing: 12) {
-            animatedStatCard(
-                icon: "checkmark.circle.fill",
-                value: store.tasksCompletedToday,
-                label: "Done",
-                color: .green,
-                action: onCompletedTasksTapped
-            )
-            animatedStatCard(
-                icon: "calendar",
-                value: store.meetingsRemaining,
-                label: "Meetings",
-                color: .purple,
-                action: onMeetingsTapped
-            )
-            animatedStatCard(
-                icon: "brain.head.profile",
-                value: nil,
-                label: "Deep Work",
-                color: .blue,
-                action: onDeepWorkTapped,
-                stringValue: String(format: "%.1fh", store.deepWorkHoursToday)
-            )
-        }
-    }
-
-    private func animatedStatCard(icon: String, value: Int?, label: String, color: Color, action: (() -> Void)?, stringValue: String? = nil) -> some View {
-        Button { action?() } label: {
-            GlassCard {
-                VStack(spacing: 6) {
-                    Image(systemName: icon)
-                        .font(.title3)
-                        .foregroundStyle(color)
-                    if let stringValue {
-                        Text(animateStats ? stringValue : "0")
-                            .font(.headline)
-                            .contentTransition(.numericText())
-                    } else if let value {
-                        Text(animateStats ? "\(value)" : "0")
-                            .font(.headline)
-                            .contentTransition(.numericText())
-                    }
-                    Text(label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
+        HStack(spacing: AxisSpacing.md) {
+            Button { onCompletedTasksTapped?() } label: {
+                AxisStatTile(
+                    icon: "checkmark.circle.fill",
+                    value: animateStats ? "\(store.tasksCompletedToday)" : "0",
+                    label: "Done",
+                    tint: .green
+                )
             }
+            .buttonStyle(.axisPressable)
+
+            Button { onMeetingsTapped?() } label: {
+                AxisStatTile(
+                    icon: "calendar",
+                    value: animateStats ? "\(store.meetingsRemaining)" : "0",
+                    label: "Meetings",
+                    tint: .purple
+                )
+            }
+            .buttonStyle(.axisPressable)
+
+            Button { onDeepWorkTapped?() } label: {
+                AxisStatTile(
+                    icon: "brain.head.profile",
+                    value: animateStats ? String(format: "%.1fh", store.deepWorkHoursToday) : "0h",
+                    label: "Deep Work",
+                    tint: .blue
+                )
+            }
+            .buttonStyle(.axisPressable)
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: 3 - Today's Timeline

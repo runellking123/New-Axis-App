@@ -312,6 +312,14 @@
 		342533BFC2BAD0774584BC36 /* ForgeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9047634F725F39266D7C28 /* ForgeService.swift */; };
 		5E4D4FCB0D144C0B1DE3734F /* ForgeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A260554843606DC916961025 /* ForgeModels.swift */; };
 		D547D4A16F3BFBFE9AF3B448 /* ForgeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776879D9A8032478F14D2EFC /* ForgeViewModel.swift */; };
+		C0322403F50EC6481E784486 /* AxisCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2CAAD642A1D60BC7E607C4 /* AxisCharts.swift */; };
+		DEB9F6B1FFE388141F575FEF /* AxisCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2CAAD642A1D60BC7E607C4 /* AxisCharts.swift */; };
+		B5F23B570EAD16ABB5270321 /* AxisImageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF17F08FD0D722E08293016B /* AxisImageCard.swift */; };
+		5C5AF1818AE4999F14EC8E57 /* AxisImageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF17F08FD0D722E08293016B /* AxisImageCard.swift */; };
+		423EE11262710BEF513F3002 /* AxisHeroHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F811777CF1CD3459541EE0C /* AxisHeroHeader.swift */; };
+		F1F730E37826290579E1098B /* AxisHeroHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F811777CF1CD3459541EE0C /* AxisHeroHeader.swift */; };
+		5F0EEFF3A30ABB6F40B1AB06 /* AxisMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7230BCAA18D0473BDB8AB86C /* AxisMotion.swift */; };
+		F82C0B509F0C31F22EECCF2D /* AxisMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7230BCAA18D0473BDB8AB86C /* AxisMotion.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -504,6 +512,10 @@
 		776879D9A8032478F14D2EFC /* ForgeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgeViewModel.swift; sourceTree = "<group>"; };
 		7B9047634F725F39266D7C28 /* ForgeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgeService.swift; sourceTree = "<group>"; };
 		A260554843606DC916961025 /* ForgeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgeModels.swift; sourceTree = "<group>"; };
+		FF2CAAD642A1D60BC7E607C4 /* AxisCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisCharts.swift; sourceTree = "<group>"; };
+		FF17F08FD0D722E08293016B /* AxisImageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisImageCard.swift; sourceTree = "<group>"; };
+		7F811777CF1CD3459541EE0C /* AxisHeroHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisHeroHeader.swift; sourceTree = "<group>"; };
+		7230BCAA18D0473BDB8AB86C /* AxisMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AxisMotion.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -951,6 +963,10 @@
 				B10000000000000000000019 /* GlassCard.swift */,
 				B1000000000000000000001A /* ShimmerModifier.swift */,
 				AFC964EA8E4571942AA5405C /* MiniChartView.swift */,
+				FF2CAAD642A1D60BC7E607C4 /* AxisCharts.swift */,
+				FF17F08FD0D722E08293016B /* AxisImageCard.swift */,
+				7F811777CF1CD3459541EE0C /* AxisHeroHeader.swift */,
+				7230BCAA18D0473BDB8AB86C /* AxisMotion.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -1375,6 +1391,10 @@
 				342533BFC2BAD0774584BC36 /* ForgeService.swift in Sources */,
 				D547D4A16F3BFBFE9AF3B448 /* ForgeViewModel.swift in Sources */,
 				3090FCB21B2D27BCE946137B /* ForgeView.swift in Sources */,
+				C0322403F50EC6481E784486 /* AxisCharts.swift in Sources */,
+				B5F23B570EAD16ABB5270321 /* AxisImageCard.swift in Sources */,
+				423EE11262710BEF513F3002 /* AxisHeroHeader.swift in Sources */,
+				5F0EEFF3A30ABB6F40B1AB06 /* AxisMotion.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1525,6 +1545,10 @@
 				E488E21056694F65EE0C5E00 /* MacAppView.swift in Sources */,
 				F26BAD1D8CE98352160A6F3D /* PlatformServices.swift in Sources */,
 				56C0398606B12E1AC6D062DE /* MacOSCompat.swift in Sources */,
+				DEB9F6B1FFE388141F575FEF /* AxisCharts.swift in Sources */,
+				5C5AF1818AE4999F14EC8E57 /* AxisImageCard.swift in Sources */,
+				F1F730E37826290579E1098B /* AxisHeroHeader.swift in Sources */,
+				F82C0B509F0C31F22EECCF2D /* AxisMotion.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

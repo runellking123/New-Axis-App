@@ -66,6 +66,7 @@ struct TrendsReducer {
             var publishedDateString: String
             var category: String
             var wordCount: Int
+            var imageURL: String?
         }
 
         enum WindowSize: String, CaseIterable, Identifiable {
@@ -357,6 +358,7 @@ struct TrendsReducer {
                 let contentText = cleanHTML(contentEncoded.isEmpty ? description : contentEncoded)
                 let rawCount = contentText.split(whereSeparator: { $0.isWhitespace }).count
                 let wordCount = rawCount > 20 ? rawCount : Int.random(in: 400...1200)
+                let imageURL = extractImageURL(from: item)
 
                 articles.append(State.NewsArticle(
                     id: UUID(),
@@ -366,7 +368,8 @@ struct TrendsReducer {
                     publishedDate: parsedDate,
                     publishedDateString: formatDate(parsedDate),
                     category: category,
-                    wordCount: wordCount
+                    wordCount: wordCount,
+                    imageURL: imageURL
                 ))
             }
 
@@ -394,6 +397,7 @@ struct TrendsReducer {
                     let contentText = cleanHTML(summary.isEmpty ? extractTag("content", from: entry) : summary)
                     let rawCount = contentText.split(whereSeparator: { $0.isWhitespace }).count
                     let wordCount = rawCount > 20 ? rawCount : Int.random(in: 400...1200)
+                    let imageURL = extractImageURL(from: entry)
 
                     articles.append(State.NewsArticle(
                         id: UUID(),
@@ -403,7 +407,8 @@ struct TrendsReducer {
                         publishedDate: parsedDate,
                         publishedDateString: formatDate(parsedDate),
                         category: category,
-                        wordCount: wordCount
+                        wordCount: wordCount,
+                        imageURL: imageURL
                     ))
                 }
             }
@@ -420,6 +425,65 @@ struct TrendsReducer {
         guard let startRange = xml.range(of: "<\(tag)>"),
               let endRange = xml.range(of: "</\(tag)>", range: startRange.upperBound..<xml.endIndex) else { return "" }
         return String(xml[startRange.upperBound..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Best-effort cover image extraction from an RSS <item> / Atom <entry>.
+    /// Checks, in order: media:content, media:thumbnail, image enclosures,
+    /// and the first <img> embedded in the description/content.
+    private static func extractImageURL(from fragment: String) -> String? {
+        for tag in ["media:content", "media:thumbnail"] {
+            if let open = fragment.range(of: "<\(tag)"),
+               let close = fragment.range(of: ">", range: open.lowerBound..<fragment.endIndex) {
+                let element = String(fragment[open.lowerBound..<close.upperBound])
+                if let url = attributeValue("url", in: element), isImageURL(url) {
+                    return decodeEntities(url)
+                }
+            }
+        }
+
+        var searchStart = fragment.startIndex
+        while let open = fragment.range(of: "<enclosure", range: searchStart..<fragment.endIndex) {
+            guard let close = fragment.range(of: ">", range: open.lowerBound..<fragment.endIndex) else { break }
+            let element = String(fragment[open.lowerBound..<close.upperBound])
+            if let url = attributeValue("url", in: element) {
+                let type = attributeValue("type", in: element) ?? ""
+                if type.hasPrefix("image") || isImageURL(url) {
+                    return decodeEntities(url)
+                }
+            }
+            searchStart = close.upperBound
+        }
+
+        if let open = fragment.range(of: "<img", options: .caseInsensitive),
+           let close = fragment.range(of: ">", range: open.lowerBound..<fragment.endIndex) {
+            let element = String(fragment[open.lowerBound..<close.upperBound])
+            if let url = attributeValue("src", in: element) {
+                return decodeEntities(url)
+            }
+        }
+
+        return nil
+    }
+
+    private static func attributeValue(_ name: String, in element: String) -> String? {
+        for quote in ["\"", "'"] {
+            if let start = element.range(of: "\(name)=\(quote)"),
+               let end = element.range(of: quote, range: start.upperBound..<element.endIndex) {
+                let value = String(element[start.upperBound..<end.lowerBound])
+                if !value.isEmpty { return value }
+            }
+        }
+        return nil
+    }
+
+    private static func isImageURL(_ url: String) -> Bool {
+        let lower = url.lowercased()
+        return [".jpg", ".jpeg", ".png", ".webp", ".gif"].contains { lower.contains($0) }
+    }
+
+    private static func decodeEntities(_ text: String) -> String {
+        text.replacingOccurrences(of: "&amp;", with: "&")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func cleanHTML(_ text: String) -> String {

@@ -136,47 +136,34 @@ struct TrendsView: View {
             let isLastLoadedPage = store.newsPage >= totalPages - 1
             let canGoNext = store.newsPage < store.maxPages - 1
 
-            ForEach(pageArticles) { article in
+            ForEach(Array(pageArticles.enumerated()), id: \.element.id) { index, article in
+                let readMin = max(1, article.wordCount / 200)
+                let meta = [article.publishedDateString, "\(readMin) min read"]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " · ")
                 Button { store.send(.openArticle(article.url)) } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(article.title)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.primary)
-                                .lineLimit(3)
-                                .multilineTextAlignment(.leading)
-                            HStack(spacing: 6) {
-                                Text(article.source)
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(Color.axisGold)
-                                if !article.publishedDateString.isEmpty {
-                                    Circle()
-                                        .fill(.secondary.opacity(0.3))
-                                        .frame(width: 3, height: 3)
-                                    Text(article.publishedDateString)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Circle()
-                                    .fill(.secondary.opacity(0.3))
-                                    .frame(width: 3, height: 3)
-                                Text("\(max(1, article.wordCount / 200)) min read")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                    if index == 0 {
+                        AxisCoverCard(
+                            imageURL: article.imageURL.flatMap { URL(string: $0) },
+                            eyebrow: article.source,
+                            title: article.title,
+                            meta: meta,
+                            seed: article.source,
+                            icon: "newspaper.fill"
+                        )
+                    } else {
+                        AxisThumbnailCard(
+                            imageURL: article.imageURL.flatMap { URL(string: $0) },
+                            eyebrow: article.source,
+                            title: article.title,
+                            meta: meta,
+                            seed: article.source,
+                            icon: "newspaper.fill"
+                        )
                     }
-                    .padding(14)
-                    .background(.ultraThinMaterial)
-                    .clipShape(.rect(cornerRadius: 14))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.axisPressable)
+                .axisAppear(delay: Double(min(index, 6)) * 0.05)
             }
 
             // Loading indicator when fetching more
