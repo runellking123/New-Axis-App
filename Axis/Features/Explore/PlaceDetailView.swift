@@ -9,6 +9,17 @@ struct PlaceDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
+                // Cover banner
+                AxisCoverCard(
+                    imageURL: nil,
+                    eyebrow: place.category.capitalized,
+                    title: place.name,
+                    meta: place.address.isEmpty ? nil : place.address,
+                    seed: place.name,
+                    icon: place.categoryIcon,
+                    height: 150
+                )
+
                 // Map snippet
                 if !place.address.isEmpty {
                     mapSection

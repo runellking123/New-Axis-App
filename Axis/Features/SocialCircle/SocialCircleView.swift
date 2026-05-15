@@ -434,16 +434,11 @@ struct SocialCircleView: View {
         GlassCard {
             VStack(spacing: 10) {
                 HStack(spacing: 12) {
-                    // Avatar
-                    ZStack {
-                        Circle()
-                            .fill(tierColor(contact.tier).opacity(0.2))
-                            .frame(width: 40, height: 40)
-                        Text(contact.initials)
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(tierColor(contact.tier))
-                    }
+                    AxisAvatar(
+                        content: .initials(contact.initials),
+                        size: 44,
+                        tint: tierColor(contact.tier)
+                    )
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {

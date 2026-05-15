@@ -11,15 +11,11 @@ struct ContactDetailView: View {
                 // Contact header with health score
                 GlassCard {
                     VStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(tierColor(contact.tier).opacity(0.2))
-                                .frame(width: 72, height: 72)
-                            Text(contact.initials)
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(tierColor(contact.tier))
-                        }
+                        AxisAvatar(
+                            content: .initials(contact.initials),
+                            size: 76,
+                            tint: tierColor(contact.tier)
+                        )
 
                         Text(contact.name)
                             .font(.title3)

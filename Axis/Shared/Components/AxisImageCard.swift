@@ -183,6 +183,81 @@ struct AxisThumbnailCard: View {
     }
 }
 
+// MARK: - Avatar
+// Circular avatar for people. Falls back to initials / emoji / SF Symbol on a
+// deterministic gradient when there is no photo. Pass `tint` to override the
+// gradient with a role color (e.g. a contact tier).
+
+struct AxisAvatar: View {
+    enum Content: Equatable {
+        case initials(String)
+        case emoji(String)
+        case symbol(String)
+    }
+
+    let content: Content
+    var imageURL: URL? = nil
+    var size: CGFloat = 44
+    var tint: Color? = nil
+
+    private var seed: String {
+        switch content {
+        case .initials(let s), .emoji(let s), .symbol(let s): return s
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            if let tint {
+                Circle().fill(
+                    LinearGradient(
+                        colors: [tint, tint.opacity(0.6)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+            } else {
+                Circle().fill(AxisImagePalette.gradient(for: seed))
+            }
+
+            if let imageURL {
+                AxisRemoteImage(url: imageURL) { glyph }
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            } else {
+                glyph
+            }
+        }
+        .frame(width: size, height: size)
+        .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+        .shadow(color: AxisTheme.cardShadow, radius: 3, y: 1)
+    }
+
+    @ViewBuilder private var glyph: some View {
+        switch content {
+        case .initials(let value):
+            Text(value.uppercased())
+                .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+        case .emoji(let value):
+            Text(value)
+                .font(.system(size: size * 0.5))
+        case .symbol(let value):
+            Image(systemName: value)
+                .font(.system(size: size * 0.42, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+    }
+}
+
+#Preview("Avatars") {
+    HStack(spacing: 16) {
+        AxisAvatar(content: .initials("RK"), size: 56)
+        AxisAvatar(content: .emoji("🎯"), size: 56)
+        AxisAvatar(content: .symbol("airplane"), size: 56, tint: .blue)
+    }
+    .padding()
+}
+
 #Preview("Cover") {
     AxisCoverCard(
         imageURL: nil,

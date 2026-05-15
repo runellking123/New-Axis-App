@@ -93,43 +93,62 @@ struct TravelPlannerView: View {
 
     private func tripCard(_ trip: TravelPlannerReducer.State.TripItem) -> some View {
         Button { store.send(.selectTrip(trip)) } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Cover header
+                ZStack(alignment: .bottomLeading) {
+                    AxisFallbackTile(seed: trip.name, icon: "airplane")
+                        .frame(height: 96)
+                        .clipped()
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.6)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    HStack(alignment: .top) {
                         Text(trip.name)
                             .font(.headline)
-                        Text("\(trip.startDate.formatted(date: .abbreviated, time: .omitted)) - \(trip.endDate.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if trip.isActive {
-                        Text("NOW")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.green)
                             .foregroundStyle(.white)
-                            .clipShape(Capsule())
-                    } else if !trip.isPast {
-                        Text("\(trip.daysUntil)d")
-                            .font(.caption.bold())
-                            .foregroundStyle(Color.axisGold)
+                        Spacer()
+                        if trip.isActive {
+                            Text("NOW")
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green)
+                                .foregroundStyle(.white)
+                                .clipShape(Capsule())
+                        } else if !trip.isPast {
+                            Text("\(trip.daysUntil)d")
+                                .font(.caption.bold())
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.axisGoldLight)
+                                .clipShape(Capsule())
+                        }
                     }
+                    .padding(12)
                 }
+                .frame(height: 96)
+                .clipped()
 
-                HStack(spacing: 16) {
-                    Label("\(trip.duration) days", systemImage: "calendar")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(trip.startDate.formatted(date: .abbreviated, time: .omitted)) - \(trip.endDate.formatted(date: .abbreviated, time: .omitted))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if trip.budgetPlanned > 0 {
-                        Label("$\(Int(trip.budgetPlanned))", systemImage: "dollarsign.circle")
+
+                    HStack(spacing: 16) {
+                        Label("\(trip.duration) days", systemImage: "calendar")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if trip.budgetPlanned > 0 {
+                            Label("$\(Int(trip.budgetPlanned))", systemImage: "dollarsign.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
+                .padding(14)
             }
-            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 12))

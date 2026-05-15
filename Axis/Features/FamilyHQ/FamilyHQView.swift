@@ -717,6 +717,7 @@ struct FamilyHQView: View {
                     HStack(spacing: 0) {
                         // Dr. King side
                         VStack(spacing: 4) {
+                            AxisAvatar(content: .initials("DK"), size: 40, tint: Color.axisGold)
                             Text("\(dkTotal)")
                                 .font(.system(size: 34, weight: .bold, design: .rounded))
                                 .foregroundStyle(Color.axisGold)
@@ -739,6 +740,7 @@ struct FamilyHQView: View {
 
                         // Wife side
                         VStack(spacing: 4) {
+                            AxisAvatar(content: .initials("W"), size: 40, tint: .purple)
                             Text("\(wifeTotal)")
                                 .font(.system(size: 34, weight: .bold, design: .rounded))
                                 .foregroundStyle(.purple)

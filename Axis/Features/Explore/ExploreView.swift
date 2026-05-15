@@ -1154,13 +1154,13 @@ struct ExploreView: View {
         GlassCard {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.orange.opacity(0.15))
-                            .frame(width: 40, height: 40)
-                        Image(systemName: categoryIcon(nearby.category))
-                            .foregroundStyle(.orange)
-                    }
+                    AxisRemoteImage(
+                        url: URL(string: nearby.imageURL),
+                        seed: nearby.name,
+                        icon: categoryIcon(nearby.category)
+                    )
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
@@ -1225,13 +1225,13 @@ struct ExploreView: View {
         GlassCard {
             VStack(spacing: 10) {
                 HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.orange.opacity(0.15))
-                            .frame(width: 40, height: 40)
-                        Image(systemName: place.categoryIcon)
-                            .foregroundStyle(.orange)
-                    }
+                    AxisRemoteImage(
+                        url: nil,
+                        seed: place.name,
+                        icon: place.categoryIcon
+                    )
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
