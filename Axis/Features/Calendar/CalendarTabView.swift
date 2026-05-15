@@ -74,6 +74,7 @@ struct CalendarTabView: View {
                             dailySummary = ""
                             conflicts = []
                         }
+                        .axisAppear()
 
                     // MARK: 2) AI Natural Language Input (NEW)
                     HStack(spacing: 8) {

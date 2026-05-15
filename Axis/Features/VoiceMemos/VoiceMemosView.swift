@@ -41,6 +41,7 @@ struct VoiceMemosView: View {
                     emptyState
                 } else {
                     memosList
+                        .axisAppear()
                 }
             }
             .navigationTitle("Voice Memos")

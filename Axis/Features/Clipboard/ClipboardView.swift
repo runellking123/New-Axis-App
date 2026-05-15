@@ -54,6 +54,7 @@ struct ClipboardView: View {
                     emptyState
                 } else {
                     clipList
+                        .axisAppear()
                 }
             }
             .navigationTitle("Clipboard")

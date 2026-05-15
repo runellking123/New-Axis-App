@@ -28,6 +28,7 @@ struct EATaskListView: View {
                     emptyState
                 } else {
                     taskList
+                        .axisAppear()
                 }
             }
             .background(Color(.systemGroupedBackground))

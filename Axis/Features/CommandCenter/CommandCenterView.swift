@@ -15,23 +15,29 @@ struct CommandCenterView: View {
                 VStack(spacing: 20) {
                     // Header with greeting and mode switcher
                     headerSection
+                        .axisAppear()
 
                     // Day Brief card
                     dayBriefCard
+                        .axisAppear(delay: 0.06)
 
                     // Smart Nudges
                     if !store.nudges.isEmpty {
                         nudgesSection
+                            .axisAppear(delay: 0.12)
                     }
 
                     // Widget grid
                     widgetGrid
+                        .axisAppear(delay: 0.18)
 
                     // Priorities list
                     prioritiesSection
+                        .axisAppear(delay: 0.24)
 
                     // Quick actions
                     quickActionsBar
+                        .axisAppear(delay: 0.3)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 100)

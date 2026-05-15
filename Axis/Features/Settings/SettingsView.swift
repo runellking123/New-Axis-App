@@ -45,15 +45,11 @@ struct SettingsView: View {
     private var profileSection: some View {
         Section {
             HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(Color.axisGold.opacity(0.2))
-                        .frame(width: 60, height: 60)
-                    Text(String(store.userName.prefix(1)).uppercased())
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.axisGold)
-                }
+                AxisAvatar(
+                    content: .initials(String(store.userName.prefix(2))),
+                    size: 60,
+                    tint: Color.axisGold
+                )
 
                 VStack(alignment: .leading, spacing: 4) {
                     TextField("Name", text: $store.userName.sending(\.userNameChanged))

@@ -38,8 +38,10 @@ struct EAProjectListView: View {
             switch store.selectedView {
             case .list:
                 projectListView
+                    .axisAppear()
             case .kanban:
                 kanbanView
+                    .axisAppear()
             }
         }
     }

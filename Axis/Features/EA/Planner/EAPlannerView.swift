@@ -40,8 +40,10 @@ struct EAPlannerView: View {
                 switch store.selectedView {
                 case .day:
                     dayView
+                        .axisAppear()
                 case .week:
                     weekView
+                        .axisAppear()
                 }
             }
             .background(Color(.systemGroupedBackground))

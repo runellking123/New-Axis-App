@@ -17,52 +17,10 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Page content
             TabView(selection: $currentPage) {
                 ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                    VStack(spacing: 24) {
-                        Spacer()
-
-                        Image(systemName: page.icon)
-                            .font(.system(size: 70))
-                            .foregroundStyle(page.color)
-                            .symbolEffect(.pulse, options: .repeating)
-
-                        VStack(spacing: 12) {
-                            Text(page.title)
-                                .font(.system(size: 26, weight: .bold, design: .serif))
-
-                            Text(page.subtitle)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(4)
-                        }
-
-                        // Name input on first page
-                        if index == 0 {
-                            VStack(spacing: 8) {
-                                Text("What should we call you?")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-
-                                TextField("Your name", text: $userName)
-                                    .font(.title3)
-                                    .fontWeight(.medium)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 40)
-                                    .padding(.vertical, 12)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .padding(.horizontal, 40)
-                            }
-                            .padding(.top, 16)
-                        }
-
-                        Spacer()
-                        Spacer()
-                    }
-                    .tag(index)
+                    pageContent(index: index, page: page)
+                        .tag(index)
                 }
             }
             #if os(iOS)
@@ -70,47 +28,120 @@ struct OnboardingView: View {
             #endif
             .animation(.easeInOut, value: currentPage)
 
-            // Bottom section
-            VStack(spacing: 16) {
-                // Page indicators
-                HStack(spacing: 8) {
-                    ForEach(0..<pages.count, id: \.self) { index in
-                        Circle()
-                            .fill(index == currentPage ? Color.axisGold : Color.gray.opacity(0.3))
-                            .frame(width: index == currentPage ? 10 : 7, height: index == currentPage ? 10 : 7)
-                            .animation(.spring(duration: 0.3), value: currentPage)
-                    }
-                }
+            bottomSection
+        }
+        .background(AxisTheme.darkGradient.ignoresSafeArea())
+    }
 
-                // Button
-                Button {
-                    if currentPage < pages.count - 1 {
-                        withAnimation { currentPage += 1 }
-                    } else {
-                        completeOnboarding()
-                    }
-                } label: {
-                    Text(currentPage < pages.count - 1 ? "Continue" : "Let's Go")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.axisGold)
+    // MARK: - Page
+
+    private func pageContent(
+        index: Int,
+        page: (icon: String, title: String, subtitle: String, color: Color)
+    ) -> some View {
+        VStack(spacing: AxisSpacing.xl) {
+            Spacer()
+
+            // Glowing icon badge
+            ZStack {
+                Circle()
+                    .fill(page.color.opacity(0.18))
+                    .frame(width: 170, height: 170)
+                    .blur(radius: 14)
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [page.color.opacity(0.35), page.color.opacity(0.1)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 140, height: 140)
+                    .overlay(Circle().strokeBorder(page.color.opacity(0.5), lineWidth: 1))
+                Image(systemName: page.icon)
+                    .font(.system(size: 58))
+                    .foregroundStyle(page.color)
+                    .symbolEffect(.pulse, options: .repeating)
+            }
+            .axisAppear()
+
+            VStack(spacing: AxisSpacing.md) {
+                Text(page.title)
+                    .font(.system(size: 28, weight: .bold, design: .serif))
+                    .foregroundStyle(.white)
+                Text(page.subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+            .axisAppear(delay: 0.1)
+
+            // Name input on first page
+            if index == 0 {
+                VStack(spacing: AxisSpacing.sm) {
+                    Text("What should we call you?")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                    TextField("Your name", text: $userName)
+                        .font(.title3.weight(.medium))
                         .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: AxisTheme.buttonRadius))
+                        .multilineTextAlignment(.center)
+                        .padding(.vertical, AxisSpacing.md)
+                        .padding(.horizontal, AxisSpacing.xl)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.button, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AxisRadius.button, style: .continuous)
+                                .strokeBorder(Color.axisGold.opacity(0.4), lineWidth: 1)
+                        )
+                        .padding(.horizontal, 48)
                 }
-                .padding(.horizontal, 24)
+                .padding(.top, AxisSpacing.lg)
+                .axisAppear(delay: 0.2)
+            }
 
-                if currentPage < pages.count - 1 {
-                    Button("Skip") {
-                        completeOnboarding()
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Spacer()
+            Spacer()
+        }
+        .padding(.horizontal, AxisSpacing.xl)
+    }
+
+    // MARK: - Bottom
+
+    private var bottomSection: some View {
+        VStack(spacing: AxisSpacing.lg) {
+            // Page indicators
+            HStack(spacing: AxisSpacing.sm) {
+                ForEach(0..<pages.count, id: \.self) { index in
+                    Capsule()
+                        .fill(index == currentPage ? Color.axisGold : Color.white.opacity(0.25))
+                        .frame(width: index == currentPage ? 22 : 7, height: 7)
+                        .animation(.spring(duration: 0.3), value: currentPage)
                 }
             }
-            .padding(.bottom, 40)
+
+            Button {
+                if currentPage < pages.count - 1 {
+                    withAnimation { currentPage += 1 }
+                } else {
+                    completeOnboarding()
+                }
+            } label: {
+                Text(currentPage < pages.count - 1 ? "Continue" : "Let's Go")
+            }
+            .buttonStyle(.axisPrimary)
+            .padding(.horizontal, AxisSpacing.xl)
+
+            if currentPage < pages.count - 1 {
+                Button("Skip") { completeOnboarding() }
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
+            } else {
+                // Keep the bottom section height stable on the last page.
+                Color.clear.frame(height: 16)
+            }
         }
-        .background(Color(.systemGroupedBackground))
+        .padding(.bottom, 40)
     }
 
     private func completeOnboarding() {

@@ -48,6 +48,7 @@ struct QuickNotesView: View {
                     emptyState
                 } else {
                     notesList
+                        .axisAppear()
                 }
             }
             .navigationTitle("Quick Notes")

@@ -18,8 +18,10 @@ struct WorkSuiteView: View {
                         switch store.selectedSegment {
                         case .projects:
                             projectsSection
+                                .axisAppear()
                         case .focus:
                             focusSection
+                                .axisAppear()
                         }
                     }
                     .padding(.horizontal)
