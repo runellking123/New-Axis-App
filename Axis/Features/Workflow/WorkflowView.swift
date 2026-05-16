@@ -51,6 +51,28 @@ struct WorkflowView: View {
         }
     }
 
+    /// High-level display mode for the Workflow tab.
+    enum ViewMode: String, CaseIterable, Identifiable {
+        case list, week, calendar, board
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .list: return "List"
+            case .week: return "Week"
+            case .calendar: return "Calendar"
+            case .board: return "Board"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .list: return "list.bullet"
+            case .week: return "calendar.day.timeline.left"
+            case .calendar: return "calendar"
+            case .board: return "rectangle.split.3x1"
+            }
+        }
+    }
+
     enum ReminderFilter: Equatable {
         case none
         case label(String)
@@ -88,6 +110,7 @@ struct WorkflowView: View {
     @FocusState private var quickFocused: Bool
     @AppStorage("workflow.grouping") private var grouping: Grouping = .date
     @AppStorage("workflow.todaySubGroup") private var todaySubGroup: TodaySubGroup = .time
+    @AppStorage("workflow.viewMode") private var viewMode: ViewMode = .list
     @State private var filter: ReminderFilter = .none
 
     var body: some View {
@@ -99,7 +122,24 @@ struct WorkflowView: View {
                 case .denied:
                     deniedState
                 case .loaded:
-                    loadedList
+                    switch viewMode {
+                    case .list: loadedList
+                    case .week: WeekScrollView(
+                        vm: vm,
+                        onSelect: { selectedReminder = $0 },
+                        onReschedule: { inlineDateReminder = $0 }
+                    )
+                    case .calendar: TasksCalendarView(
+                        vm: vm,
+                        onSelect: { selectedReminder = $0 },
+                        onReschedule: { inlineDateReminder = $0 }
+                    )
+                    case .board: BoardView(
+                        vm: vm,
+                        onSelect: { selectedReminder = $0 },
+                        onReschedule: { inlineDateReminder = $0 }
+                    )
+                    }
                 }
             }
             .navigationTitle("Reminders")
@@ -112,12 +152,18 @@ struct WorkflowView: View {
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
                     Menu {
+                        Picker("View", selection: $viewMode) {
+                            ForEach(ViewMode.allCases) { option in
+                                Label(option.label, systemImage: option.icon).tag(option)
+                            }
+                        }
+                        Divider()
                         Picker("Group", selection: $grouping) {
                             ForEach(Grouping.allCases) { option in
                                 Label(option.label, systemImage: option.icon).tag(option)
                             }
                         }
-                        if grouping == .date {
+                        if grouping == .date && viewMode == .list {
                             Picker("Today Sub-group", selection: $todaySubGroup) {
                                 ForEach(TodaySubGroup.allCases) { option in
                                     Label(option.label, systemImage: option.icon).tag(option)
@@ -1894,7 +1940,7 @@ struct KarmaView: View {
 
     private var chartCard: some View {
         VStack(alignment: .leading, spacing: AxisSpacing.sm) {
-            AxisSectionHeader(title: "Last 7 Days", subtitle: "Completed reminders per day")
+            AxisSectionHeader("Last 7 Days", subtitle: "Completed reminders per day")
             let maxCount = max(1, bars.map(\.count).max() ?? 1)
             HStack(alignment: .bottom, spacing: AxisSpacing.sm) {
                 ForEach(bars) { bar in
@@ -1943,6 +1989,524 @@ struct KarmaView: View {
         }
         .padding(AxisSpacing.md)
         .axisCard()
+    }
+}
+
+// MARK: - Compact Reminder Card
+//
+// Card-style row used by the Week / Calendar / Board views. Lighter than
+// the main ReminderRow because these views need to fit more density.
+
+private struct ReminderCard: View {
+    let item: CalendarService.ReminderItem
+    let accent: Color
+    let isPinned: Bool
+    let onToggle: () async -> Void
+    let onTap: () -> Void
+    let onTapDate: (() -> Void)?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AxisSpacing.sm) {
+            Button {
+                Task { await onToggle() }
+            } label: {
+                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.body)
+                    .foregroundStyle(item.isCompleted ? accent : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(item.title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                        .strikethrough(item.isCompleted)
+                        .lineLimit(2)
+                    if isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+                HStack(spacing: 6) {
+                    if let due = item.dueDate {
+                        Button {
+                            onTapDate?()
+                        } label: {
+                            Text(shortDue(due, includesTime: item.hasDueTime))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if item.priority > 0 && item.priority <= 3 {
+                        Text("HIGH")
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.axisDanger.opacity(0.18)))
+                            .foregroundStyle(Color.axisDanger)
+                    }
+                    if let list = item.calendarTitle {
+                        Text(list)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(AxisSpacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.axisSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.axisDivider.opacity(0.3), lineWidth: 0.5)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+    }
+
+    private func shortDue(_ date: Date, includesTime: Bool) -> String {
+        let f = DateFormatter()
+        if includesTime {
+            f.dateFormat = "MMM d · h:mm a"
+        } else {
+            f.dateFormat = "MMM d"
+        }
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Week Scroll View
+
+/// Vertically scrolling next-7-days view. Each day is its own section
+/// with a header showing the day name, date, and item count.
+private struct WeekScrollView: View {
+    let vm: RemindersViewModel
+    let onSelect: (CalendarService.ReminderItem) -> Void
+    let onReschedule: (CalendarService.ReminderItem) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AxisSpacing.lg) {
+                ForEach(days, id: \.id) { day in
+                    section(for: day)
+                }
+                if !overdue.isEmpty {
+                    overdueSection
+                }
+            }
+            .padding(AxisSpacing.lg)
+        }
+        .background(Color.axisBackground.ignoresSafeArea())
+    }
+
+    private struct Day: Identifiable {
+        let id: Date
+        let date: Date
+        let items: [CalendarService.ReminderItem]
+    }
+
+    private var days: [Day] {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: Date())
+        let all = vm.today + vm.upcoming
+        var result: [Day] = []
+        for offset in 0..<7 {
+            guard let dayStart = cal.date(byAdding: .day, value: offset, to: start),
+                  let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else { continue }
+            let bucket = all.filter { item in
+                guard let due = item.dueDate else { return false }
+                return due >= dayStart && due < dayEnd
+            }
+            result.append(Day(id: dayStart, date: dayStart, items: bucket.sorted {
+                ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture)
+            }))
+        }
+        return result
+    }
+
+    private var overdue: [CalendarService.ReminderItem] { vm.overdue }
+
+    @ViewBuilder
+    private func section(for day: Day) -> some View {
+        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+            HStack(spacing: AxisSpacing.sm) {
+                Text(dayHeader(day.date))
+                    .font(.headline)
+                Text(dateSubheader(day.date))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(day.items.count)")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.axisAccent.opacity(0.15)))
+                    .foregroundStyle(Color.axisAccent)
+            }
+            if day.items.isEmpty {
+                Text("Nothing scheduled")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, AxisSpacing.xs)
+            } else {
+                ForEach(day.items) { item in
+                    ReminderCard(
+                        item: item,
+                        accent: Color.axisAccent,
+                        isPinned: vm.isPinnedToday(item.id),
+                        onToggle: { await vm.toggleComplete(item) },
+                        onTap: { onSelect(item) },
+                        onTapDate: { onReschedule(item) }
+                    )
+                }
+            }
+        }
+    }
+
+    private var overdueSection: some View {
+        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+            HStack {
+                Text("Overdue")
+                    .font(.headline)
+                    .foregroundStyle(Color.axisDanger)
+                Spacer()
+                Text("\(overdue.count)")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.axisDanger.opacity(0.15)))
+                    .foregroundStyle(Color.axisDanger)
+            }
+            ForEach(overdue) { item in
+                ReminderCard(
+                    item: item,
+                    accent: Color.axisDanger,
+                    isPinned: vm.isPinnedToday(item.id),
+                    onToggle: { await vm.toggleComplete(item) },
+                    onTap: { onSelect(item) },
+                    onTapDate: { onReschedule(item) }
+                )
+            }
+        }
+    }
+
+    private func dayHeader(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return "Today" }
+        if cal.isDateInTomorrow(date) { return "Tomorrow" }
+        let f = DateFormatter()
+        f.dateFormat = "EEEE"
+        return f.string(from: date)
+    }
+
+    private func dateSubheader(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Calendar View
+
+/// Month grid of dots-per-day. Tap a day to scroll a list of that day's
+/// reminders underneath. Includes month-navigation controls.
+private struct TasksCalendarView: View {
+    let vm: RemindersViewModel
+    let onSelect: (CalendarService.ReminderItem) -> Void
+    let onReschedule: (CalendarService.ReminderItem) -> Void
+
+    @State private var monthStart: Date = {
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.year, .month], from: Date())
+        return cal.date(from: comps) ?? Date()
+    }()
+    @State private var selectedDay: Date = Calendar.current.startOfDay(for: Date())
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: AxisSpacing.lg) {
+                header
+                grid
+                dayDetail
+            }
+            .padding(AxisSpacing.lg)
+        }
+        .background(Color.axisBackground.ignoresSafeArea())
+    }
+
+    private var header: some View {
+        HStack {
+            Button { shiftMonth(-1) } label: {
+                Image(systemName: "chevron.left").font(.title3)
+            }
+            Spacer()
+            Text(monthLabel(monthStart))
+                .font(.title3.weight(.semibold))
+            Spacer()
+            Button { shiftMonth(1) } label: {
+                Image(systemName: "chevron.right").font(.title3)
+            }
+        }
+        .foregroundStyle(Color.axisAccent)
+    }
+
+    private func shiftMonth(_ by: Int) {
+        if let m = Calendar.current.date(byAdding: .month, value: by, to: monthStart) {
+            monthStart = m
+        }
+    }
+
+    private var grid: some View {
+        let cal = Calendar.current
+        let weekdaySymbols = cal.shortStandaloneWeekdaySymbols
+        let days = monthDays()
+        return VStack(spacing: 6) {
+            HStack {
+                ForEach(weekdaySymbols, id: \.self) { sym in
+                    Text(sym)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+                ForEach(days, id: \.id) { cell in
+                    dayCell(cell)
+                }
+            }
+        }
+        .padding(AxisSpacing.md)
+        .axisCard()
+    }
+
+    private struct DayCell: Identifiable {
+        let id: Date
+        let date: Date
+        let inMonth: Bool
+        let count: Int
+    }
+
+    private func monthDays() -> [DayCell] {
+        let cal = Calendar.current
+        let range = cal.range(of: .day, in: .month, for: monthStart) ?? 1..<30
+        let monthFirst = cal.date(from: cal.dateComponents([.year, .month], from: monthStart)) ?? monthStart
+        let leading = cal.component(.weekday, from: monthFirst) - 1
+        var cells: [DayCell] = []
+        // Leading filler from prev month.
+        for offset in stride(from: leading, to: 0, by: -1) {
+            if let d = cal.date(byAdding: .day, value: -offset, to: monthFirst) {
+                cells.append(DayCell(id: d, date: d, inMonth: false, count: count(on: d)))
+            }
+        }
+        for day in range {
+            if let d = cal.date(byAdding: .day, value: day - 1, to: monthFirst) {
+                cells.append(DayCell(id: d, date: d, inMonth: true, count: count(on: d)))
+            }
+        }
+        // Trailing filler to fill final week.
+        let remainder = (7 - cells.count % 7) % 7
+        if remainder > 0, let lastInMonth = cal.date(byAdding: .day, value: range.count - 1, to: monthFirst) {
+            for offset in 1...remainder {
+                if let d = cal.date(byAdding: .day, value: offset, to: lastInMonth) {
+                    cells.append(DayCell(id: d, date: d, inMonth: false, count: count(on: d)))
+                }
+            }
+        }
+        return cells
+    }
+
+    private func count(on date: Date) -> Int {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: date)
+        guard let end = cal.date(byAdding: .day, value: 1, to: start) else { return 0 }
+        let all = vm.today + vm.upcoming + vm.overdue
+        return all.filter { item in
+            guard let due = item.dueDate else { return false }
+            return due >= start && due < end
+        }.count
+    }
+
+    @ViewBuilder
+    private func dayCell(_ cell: DayCell) -> some View {
+        let cal = Calendar.current
+        let isSelected = cal.isDate(cell.date, inSameDayAs: selectedDay)
+        let isToday = cal.isDateInToday(cell.date)
+        Button {
+            selectedDay = cal.startOfDay(for: cell.date)
+        } label: {
+            VStack(spacing: 2) {
+                Text("\(cal.component(.day, from: cell.date))")
+                    .font(.subheadline.weight(isToday ? .bold : .regular))
+                    .foregroundStyle(cellForeground(inMonth: cell.inMonth, isSelected: isSelected, isToday: isToday))
+                Circle()
+                    .fill(cell.count > 0 ? Color.axisAccent : Color.clear)
+                    .frame(width: 5, height: 5)
+            }
+            .frame(maxWidth: .infinity, minHeight: 40)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.axisAccent.opacity(0.15) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isToday ? Color.axisAccent : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func cellForeground(inMonth: Bool, isSelected: Bool, isToday: Bool) -> Color {
+        if !inMonth { return .tertiary }
+        if isSelected || isToday { return Color.axisAccent }
+        return .primary
+    }
+
+    @ViewBuilder
+    private var dayDetail: some View {
+        let items = itemsOn(selectedDay)
+        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+            HStack {
+                Text(detailHeader(selectedDay))
+                    .font(.headline)
+                Spacer()
+                Text("\(items.count) item\(items.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if items.isEmpty {
+                Text("Nothing scheduled this day.")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+            } else {
+                ForEach(items) { item in
+                    ReminderCard(
+                        item: item,
+                        accent: Color.axisAccent,
+                        isPinned: vm.isPinnedToday(item.id),
+                        onToggle: { await vm.toggleComplete(item) },
+                        onTap: { onSelect(item) },
+                        onTapDate: { onReschedule(item) }
+                    )
+                }
+            }
+        }
+    }
+
+    private func itemsOn(_ date: Date) -> [CalendarService.ReminderItem] {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: date)
+        guard let end = cal.date(byAdding: .day, value: 1, to: start) else { return [] }
+        let all = vm.today + vm.upcoming + vm.overdue
+        return all.filter { item in
+            guard let due = item.dueDate else { return false }
+            return due >= start && due < end
+        }.sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+    }
+
+    private func monthLabel(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f.string(from: date)
+    }
+
+    private func detailHeader(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return "Today" }
+        if cal.isDateInTomorrow(date) { return "Tomorrow" }
+        if cal.isDateInYesterday(date) { return "Yesterday" }
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMM d"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Board / Kanban View
+
+/// Horizontally scrolling Kanban — one column per Reminders list. Each
+/// column scrolls vertically and shows compact cards.
+private struct BoardView: View {
+    let vm: RemindersViewModel
+    let onSelect: (CalendarService.ReminderItem) -> Void
+    let onReschedule: (CalendarService.ReminderItem) -> Void
+
+    private struct Column: Identifiable {
+        let id: String
+        let title: String
+        let items: [CalendarService.ReminderItem]
+    }
+
+    private var columns: [Column] {
+        let all = vm.overdue + vm.today + vm.upcoming + vm.undated
+        let grouped = Dictionary(grouping: all) { $0.calendarTitle ?? "Reminders" }
+        return grouped
+            .map { Column(id: $0.key, title: $0.key, items: $0.value.sorted {
+                ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture)
+            })}
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: AxisSpacing.md) {
+                ForEach(columns) { column in
+                    columnView(column)
+                }
+            }
+            .padding(AxisSpacing.md)
+        }
+        .background(Color.axisBackground.ignoresSafeArea())
+    }
+
+    private func columnView(_ column: Column) -> some View {
+        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+            HStack {
+                Text(column.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text("\(column.items.count)")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.axisAccent.opacity(0.15)))
+                    .foregroundStyle(Color.axisAccent)
+            }
+            .padding(.horizontal, AxisSpacing.sm)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+                    if column.items.isEmpty {
+                        Text("Empty")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .padding(AxisSpacing.sm)
+                    } else {
+                        ForEach(column.items) { item in
+                            ReminderCard(
+                                item: item,
+                                accent: Color.axisAccent,
+                                isPinned: vm.isPinnedToday(item.id),
+                                onToggle: { await vm.toggleComplete(item) },
+                                onTap: { onSelect(item) },
+                                onTapDate: { onReschedule(item) }
+                            )
+                        }
+                    }
+                }
+                .padding(AxisSpacing.sm)
+            }
+        }
+        .frame(width: 280)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.axisDivider.opacity(0.18))
+        )
     }
 }
 
