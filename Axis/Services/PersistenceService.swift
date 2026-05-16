@@ -396,6 +396,63 @@ final class PersistenceService: @unchecked Sendable {
         return fetchAll(Subtask.self, descriptor: descriptor, operation: "fetchSubtasks")
     }
 
+    func fetchSubtasks(forReminder reminderId: String) -> [Subtask] {
+        let descriptor = FetchDescriptor<Subtask>(
+            predicate: #Predicate { $0.reminderId == reminderId },
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        return fetchAll(Subtask.self, descriptor: descriptor, operation: "fetchSubtasksForReminder")
+    }
+
+    /// Returns all reminder-scoped subtasks grouped by reminderId, for use by
+    /// the Workflow list when it needs progress counts across every row.
+    func fetchAllReminderSubtasks() -> [String: [Subtask]] {
+        let descriptor = FetchDescriptor<Subtask>(
+            predicate: #Predicate { $0.reminderId != nil },
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        let all = fetchAll(Subtask.self, descriptor: descriptor, operation: "fetchAllReminderSubtasks")
+        return Dictionary(grouping: all, by: { $0.reminderId ?? "" })
+    }
+
+    /// Reconciles the persisted subtasks for a reminder against the editor's
+    /// draft list: updates rows present in both, inserts new drafts, deletes
+    /// removed rows. Drafts are matched by `uuid`.
+    struct SubtaskDraft: Identifiable, Equatable {
+        var id: UUID
+        var title: String
+        var isCompleted: Bool
+        var sortOrder: Int
+    }
+
+    func saveReminderSubtasks(reminderId: String, drafts: [SubtaskDraft]) {
+        guard let context = modelContext else { return }
+        let existing = fetchSubtasks(forReminder: reminderId)
+        let existingByUUID = Dictionary(uniqueKeysWithValues: existing.map { ($0.uuid, $0) })
+        let draftUUIDs = Set(drafts.map(\.id))
+
+        for draft in drafts {
+            if let row = existingByUUID[draft.id] {
+                if row.title != draft.title { row.title = draft.title }
+                if row.isCompleted != draft.isCompleted { row.isCompleted = draft.isCompleted }
+                if row.sortOrder != draft.sortOrder { row.sortOrder = draft.sortOrder }
+            } else {
+                let new = Subtask(
+                    title: draft.title,
+                    reminderId: reminderId,
+                    sortOrder: draft.sortOrder,
+                    isCompleted: draft.isCompleted
+                )
+                new.uuid = draft.id
+                context.insert(new)
+            }
+        }
+        for row in existing where !draftUUIDs.contains(row.uuid) {
+            context.delete(row)
+        }
+        _ = saveContext("saveReminderSubtasks")
+    }
+
     func saveSubtask(_ subtask: Subtask) {
         guard let context = modelContext else { return }
         context.insert(subtask)

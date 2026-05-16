@@ -104,6 +104,113 @@ final class CalendarService {
         let isCompleted: Bool
         let priority: Int
         let calendarTitle: String?
+        let calendarIdentifier: String?
+        let recurrenceSummary: String?
+        let labels: [String]
+    }
+
+    /// A user-visible Reminders list (an EKCalendar of type .reminder).
+    struct ReminderList: Identifiable, Equatable, Hashable {
+        let id: String
+        let title: String
+        let isDefault: Bool
+    }
+
+    func availableReminderLists() -> [ReminderList] {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return [] }
+        let defaultID = store.defaultCalendarForNewReminders()?.calendarIdentifier
+        return store.calendars(for: .reminder)
+            .map { cal in
+                ReminderList(
+                    id: cal.calendarIdentifier,
+                    title: cal.title,
+                    isDefault: cal.calendarIdentifier == defaultID
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.isDefault != rhs.isDefault { return lhs.isDefault }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+    }
+
+    /// Simple presets surfaced in the editor. Power-user custom rules can be
+    /// added later; these cover the >90% case (matches Apple Reminders UI).
+    enum RecurrencePreset: String, CaseIterable, Identifiable {
+        case none, daily, weekdays, weekly, monthly, yearly
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .none: return "Never"
+            case .daily: return "Every Day"
+            case .weekdays: return "Every Weekday"
+            case .weekly: return "Every Week"
+            case .monthly: return "Every Month"
+            case .yearly: return "Every Year"
+            }
+        }
+
+        func buildRule() -> EKRecurrenceRule? {
+            switch self {
+            case .none:
+                return nil
+            case .daily:
+                return EKRecurrenceRule(recurrenceWith: .daily, interval: 1, end: nil)
+            case .weekdays:
+                let days: [EKRecurrenceDayOfWeek] = [.init(.monday), .init(.tuesday), .init(.wednesday), .init(.thursday), .init(.friday)]
+                return EKRecurrenceRule(
+                    recurrenceWith: .weekly,
+                    interval: 1,
+                    daysOfTheWeek: days,
+                    daysOfTheMonth: nil,
+                    monthsOfTheYear: nil,
+                    weeksOfTheYear: nil,
+                    daysOfTheYear: nil,
+                    setPositions: nil,
+                    end: nil
+                )
+            case .weekly:
+                return EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, end: nil)
+            case .monthly:
+                return EKRecurrenceRule(recurrenceWith: .monthly, interval: 1, end: nil)
+            case .yearly:
+                return EKRecurrenceRule(recurrenceWith: .yearly, interval: 1, end: nil)
+            }
+        }
+
+        static func detect(from rule: EKRecurrenceRule?) -> RecurrencePreset {
+            guard let rule, rule.interval == 1, rule.recurrenceEnd == nil else {
+                return rule == nil ? .none : .none // unknown / custom rules fall back to None in the picker
+            }
+            switch rule.frequency {
+            case .daily: return .daily
+            case .weekly:
+                let weekdaysSet: Set<EKWeekday> = [.monday, .tuesday, .wednesday, .thursday, .friday]
+                if let days = rule.daysOfTheWeek, !days.isEmpty {
+                    let set = Set(days.map(\.dayOfTheWeek))
+                    if set == weekdaysSet { return .weekdays }
+                    return .weekly
+                }
+                return .weekly
+            case .monthly: return .monthly
+            case .yearly: return .yearly
+            @unknown default: return .none
+            }
+        }
+
+        static func summary(for rule: EKRecurrenceRule?) -> String? {
+            guard let rule else { return nil }
+            let preset = detect(from: rule)
+            if preset != .none { return preset.label }
+            // Fallback for custom rules we don't have a preset for yet.
+            switch rule.frequency {
+            case .daily: return "Daily"
+            case .weekly: return "Weekly"
+            case .monthly: return "Monthly"
+            case .yearly: return "Yearly"
+            @unknown default: return "Repeats"
+            }
+        }
     }
 
     func requestRemindersAccess() async -> Bool {
@@ -142,7 +249,10 @@ final class CalendarService {
                     hasDueTime: reminder.dueDateComponents?.hour != nil || reminder.dueDateComponents?.minute != nil,
                     isCompleted: reminder.isCompleted,
                     priority: reminder.priority,
-                    calendarTitle: reminder.calendar?.title
+                    calendarTitle: reminder.calendar?.title,
+                    calendarIdentifier: reminder.calendar?.calendarIdentifier,
+                    recurrenceSummary: RecurrencePreset.summary(for: reminder.recurrenceRules?.first),
+                    labels: AxisReminderNotes.decodeAll(reminder.notes).labels
                 )
             }
     }
@@ -165,7 +275,10 @@ final class CalendarService {
                 hasDueTime: reminder.dueDateComponents?.hour != nil || reminder.dueDateComponents?.minute != nil,
                 isCompleted: false,
                 priority: reminder.priority,
-                calendarTitle: reminder.calendar?.title
+                calendarTitle: reminder.calendar?.title,
+                calendarIdentifier: reminder.calendar?.calendarIdentifier,
+                recurrenceSummary: RecurrencePreset.summary(for: reminder.recurrenceRules?.first),
+                labels: AxisReminderNotes.decodeAll(reminder.notes).labels
             )
         }
     }
@@ -173,12 +286,60 @@ final class CalendarService {
     func completeReminder(id: String) -> Bool {
         guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return false }
         guard let item = store.calendarItem(withIdentifier: id) as? EKReminder else { return false }
+
+        // Recurring reminders behave like Apple Reminders.app: completing one
+        // advances the due date to the next occurrence rather than marking it
+        // permanently done. The historical occurrence is "lost" the same way
+        // it is in the system app — adequate for habit-style reminders.
+        if let rule = item.recurrenceRules?.first,
+           let currentDue = item.dueDateComponents.flatMap({ Calendar.current.date(from: $0) }),
+           let next = nextOccurrence(after: currentDue, rule: rule) {
+            let hasTime = item.dueDateComponents?.hour != nil || item.dueDateComponents?.minute != nil
+            var comps: Set<Calendar.Component> = [.year, .month, .day]
+            if hasTime { comps.formUnion([.hour, .minute]) }
+            item.dueDateComponents = Calendar.current.dateComponents(comps, from: next)
+            item.alarms?.forEach { item.removeAlarm($0) }
+            if hasTime {
+                item.addAlarm(EKAlarm(absoluteDate: next))
+            }
+            do { try store.save(item, commit: true); return true } catch { return false }
+        }
+
         item.isCompleted = true
         do {
             try store.save(item, commit: true)
             return true
         } catch {
             return false
+        }
+    }
+
+    /// Computes the next occurrence after `date` for an EKRecurrenceRule.
+    /// Covers the preset rules; unknown shapes fall back to a sensible default.
+    private func nextOccurrence(after date: Date, rule: EKRecurrenceRule) -> Date? {
+        let cal = Calendar.current
+        let interval = max(rule.interval, 1)
+        switch rule.frequency {
+        case .daily:
+            return cal.date(byAdding: .day, value: interval, to: date)
+        case .weekly:
+            if let days = rule.daysOfTheWeek, !days.isEmpty {
+                let allowed = Set(days.map(\.dayOfTheWeek.rawValue))
+                var probe = cal.date(byAdding: .day, value: 1, to: date) ?? date
+                for _ in 0..<14 {
+                    let wd = cal.component(.weekday, from: probe)
+                    if allowed.contains(wd) { return probe }
+                    probe = cal.date(byAdding: .day, value: 1, to: probe) ?? probe
+                }
+                return probe
+            }
+            return cal.date(byAdding: .weekOfYear, value: interval, to: date)
+        case .monthly:
+            return cal.date(byAdding: .month, value: interval, to: date)
+        case .yearly:
+            return cal.date(byAdding: .year, value: interval, to: date)
+        @unknown default:
+            return cal.date(byAdding: .day, value: 1, to: date)
         }
     }
 
@@ -204,14 +365,22 @@ final class CalendarService {
         meetingInfo: String? = nil,
         dueDate: Date? = nil,
         includeDueTime: Bool = false,
-        priority: Int = 0
+        priority: Int = 0,
+        recurrence: RecurrencePreset = .none,
+        calendarIdentifier: String? = nil,
+        labels: [String] = []
     ) -> String? {
         guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return nil }
         let reminder = EKReminder(eventStore: store)
         reminder.title = title
         reminder.priority = priority
-        reminder.calendar = store.defaultCalendarForNewReminders()
-        reminder.notes = AxisReminderNotes.encode(notes: notes, meetingInfo: meetingInfo)
+        if let calendarIdentifier,
+           let target = store.calendars(for: .reminder).first(where: { $0.calendarIdentifier == calendarIdentifier }) {
+            reminder.calendar = target
+        } else {
+            reminder.calendar = store.defaultCalendarForNewReminders()
+        }
+        reminder.notes = AxisReminderNotes.encode(notes: notes, meetingInfo: meetingInfo, labels: labels)
         if let dueDate {
             var comps: Set<Calendar.Component> = [.year, .month, .day]
             if includeDueTime { comps.formUnion([.hour, .minute]) }
@@ -220,6 +389,14 @@ final class CalendarService {
                 let alarm = EKAlarm(absoluteDate: dueDate)
                 reminder.addAlarm(alarm)
             }
+        }
+        if let rule = recurrence.buildRule() {
+            // EKReminder requires a due date for a recurrence rule to apply —
+            // anchor to today midnight if the caller didn't supply one.
+            if reminder.dueDateComponents == nil {
+                reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+            }
+            reminder.addRecurrenceRule(rule)
         }
         do {
             try store.save(reminder, commit: true)
@@ -240,17 +417,21 @@ final class CalendarService {
         clearDueDate: Bool = false,
         includeDueTime: Bool? = nil,
         priority: Int? = nil,
-        isCompleted: Bool? = nil
+        isCompleted: Bool? = nil,
+        recurrence: RecurrencePreset? = nil,
+        calendarIdentifier: String? = nil,
+        labels: [String]? = nil
     ) -> Bool {
         guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return false }
         guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else { return false }
         if let title { reminder.title = title }
-        if notes != nil || meetingInfo != nil {
-            // Preserve whichever half wasn't provided by decoding current notes first.
-            let current = AxisReminderNotes.decode(reminder.notes)
+        if notes != nil || meetingInfo != nil || labels != nil {
+            // Preserve whichever fields weren't provided by decoding current notes first.
+            let current = AxisReminderNotes.decodeAll(reminder.notes)
             reminder.notes = AxisReminderNotes.encode(
                 notes: notes ?? current.notes,
-                meetingInfo: meetingInfo ?? current.meetingInfo
+                meetingInfo: meetingInfo ?? current.meetingInfo,
+                labels: labels ?? current.labels
             )
         }
         if clearDueDate {
@@ -268,6 +449,20 @@ final class CalendarService {
         }
         if let priority { reminder.priority = priority }
         if let isCompleted { reminder.isCompleted = isCompleted }
+        if let recurrence {
+            reminder.recurrenceRules?.forEach { reminder.removeRecurrenceRule($0) }
+            if let rule = recurrence.buildRule() {
+                if reminder.dueDateComponents == nil {
+                    reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+                }
+                reminder.addRecurrenceRule(rule)
+            }
+        }
+        if let calendarIdentifier,
+           let target = store.calendars(for: .reminder).first(where: { $0.calendarIdentifier == calendarIdentifier }),
+           reminder.calendar?.calendarIdentifier != calendarIdentifier {
+            reminder.calendar = target
+        }
         do { try store.save(reminder, commit: true); return true } catch { return false }
     }
 
@@ -291,7 +486,10 @@ final class CalendarService {
                 hasDueTime: reminder.dueDateComponents?.hour != nil || reminder.dueDateComponents?.minute != nil,
                 isCompleted: reminder.isCompleted,
                 priority: reminder.priority,
-                calendarTitle: reminder.calendar?.title
+                calendarTitle: reminder.calendar?.title,
+                calendarIdentifier: reminder.calendar?.calendarIdentifier,
+                recurrenceSummary: RecurrencePreset.summary(for: reminder.recurrenceRules?.first),
+                labels: AxisReminderNotes.decodeAll(reminder.notes).labels
             )
         }
     }
@@ -300,6 +498,19 @@ final class CalendarService {
     func reminderDetails(id: String) -> (notes: String?, meetingInfo: String?)? {
         guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else { return nil }
         return AxisReminderNotes.decode(reminder.notes)
+    }
+
+    /// Returns the labels (#tags) stored on a reminder. Editor uses this to
+    /// hydrate the Labels section without re-fetching the full notes blob.
+    func reminderLabels(id: String) -> [String] {
+        guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else { return [] }
+        return AxisReminderNotes.decodeAll(reminder.notes).labels
+    }
+
+    /// Returns the active recurrence preset for a reminder by id (for editor hydration).
+    func reminderRecurrence(id: String) -> RecurrencePreset {
+        guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else { return .none }
+        return RecurrencePreset.detect(from: reminder.recurrenceRules?.first)
     }
 
     /// Creates a calendar event that mirrors a reminder — title, date/time, and
@@ -397,24 +608,60 @@ final class CalendarService {
 // sheet, and the meeting-link detector share a single source of truth.
 enum AxisReminderNotes {
     private static let marker = "--- Meeting Info ---"
+    private static let tagsMarker = "--- Tags ---"
 
-    static func encode(notes: String?, meetingInfo: String?) -> String? {
+    static func encode(notes: String?, meetingInfo: String?, labels: [String] = []) -> String? {
         let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let trimmedInfo = meetingInfo?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmedNotes.isEmpty && trimmedInfo.isEmpty { return nil }
-        if trimmedInfo.isEmpty { return trimmedNotes }
-        if trimmedNotes.isEmpty { return "\(marker)\n\(trimmedInfo)" }
-        return "\(trimmedNotes)\n\n\(marker)\n\(trimmedInfo)"
+        let normalizedLabels = labels.compactMap(normalizeLabel)
+        let tagsLine = normalizedLabels.isEmpty ? "" : normalizedLabels.map { "#\($0)" }.joined(separator: " ")
+
+        var chunks: [String] = []
+        if !trimmedNotes.isEmpty { chunks.append(trimmedNotes) }
+        if !trimmedInfo.isEmpty { chunks.append("\(marker)\n\(trimmedInfo)") }
+        if !tagsLine.isEmpty { chunks.append("\(tagsMarker)\n\(tagsLine)") }
+        if chunks.isEmpty { return nil }
+        return chunks.joined(separator: "\n\n")
     }
 
     static func decode(_ raw: String?) -> (notes: String?, meetingInfo: String?) {
-        guard let raw, !raw.isEmpty else { return (nil, nil) }
-        guard let range = raw.range(of: marker) else { return (raw, nil) }
-        let beforeRaw = String(raw[..<range.lowerBound])
-        let afterRaw = String(raw[range.upperBound...])
+        let result = decodeAll(raw)
+        return (result.notes, result.meetingInfo)
+    }
+
+    static func decodeAll(_ raw: String?) -> (notes: String?, meetingInfo: String?, labels: [String]) {
+        guard let raw, !raw.isEmpty else { return (nil, nil, []) }
+
+        // Pull labels off the tail first if present.
+        var working = raw
+        var labels: [String] = []
+        if let tagRange = working.range(of: tagsMarker) {
+            let after = String(working[tagRange.upperBound...])
+            labels = after
+                .components(separatedBy: .whitespacesAndNewlines)
+                .compactMap(normalizeLabel)
+            working = String(working[..<tagRange.lowerBound])
+        }
+
+        guard let range = working.range(of: marker) else {
+            let notes = working.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (notes.isEmpty ? nil : notes, nil, labels)
+        }
+        let beforeRaw = String(working[..<range.lowerBound])
+        let afterRaw = String(working[range.upperBound...])
         let notes = beforeRaw.trimmingCharacters(in: .whitespacesAndNewlines)
         let info = afterRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (notes.isEmpty ? nil : notes, info.isEmpty ? nil : info)
+        return (notes.isEmpty ? nil : notes, info.isEmpty ? nil : info, labels)
+    }
+
+    /// Returns a label trimmed of leading `#`, lowercased, with whitespace
+    /// removed. Returns nil if empty after normalization.
+    static func normalizeLabel(_ raw: String) -> String? {
+        let stripped = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            .replacingOccurrences(of: " ", with: "")
+        return stripped.isEmpty ? nil : stripped.lowercased()
     }
 }
 

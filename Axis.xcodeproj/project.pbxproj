@@ -141,6 +141,7 @@
 		80EDE13248B373205B3B9802 /* FocusProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78084D847F5FCC9D9BDD246 /* FocusProfile.swift */; };
 		859E566C3CD2E2FE0724A74B /* QuickActionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EF5227CD0BD8DC79C3BB3A /* QuickActionsWidget.swift */; };
 		88137B796927F3DAB9B7B1B6 /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* WeatherService.swift */; };
+		C2A1000000000000000QAP01 /* QuickAddParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2A0000000000000000QAP01 /* QuickAddParser.swift */; };
 		8897C73260EB80D0822E8FA6 /* TripActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17719035378F9A2EAABC32B /* TripActivity.swift */; };
 		89AFF074F591047E47C9273D /* TrendSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F650BFA260516CEA83FD58D3 /* TrendSnapshot.swift */; };
 		8BA97C2CC9E1429FBCD1B15F /* ExploreReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* ExploreReducer.swift */; };
@@ -180,6 +181,7 @@
 		A10000000000000000000015 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* NotificationService.swift */; };
 		A10000000000000000000016 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* SpeechService.swift */; };
 		A10000000000000000000017 /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* WeatherService.swift */; };
+		C2A2000000000000000QAP01 /* QuickAddParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2A0000000000000000QAP01 /* QuickAddParser.swift */; };
 		A10000000000000000000018 /* ConfettiView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* ConfettiView.swift */; };
 		A10000000000000000000019 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019 /* GlassCard.swift */; };
 		A1000000000000000000001A /* ShimmerModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001A /* ShimmerModifier.swift */; };
@@ -434,6 +436,7 @@
 		B10000000000000000000015 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
 		B10000000000000000000017 /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
+		C2A0000000000000000QAP01 /* QuickAddParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddParser.swift; sourceTree = "<group>"; };
 		B10000000000000000000018 /* ConfettiView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfettiView.swift; sourceTree = "<group>"; };
 		B10000000000000000000019 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
 		B1000000000000000000001A /* ShimmerModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShimmerModifier.swift; sourceTree = "<group>"; };
@@ -933,6 +936,7 @@
 				B10000000000000000000041 /* PersistenceService.swift */,
 				B10000000000000000000016 /* SpeechService.swift */,
 				B10000000000000000000017 /* WeatherService.swift */,
+				C2A0000000000000000QAP01 /* QuickAddParser.swift */,
 				F5CDEA4174F253C9F21AFD75 /* AudioService.swift */,
 				78AFE6899A8E91E4FCA33500 /* TrendService.swift */,
 				B306755418842A07083FCE5E /* AIExecutiveService.swift */,
@@ -1264,6 +1268,7 @@
 				A10000000000000000000015 /* NotificationService.swift in Sources */,
 				A10000000000000000000016 /* SpeechService.swift in Sources */,
 				A10000000000000000000017 /* WeatherService.swift in Sources */,
+				C2A2000000000000000QAP01 /* QuickAddParser.swift in Sources */,
 				A10000000000000000000018 /* ConfettiView.swift in Sources */,
 				A10000000000000000000019 /* GlassCard.swift in Sources */,
 				A1000000000000000000001A /* ShimmerModifier.swift in Sources */,
@@ -1422,6 +1427,7 @@
 				D4AFAA42AED7F4AC43D04F15 /* NotificationService.swift in Sources */,
 				10E52B568899BA265D167487 /* SpeechService.swift in Sources */,
 				88137B796927F3DAB9B7B1B6 /* WeatherService.swift in Sources */,
+				C2A1000000000000000QAP01 /* QuickAddParser.swift in Sources */,
 				F0A5E88863B4509490FE8023 /* ConfettiView.swift in Sources */,
 				B619105A9540C637062BE40C /* GlassCard.swift in Sources */,
 				9696863BFF63D8CCE1A27257 /* ShimmerModifier.swift in Sources */,
