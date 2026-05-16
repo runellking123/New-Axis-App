@@ -29,12 +29,38 @@ struct WorkflowView: View {
         }
     }
 
+    enum ReminderFilter: Equatable {
+        case none
+        case label(String)
+        case priority(Int)
+        case list(String)
+        // Smart-list presets — compound filters that override sectioning.
+        case overdueOnly
+        case noDateOnly
+        case todayHighPriority
+        case highPriorityOnly
+
+        var icon: String {
+            switch self {
+            case .none: return "line.3.horizontal.decrease"
+            case .label: return "number"
+            case .priority: return "flag.fill"
+            case .list: return "list.bullet.rectangle"
+            case .overdueOnly: return "exclamationmark.triangle"
+            case .noDateOnly: return "calendar.badge.minus"
+            case .todayHighPriority: return "sparkles"
+            case .highPriorityOnly: return "flag.fill"
+            }
+        }
+    }
+
     @State private var vm = RemindersViewModel()
     @State private var showAddSheet = false
     @State private var selectedReminder: CalendarService.ReminderItem?
     @State private var newQuickTitle = ""
     @FocusState private var quickFocused: Bool
     @AppStorage("workflow.grouping") private var grouping: Grouping = .date
+    @State private var filter: ReminderFilter = .none
 
     var body: some View {
         NavigationStack {
@@ -63,11 +89,21 @@ struct WorkflowView: View {
                                 Label(option.label, systemImage: option.icon).tag(option)
                             }
                         }
+                        Divider()
+                        smartListPresets
+                        Divider()
+                        filterSubmenus
                     } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .foregroundStyle(.secondary)
+                        Image(systemName: filter == .none && grouping == .date
+                              ? "line.3.horizontal.decrease.circle"
+                              : "line.3.horizontal.decrease.circle.fill")
+                            .foregroundStyle(filter == .none ? .secondary : Color.axisAccent)
                             .font(.title3)
                     }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                        .foregroundStyle(.secondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showAddSheet = true } label: {
@@ -118,17 +154,39 @@ struct WorkflowView: View {
                 if !newQuickTitle.isEmpty {
                     quickAddPreview
                 }
+                if filter != .none {
+                    HStack(spacing: AxisSpacing.sm) {
+                        Label(filterLabel(filter), systemImage: filter.icon)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Color.axisAccent.opacity(0.15)))
+                            .foregroundStyle(Color.axisAccent)
+                        Spacer(minLength: 0)
+                        Button("Clear") {
+                            filter = .none
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    }
+                }
             }
 
-            switch grouping {
-            case .date:
-                section(title: "Overdue", items: vm.overdue, accent: Color.axisDanger)
-                section(title: "Today", items: vm.today, accent: Color.axisAccent)
-                section(title: "Upcoming", items: vm.upcoming, accent: Color.axisInfo)
-                section(title: "No Date", items: vm.undated, accent: Color.secondary)
-            case .list:
-                ForEach(itemsGroupedByList(), id: \.title) { group in
-                    section(title: group.title, items: group.items, accent: Color.axisAccent)
+            // Smart-list presets override the date/list grouping with a single
+            // flat list of just-the-matching items.
+            if let presetItems = smartListItems() {
+                section(title: filterLabel(filter), items: presetItems, accent: Color.axisAccent)
+            } else {
+                switch grouping {
+                case .date:
+                    section(title: "Overdue", items: filtered(vm.overdue), accent: Color.axisDanger)
+                    todaySections()
+                    section(title: "Upcoming", items: filtered(vm.upcoming), accent: Color.axisInfo)
+                    section(title: "No Date", items: filtered(vm.undated), accent: Color.secondary)
+                case .list:
+                    ForEach(itemsGroupedByList(), id: \.title) { group in
+                        section(title: group.title, items: filtered(group.items), accent: Color.axisAccent)
+                    }
                 }
             }
 
@@ -171,6 +229,12 @@ struct WorkflowView: View {
                         }
                         .tint(Color.axisAccent)
                     }
+                    .contextMenu {
+                        rescheduleMenu(for: item)
+                    }
+                }
+                .onMove { from, to in
+                    vm.moveItems(in: items, from: from, to: to)
                 }
             } header: {
                 Text(title)
@@ -209,6 +273,274 @@ struct WorkflowView: View {
     }
 
     // MARK: - Helpers
+
+    // MARK: - Filter & smart lists
+
+    private func filterLabel(_ filter: ReminderFilter) -> String {
+        switch filter {
+        case .none: return "All Reminders"
+        case .label(let l): return "#\(l)"
+        case .priority(let p):
+            switch p {
+            case 1...3: return "High Priority"
+            case 4...6: return "Medium Priority"
+            default: return "Low Priority"
+            }
+        case .list(let id):
+            return vm.allLists.first(where: { $0.id == id })?.title ?? "List"
+        case .overdueOnly: return "Overdue"
+        case .noDateOnly: return "No Date"
+        case .todayHighPriority: return "Today + High"
+        case .highPriorityOnly: return "High Priority Anywhere"
+        }
+    }
+
+    @ViewBuilder
+    private var smartListPresets: some View {
+        Section("Smart Lists") {
+            Button {
+                filter = .none
+            } label: {
+                Label("All", systemImage: "tray.full")
+            }
+            Button {
+                filter = .todayHighPriority
+            } label: {
+                Label("Today + High", systemImage: "sparkles")
+            }
+            Button {
+                filter = .overdueOnly
+            } label: {
+                Label("Overdue", systemImage: "exclamationmark.triangle")
+            }
+            Button {
+                filter = .noDateOnly
+            } label: {
+                Label("No Date", systemImage: "calendar.badge.minus")
+            }
+            Button {
+                filter = .highPriorityOnly
+            } label: {
+                Label("High Priority", systemImage: "flag.fill")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var filterSubmenus: some View {
+        let labels = discoveredLabels()
+        if !labels.isEmpty {
+            Menu("Filter by Label") {
+                ForEach(labels, id: \.self) { tag in
+                    Button {
+                        filter = .label(tag)
+                    } label: {
+                        Label("#\(tag)", systemImage: "number")
+                    }
+                }
+            }
+        }
+        Menu("Filter by Priority") {
+            Button { filter = .priority(1) } label: { Label("High", systemImage: "flag.fill") }
+            Button { filter = .priority(5) } label: { Label("Medium", systemImage: "flag") }
+            Button { filter = .priority(9) } label: { Label("Low", systemImage: "flag.slash") }
+        }
+        if vm.allLists.count > 1 {
+            Menu("Filter by List") {
+                ForEach(vm.allLists) { list in
+                    Button {
+                        filter = .list(list.id)
+                    } label: {
+                        Label(list.title, systemImage: "list.bullet.rectangle")
+                    }
+                }
+            }
+        }
+    }
+
+    private func discoveredLabels() -> [String] {
+        let all = vm.overdue + vm.today + vm.upcoming + vm.undated
+        return Array(Set(all.flatMap(\.labels))).sorted()
+    }
+
+    /// Returns true if the item passes the active filter.
+    private func passesFilter(_ item: CalendarService.ReminderItem) -> Bool {
+        switch filter {
+        case .none, .overdueOnly, .noDateOnly, .todayHighPriority, .highPriorityOnly:
+            return true // these are applied at the bucket-selection stage
+        case .label(let l):
+            return item.labels.contains(l)
+        case .priority(let p):
+            switch p {
+            case 1...3: return item.priority >= 1 && item.priority <= 3
+            case 4...6: return item.priority >= 4 && item.priority <= 6
+            default: return item.priority >= 7 && item.priority <= 9
+            }
+        case .list(let id):
+            return item.calendarIdentifier == id
+        }
+    }
+
+    private func filtered(_ items: [CalendarService.ReminderItem]) -> [CalendarService.ReminderItem] {
+        guard filter != .none else { return items }
+        return items.filter(passesFilter)
+    }
+
+    /// Renders Today as one section (when small) or four time-of-day buckets
+    /// (Morning / Afternoon / Evening / No Time) when there are 3+ items.
+    @ViewBuilder
+    private func todaySections() -> some View {
+        let items = filtered(vm.today)
+        if items.count < 3 {
+            section(title: "Today", items: items, accent: Color.axisAccent)
+        } else {
+            let buckets = bucketByTimeOfDay(items)
+            section(title: "Today · Morning", items: buckets.morning, accent: Color.axisAccent)
+            section(title: "Today · Afternoon", items: buckets.afternoon, accent: Color.axisAccent)
+            section(title: "Today · Evening", items: buckets.evening, accent: Color.axisAccent)
+            section(title: "Today · No Time", items: buckets.untimed, accent: Color.secondary)
+        }
+    }
+
+    private struct TimeOfDayBuckets {
+        var morning: [CalendarService.ReminderItem] = []
+        var afternoon: [CalendarService.ReminderItem] = []
+        var evening: [CalendarService.ReminderItem] = []
+        var untimed: [CalendarService.ReminderItem] = []
+    }
+
+    private func bucketByTimeOfDay(_ items: [CalendarService.ReminderItem]) -> TimeOfDayBuckets {
+        var buckets = TimeOfDayBuckets()
+        let cal = Calendar.current
+        for item in items {
+            guard item.hasDueTime, let due = item.dueDate else {
+                buckets.untimed.append(item); continue
+            }
+            let hour = cal.component(.hour, from: due)
+            switch hour {
+            case 0..<12: buckets.morning.append(item)
+            case 12..<17: buckets.afternoon.append(item)
+            default: buckets.evening.append(item)
+            }
+        }
+        return buckets
+    }
+
+    /// For smart-list presets, returns the flat result list. Returns nil for
+    /// non-preset filters (which use the normal section pipeline + passesFilter).
+    private func smartListItems() -> [CalendarService.ReminderItem]? {
+        switch filter {
+        case .overdueOnly:
+            return vm.overdue
+        case .noDateOnly:
+            return vm.undated
+        case .todayHighPriority:
+            return vm.today.filter { $0.priority >= 1 && $0.priority <= 3 }
+        case .highPriorityOnly:
+            let all = vm.overdue + vm.today + vm.upcoming + vm.undated
+            return all.filter { $0.priority >= 1 && $0.priority <= 3 }
+        default:
+            return nil
+        }
+    }
+
+    // MARK: - Reschedule
+
+    @ViewBuilder
+    private func rescheduleMenu(for item: CalendarService.ReminderItem) -> some View {
+        Menu {
+            Button { reschedule(item, to: RescheduleTarget.today.resolve(from: Date())) } label: {
+                Label("Today", systemImage: "sun.max")
+            }
+            Button { reschedule(item, to: RescheduleTarget.tomorrow.resolve(from: Date())) } label: {
+                Label("Tomorrow", systemImage: "sunrise")
+            }
+            Button { reschedule(item, to: RescheduleTarget.thisWeekend.resolve(from: Date())) } label: {
+                Label("This Weekend", systemImage: "beach.umbrella")
+            }
+            Button { reschedule(item, to: RescheduleTarget.nextWeek.resolve(from: Date())) } label: {
+                Label("Next Week", systemImage: "calendar.badge.clock")
+            }
+            Divider()
+            Button { selectedReminder = item } label: {
+                Label("Pick a Date…", systemImage: "calendar")
+            }
+            if item.dueDate != nil {
+                Button(role: .destructive) {
+                    Task { await clearDueDate(item) }
+                } label: {
+                    Label("Clear Due Date", systemImage: "calendar.badge.minus")
+                }
+            }
+        } label: {
+            Label("Reschedule", systemImage: "arrow.triangle.2.circlepath")
+        }
+        Button {
+            Task { await vm.toggleComplete(item) }
+        } label: {
+            Label(item.isCompleted ? "Mark Incomplete" : "Mark Complete", systemImage: "checkmark.circle")
+        }
+        Button(role: .destructive) {
+            Task { await vm.delete(item) }
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+    }
+
+    private enum RescheduleTarget {
+        case today, tomorrow, thisWeekend, nextWeek
+
+        func resolve(from now: Date) -> Date {
+            let cal = Calendar.current
+            let startOfDay = cal.startOfDay(for: now)
+            switch self {
+            case .today:
+                return startOfDay
+            case .tomorrow:
+                return cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+            case .thisWeekend:
+                // Next Saturday from today (or today if it's already Saturday).
+                let weekday = cal.component(.weekday, from: startOfDay) // Sun=1, Sat=7
+                let daysUntilSaturday = (7 - weekday + 7) % 7
+                let offset = daysUntilSaturday == 0 ? 0 : daysUntilSaturday
+                return cal.date(byAdding: .day, value: offset, to: startOfDay) ?? startOfDay
+            case .nextWeek:
+                // Next Monday from today.
+                let weekday = cal.component(.weekday, from: startOfDay) // Sun=1, Mon=2
+                let daysUntilMonday = (2 - weekday + 7) % 7
+                let offset = daysUntilMonday == 0 ? 7 : daysUntilMonday
+                return cal.date(byAdding: .day, value: offset, to: startOfDay) ?? startOfDay
+            }
+        }
+    }
+
+    private func reschedule(_ item: CalendarService.ReminderItem, to newDate: Date) {
+        // Preserve time-of-day if the original reminder had one.
+        var target = newDate
+        if item.hasDueTime, let original = item.dueDate {
+            let cal = Calendar.current
+            let timeParts = cal.dateComponents([.hour, .minute], from: original)
+            if let combined = cal.date(bySettingHour: timeParts.hour ?? 0, minute: timeParts.minute ?? 0, second: 0, of: newDate) {
+                target = combined
+            }
+        }
+        Task {
+            _ = CalendarService.shared.updateReminder(
+                id: item.id,
+                dueDate: target,
+                includeDueTime: item.hasDueTime
+            )
+            await vm.reload()
+        }
+    }
+
+    private func clearDueDate(_ item: CalendarService.ReminderItem) async {
+        _ = CalendarService.shared.updateReminder(
+            id: item.id,
+            clearDueDate: true
+        )
+        await vm.reload()
+    }
 
     private struct ListGroup {
         let title: String
@@ -412,6 +744,7 @@ final class RemindersViewModel {
         let done: Int
         let total: Int
     }
+    private static let sortOrderKey = "workflow.sortOrder.v1"
     var state: LoadState = .loading
     var overdue: [CalendarService.ReminderItem] = []
     var today: [CalendarService.ReminderItem] = []
@@ -419,6 +752,43 @@ final class RemindersViewModel {
     var undated: [CalendarService.ReminderItem] = []
     var byId: [String: CalendarService.ReminderItem] = [:]
     var subtaskProgress: [String: SubtaskProgress] = [:]
+    var allLists: [CalendarService.ReminderList] = []
+    /// Manual sort overrides keyed by reminder calendarItemIdentifier. EventKit
+    /// has no per-reminder ordering API, so we store our own.
+    private var sortOrder: [String: Int] = [:]
+
+    init() {
+        if let data = UserDefaults.standard.data(forKey: Self.sortOrderKey),
+           let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+            sortOrder = decoded
+        }
+    }
+
+    private func persistSortOrder() {
+        if let data = try? JSONEncoder().encode(sortOrder) {
+            UserDefaults.standard.set(data, forKey: Self.sortOrderKey)
+        }
+    }
+
+    /// Comparator: lower sortOrder wins; absence treated as Int.max so unsorted
+    /// items keep their default date-ordering relative to each other.
+    func compare(_ lhs: CalendarService.ReminderItem, _ rhs: CalendarService.ReminderItem) -> Bool {
+        let l = sortOrder[lhs.id] ?? Int.max
+        let r = sortOrder[rhs.id] ?? Int.max
+        if l != r { return l < r }
+        // Fall back to due date.
+        return (lhs.dueDate ?? .distantFuture) < (rhs.dueDate ?? .distantFuture)
+    }
+
+    func moveItems(in items: [CalendarService.ReminderItem], from source: IndexSet, to destination: Int) {
+        var reordered = items
+        reordered.move(fromOffsets: source, toOffset: destination)
+        for (index, item) in reordered.enumerated() {
+            sortOrder[item.id] = index
+        }
+        persistSortOrder()
+        Task { await reload() }
+    }
 
     var isAllEmpty: Bool {
         overdue.isEmpty && today.isEmpty && upcoming.isEmpty && undated.isEmpty
@@ -457,9 +827,10 @@ final class RemindersViewModel {
                 undatedBucket.append(item)
             }
         }
-        overdueBucket.sort { ($0.dueDate ?? .distantPast) < ($1.dueDate ?? .distantPast) }
-        todayBucket.sort { ($0.dueDate ?? .distantPast) < ($1.dueDate ?? .distantPast) }
-        upcomingBucket.sort { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+        overdueBucket.sort(by: compare)
+        todayBucket.sort(by: compare)
+        upcomingBucket.sort(by: compare)
+        undatedBucket.sort(by: compare)
 
         overdue = overdueBucket
         today = todayBucket
@@ -471,6 +842,7 @@ final class RemindersViewModel {
         subtaskProgress = grouped.mapValues { rows in
             SubtaskProgress(done: rows.filter(\.isCompleted).count, total: rows.count)
         }
+        allLists = CalendarService.shared.availableReminderLists()
     }
 
     func toggleComplete(_ item: CalendarService.ReminderItem) async {
