@@ -1679,6 +1679,7 @@ private struct InlineDatePickerSheet: View {
     @State private var hasDueDate: Bool = true
     @State private var dueDate: Date = Date()
     @State private var includesTime: Bool = false
+    @State private var recurrence: CalendarService.RecurrencePreset = .none
 
     var body: some View {
         NavigationStack {
@@ -1697,6 +1698,20 @@ private struct InlineDatePickerSheet: View {
                 } header: {
                     Text(reminder.title).font(.headline).foregroundStyle(.primary)
                 }
+
+                Section {
+                    Picker("Repeat", selection: $recurrence) {
+                        ForEach(CalendarService.RecurrencePreset.allCases) { preset in
+                            Text(preset.label).tag(preset)
+                        }
+                    }
+                } header: {
+                    Label("Repeat", systemImage: "arrow.triangle.2.circlepath")
+                } footer: {
+                    if recurrence != .none {
+                        Text("Completing this reminder will advance it to the next \(recurrence.label.lowercased()) occurrence.")
+                    }
+                }
             }
             .navigationTitle("Reschedule")
             .navigationBarTitleDisplayMode(.inline)
@@ -1712,6 +1727,7 @@ private struct InlineDatePickerSheet: View {
                 dueDate = reminder.dueDate ?? Date()
                 hasDueDate = reminder.dueDate != nil
                 includesTime = reminder.hasDueTime
+                recurrence = CalendarService.shared.reminderRecurrence(id: reminder.id)
             }
         }
     }
@@ -1721,7 +1737,8 @@ private struct InlineDatePickerSheet: View {
             id: reminder.id,
             dueDate: hasDueDate ? dueDate : nil,
             clearDueDate: !hasDueDate,
-            includeDueTime: includesTime
+            includeDueTime: includesTime,
+            recurrence: recurrence
         )
         onSaved()
         dismiss()
@@ -2362,9 +2379,9 @@ private struct TasksCalendarView: View {
     }
 
     private func cellForeground(inMonth: Bool, isSelected: Bool, isToday: Bool) -> Color {
-        if !inMonth { return .tertiary }
+        if !inMonth { return Color.secondary.opacity(0.5) }
         if isSelected || isToday { return Color.axisAccent }
-        return .primary
+        return Color.primary
     }
 
     @ViewBuilder
@@ -2435,7 +2452,11 @@ private struct BoardView: View {
     let onSelect: (CalendarService.ReminderItem) -> Void
     let onReschedule: (CalendarService.ReminderItem) -> Void
 
+    @State private var dropTargetId: String? = nil
+
     private struct Column: Identifiable {
+        /// Backing list identifier (EKCalendar id). Items without a known
+        /// identifier are bucketed under id == "".
         let id: String
         let title: String
         let items: [CalendarService.ReminderItem]
@@ -2443,11 +2464,18 @@ private struct BoardView: View {
 
     private var columns: [Column] {
         let all = vm.overdue + vm.today + vm.upcoming + vm.undated
-        let grouped = Dictionary(grouping: all) { $0.calendarTitle ?? "Reminders" }
+        // Group by stable identifier so titles that happen to collide (e.g.
+        // two accounts each with "Reminders") stay in separate columns and
+        // drops always know which calendar to land in.
+        let grouped = Dictionary(grouping: all) { $0.calendarIdentifier ?? "" }
+        let titleById = Dictionary(uniqueKeysWithValues: vm.allLists.map { ($0.id, $0.title) })
         return grouped
-            .map { Column(id: $0.key, title: $0.key, items: $0.value.sorted {
-                ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture)
-            })}
+            .map { (key, items) in
+                let title = titleById[key] ?? items.first?.calendarTitle ?? "Reminders"
+                return Column(id: key, title: title, items: items.sorted {
+                    ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture)
+                })
+            }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
@@ -2464,7 +2492,8 @@ private struct BoardView: View {
     }
 
     private func columnView(_ column: Column) -> some View {
-        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+        let isTargeted = dropTargetId == column.id
+        return VStack(alignment: .leading, spacing: AxisSpacing.sm) {
             HStack {
                 Text(column.title)
                     .font(.subheadline.weight(.semibold))
@@ -2482,10 +2511,11 @@ private struct BoardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AxisSpacing.sm) {
                     if column.items.isEmpty {
-                        Text("Empty")
+                        Text("Drop here")
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .padding(AxisSpacing.sm)
+                            .foregroundStyle(Color.secondary.opacity(0.6))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, AxisSpacing.xl)
                     } else {
                         ForEach(column.items) { item in
                             ReminderCard(
@@ -2496,17 +2526,42 @@ private struct BoardView: View {
                                 onTap: { onSelect(item) },
                                 onTapDate: { onReschedule(item) }
                             )
+                            .draggable(item.id)
                         }
                     }
                 }
                 .padding(AxisSpacing.sm)
+                .frame(maxWidth: .infinity, minHeight: 80)
             }
         }
         .frame(width: 280)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color.axisDivider.opacity(0.18))
+                .fill(isTargeted ? Color.axisAccent.opacity(0.22) : Color.axisDivider.opacity(0.18))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(isTargeted ? Color.axisAccent : Color.clear, lineWidth: 2)
+        )
+        .dropDestination(for: String.self) { ids, _ in
+            handleDrop(ids: ids, column: column)
+        } isTargeted: { targeted in
+            dropTargetId = targeted ? column.id : nil
+        }
+    }
+
+    private func handleDrop(ids: [String], column: Column) -> Bool {
+        guard let droppedId = ids.first, !column.id.isEmpty else { return false }
+        // Only move if it's actually changing column.
+        if let item = vm.byId[droppedId], item.calendarIdentifier == column.id {
+            return false
+        }
+        _ = CalendarService.shared.updateReminder(
+            id: droppedId,
+            calendarIdentifier: column.id
+        )
+        Task { await vm.reload() }
+        return true
     }
 }
 
@@ -2516,36 +2571,50 @@ struct ReminderTemplatePicker: View {
     @Environment(\.dismiss) private var dismiss
     let onChoose: (ReminderTemplate) -> Void
     @State private var templates: [ReminderTemplate] = []
+    @State private var editing: ReminderTemplate?
+    @State private var showNew = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     if templates.isEmpty {
-                        Text("No templates yet. Create one from any reminder.")
+                        Text("No templates yet. Tap + to add one.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(templates) { template in
-                            Button {
-                                onChoose(template)
-                                dismiss()
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(template.name)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-                                    Text(template.titlePattern)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                    if !template.subtasks.isEmpty {
-                                        Text("\(template.subtasks.count) subtasks")
-                                            .font(.caption)
-                                            .foregroundStyle(.tertiary)
+                            HStack(alignment: .top) {
+                                Button {
+                                    onChoose(template)
+                                    dismiss()
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(template.name)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
+                                        Text(template.titlePattern)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                        if !template.subtasks.isEmpty {
+                                            Text("\(template.subtasks.count) subtasks")
+                                                .font(.caption)
+                                                .foregroundStyle(Color.secondary.opacity(0.6))
+                                        }
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                Button {
+                                    editing = template
+                                } label: {
+                                    Image(systemName: "pencil.circle")
+                                        .font(.title3)
+                                        .foregroundStyle(Color.axisAccent)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                         .onDelete { offsets in
                             templates.remove(atOffsets: offsets)
@@ -2555,7 +2624,7 @@ struct ReminderTemplatePicker: View {
                 } header: {
                     Text("Templates")
                 } footer: {
-                    Text("Picking a template prefills title, priority, labels, and subtasks. Edit anything before saving.")
+                    Text("Tap to apply. Pencil to edit. Swipe to delete.")
                 }
             }
             .navigationTitle("Templates")
@@ -2564,8 +2633,174 @@ struct ReminderTemplatePicker: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showNew = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(Color.axisAccent)
+                    }
+                }
+            }
+            .sheet(item: $editing) { template in
+                TemplateEditorSheet(template: template) { updated in
+                    if let idx = templates.firstIndex(where: { $0.id == updated.id }) {
+                        templates[idx] = updated
+                        ReminderTemplateStore.saveAll(templates)
+                    }
+                    editing = nil
+                } onDelete: {
+                    templates.removeAll { $0.id == template.id }
+                    ReminderTemplateStore.saveAll(templates)
+                    editing = nil
+                }
+            }
+            .sheet(isPresented: $showNew) {
+                TemplateEditorSheet(template: ReminderTemplate(name: "", titlePattern: "")) { created in
+                    templates.append(created)
+                    ReminderTemplateStore.saveAll(templates)
+                    showNew = false
+                } onDelete: {
+                    showNew = false
+                }
             }
             .onAppear { templates = ReminderTemplateStore.loadAll() }
         }
+    }
+}
+
+// MARK: - Template Editor
+
+struct TemplateEditorSheet: View {
+    let template: ReminderTemplate
+    let onSave: (ReminderTemplate) -> Void
+    let onDelete: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    @State private var titlePattern: String = ""
+    @State private var priority: Int = 0
+    @State private var labelsText: String = ""
+    @State private var subtasksText: String = ""
+    @State private var hasDueOffset: Bool = false
+    @State private var dueOffsetDays: Int = 0
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Template") {
+                    TextField("Name (e.g. Weekly 1:1 Prep)", text: $name)
+                    TextField("Reminder title", text: $titlePattern)
+                }
+
+                Section("Priority") {
+                    Picker("Priority", selection: $priority) {
+                        Text("None").tag(0)
+                        Text("Low").tag(9)
+                        Text("Medium").tag(5)
+                        Text("High").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section {
+                    TextField("comma, separated, labels", text: $labelsText)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                } header: {
+                    Label("Labels", systemImage: "tag")
+                } footer: {
+                    Text("Each label becomes a #tag synced to Apple Reminders.")
+                }
+
+                Section {
+                    TextField("One subtask per line", text: $subtasksText, axis: .vertical)
+                        .lineLimit(3...12)
+                } header: {
+                    Label("Subtasks", systemImage: "checklist")
+                }
+
+                Section {
+                    Toggle("Default due offset", isOn: $hasDueOffset)
+                    if hasDueOffset {
+                        Stepper(value: $dueOffsetDays, in: 0...365) {
+                            Text(offsetLabel(dueOffsetDays))
+                        }
+                    }
+                } header: {
+                    Label("Due Date", systemImage: "calendar")
+                } footer: {
+                    Text("When applied, the reminder's due date will be set this many days from today.")
+                }
+
+                if !template.name.isEmpty {
+                    Section {
+                        Button("Delete Template", role: .destructive) {
+                            onDelete()
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .navigationTitle(template.name.isEmpty ? "New Template" : "Edit Template")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .fontWeight(.semibold)
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .onAppear(perform: hydrate)
+        }
+    }
+
+    private func offsetLabel(_ days: Int) -> String {
+        switch days {
+        case 0: return "Today"
+        case 1: return "Tomorrow"
+        default: return "\(days) days from now"
+        }
+    }
+
+    private func hydrate() {
+        name = template.name
+        titlePattern = template.titlePattern
+        priority = template.priority
+        labelsText = template.labels.joined(separator: ", ")
+        subtasksText = template.subtasks.joined(separator: "\n")
+        if let offset = template.dueOffsetDays {
+            hasDueOffset = true
+            dueOffsetDays = offset
+        } else {
+            hasDueOffset = false
+            dueOffsetDays = 0
+        }
+    }
+
+    private func save() {
+        let cleanedLabels = labelsText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let cleanedSubtasks = subtasksText
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let updated = ReminderTemplate(
+            id: template.id,
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            titlePattern: titlePattern.trimmingCharacters(in: .whitespacesAndNewlines),
+            priority: priority,
+            labels: cleanedLabels,
+            subtasks: cleanedSubtasks,
+            calendarIdentifier: template.calendarIdentifier,
+            dueOffsetDays: hasDueOffset ? dueOffsetDays : nil
+        )
+        onSave(updated)
+        dismiss()
     }
 }
