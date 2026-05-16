@@ -33,6 +33,24 @@ struct WorkflowView: View {
         }
     }
 
+    /// How the Today section breaks itself down once it grows past a few items.
+    enum TodaySubGroup: String, CaseIterable, Identifiable {
+        case time, project
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .time: return "Time of Day"
+            case .project: return "Project / List"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .time: return "clock"
+            case .project: return "list.bullet.rectangle"
+            }
+        }
+    }
+
     enum ReminderFilter: Equatable {
         case none
         case label(String)
@@ -43,6 +61,7 @@ struct WorkflowView: View {
         case noDateOnly
         case todayHighPriority
         case highPriorityOnly
+        case pinnedOnly
 
         var icon: String {
             switch self {
@@ -54,6 +73,7 @@ struct WorkflowView: View {
             case .noDateOnly: return "calendar.badge.minus"
             case .todayHighPriority: return "sparkles"
             case .highPriorityOnly: return "flag.fill"
+            case .pinnedOnly: return "pin.fill"
             }
         }
     }
@@ -66,6 +86,7 @@ struct WorkflowView: View {
     @State private var newQuickTitle = ""
     @FocusState private var quickFocused: Bool
     @AppStorage("workflow.grouping") private var grouping: Grouping = .date
+    @AppStorage("workflow.todaySubGroup") private var todaySubGroup: TodaySubGroup = .time
     @State private var filter: ReminderFilter = .none
 
     var body: some View {
@@ -93,6 +114,13 @@ struct WorkflowView: View {
                         Picker("Group", selection: $grouping) {
                             ForEach(Grouping.allCases) { option in
                                 Label(option.label, systemImage: option.icon).tag(option)
+                            }
+                        }
+                        if grouping == .date {
+                            Picker("Today Sub-group", selection: $todaySubGroup) {
+                                ForEach(TodaySubGroup.allCases) { option in
+                                    Label(option.label, systemImage: option.icon).tag(option)
+                                }
                             }
                         }
                         Divider()
@@ -234,6 +262,7 @@ struct WorkflowView: View {
                             subtaskProgress: vm.subtaskProgress[item.id],
                             subtasks: vm.subtasksByReminder[item.id] ?? [],
                             isExpanded: expandedReminders.contains(item.id),
+                            isPinned: vm.isPinnedToday(item.id),
                             onToggle: { await vm.toggleComplete(item) },
                             onTapDate: { inlineDateReminder = item },
                             onToggleExpanded: { toggleExpansion(item.id) },
@@ -255,6 +284,14 @@ struct WorkflowView: View {
                             Label(item.isCompleted ? "Uncomplete" : "Complete", systemImage: "checkmark.circle.fill")
                         }
                         .tint(Color.axisAccent)
+                        Button {
+                            vm.togglePinToday(item.id)
+                        } label: {
+                            let pinned = vm.isPinnedToday(item.id)
+                            Label(pinned ? "Unpin" : "Pin to Today",
+                                  systemImage: pinned ? "pin.slash.fill" : "pin.fill")
+                        }
+                        .tint(.orange)
                     }
                     .contextMenu {
                         rescheduleMenu(for: item)
@@ -319,6 +356,7 @@ struct WorkflowView: View {
         case .noDateOnly: return "No Date"
         case .todayHighPriority: return "Today + High"
         case .highPriorityOnly: return "High Priority Anywhere"
+        case .pinnedOnly: return "Pinned to Today"
         }
     }
 
@@ -349,6 +387,11 @@ struct WorkflowView: View {
                 filter = .highPriorityOnly
             } label: {
                 Label("High Priority", systemImage: "flag.fill")
+            }
+            Button {
+                filter = .pinnedOnly
+            } label: {
+                Label("Pinned", systemImage: "pin.fill")
             }
         }
     }
@@ -393,7 +436,7 @@ struct WorkflowView: View {
     /// Returns true if the item passes the active filter.
     private func passesFilter(_ item: CalendarService.ReminderItem) -> Bool {
         switch filter {
-        case .none, .overdueOnly, .noDateOnly, .todayHighPriority, .highPriorityOnly:
+        case .none, .overdueOnly, .noDateOnly, .todayHighPriority, .highPriorityOnly, .pinnedOnly:
             return true // these are applied at the bucket-selection stage
         case .label(let l):
             return item.labels.contains(l)
@@ -425,6 +468,7 @@ struct WorkflowView: View {
                             item: item,
                             accent: Color.axisDanger,
                             subtaskProgress: vm.subtaskProgress[item.id],
+                            isPinned: vm.isPinnedToday(item.id),
                             onToggle: { await vm.toggleComplete(item) },
                             onTapDate: { inlineDateReminder = item }
                         )
@@ -440,6 +484,14 @@ struct WorkflowView: View {
                             Task { await vm.toggleComplete(item) }
                         } label: { Label("Complete", systemImage: "checkmark.circle.fill") }
                         .tint(Color.axisAccent)
+                        Button {
+                            vm.togglePinToday(item.id)
+                        } label: {
+                            let pinned = vm.isPinnedToday(item.id)
+                            Label(pinned ? "Unpin" : "Pin to Today",
+                                  systemImage: pinned ? "pin.slash.fill" : "pin.fill")
+                        }
+                        .tint(.orange)
                     }
                     .contextMenu { rescheduleMenu(for: item) }
                 }
@@ -495,20 +547,36 @@ struct WorkflowView: View {
         }
     }
 
-    /// Renders Today as one section (when small) or four time-of-day buckets
-    /// (Morning / Afternoon / Evening / No Time) when there are 3+ items.
+    /// Renders Today as one section (when small) or split into buckets when
+    /// it has 3+ items. The split axis depends on todaySubGroup: time-of-day
+    /// (Morning / Afternoon / Evening / No Time) or by Reminders list/project.
     @ViewBuilder
     private func todaySections() -> some View {
         let items = filtered(vm.today)
         if items.count < 3 {
             section(title: "Today", items: items, accent: Color.axisAccent)
         } else {
-            let buckets = bucketByTimeOfDay(items)
-            section(title: "Today · Morning", items: buckets.morning, accent: Color.axisAccent)
-            section(title: "Today · Afternoon", items: buckets.afternoon, accent: Color.axisAccent)
-            section(title: "Today · Evening", items: buckets.evening, accent: Color.axisAccent)
-            section(title: "Today · No Time", items: buckets.untimed, accent: Color.secondary)
+            switch todaySubGroup {
+            case .time:
+                let buckets = bucketByTimeOfDay(items)
+                section(title: "Today · Morning", items: buckets.morning, accent: Color.axisAccent)
+                section(title: "Today · Afternoon", items: buckets.afternoon, accent: Color.axisAccent)
+                section(title: "Today · Evening", items: buckets.evening, accent: Color.axisAccent)
+                section(title: "Today · No Time", items: buckets.untimed, accent: Color.secondary)
+            case .project:
+                let groups = bucketByProject(items)
+                ForEach(groups, id: \.title) { group in
+                    section(title: "Today · \(group.title)", items: group.items, accent: Color.axisAccent)
+                }
+            }
         }
+    }
+
+    private func bucketByProject(_ items: [CalendarService.ReminderItem]) -> [ListGroup] {
+        let grouped = Dictionary(grouping: items) { $0.calendarTitle ?? "Reminders" }
+        return grouped
+            .map { ListGroup(title: $0.key, items: $0.value) }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
     private struct TimeOfDayBuckets {
@@ -548,6 +616,9 @@ struct WorkflowView: View {
         case .highPriorityOnly:
             let all = vm.overdue + vm.today + vm.upcoming + vm.undated
             return all.filter { $0.priority >= 1 && $0.priority <= 3 }
+        case .pinnedOnly:
+            let all = vm.overdue + vm.today + vm.upcoming + vm.undated
+            return all.filter { vm.isPinnedToday($0.id) }
         default:
             return nil
         }
@@ -743,6 +814,7 @@ private struct ReminderRow: View {
     let subtaskProgress: RemindersViewModel.SubtaskProgress?
     var subtasks: [Subtask] = []
     var isExpanded: Bool = false
+    var isPinned: Bool = false
     let onToggle: () async -> Void
     var onTapDate: (() -> Void)? = nil
     var onToggleExpanded: (() -> Void)? = nil
@@ -760,11 +832,18 @@ private struct ReminderRow: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .font(.body)
-                    .foregroundStyle(item.isCompleted ? .secondary : .primary)
-                    .strikethrough(item.isCompleted)
-                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    Text(item.title)
+                        .font(.body)
+                        .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                        .strikethrough(item.isCompleted)
+                        .lineLimit(2)
+                    if isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
                 HStack(spacing: AxisSpacing.sm) {
                     if let due = item.dueDate {
                         Button {
@@ -891,6 +970,7 @@ final class RemindersViewModel {
         let total: Int
     }
     private static let sortOrderKey = "workflow.sortOrder.v1"
+    private static let pinnedTodayKey = "workflow.pinnedToday.v1"
     var state: LoadState = .loading
     var overdue: [CalendarService.ReminderItem] = []
     var today: [CalendarService.ReminderItem] = []
@@ -903,11 +983,19 @@ final class RemindersViewModel {
     /// Manual sort overrides keyed by reminder calendarItemIdentifier. EventKit
     /// has no per-reminder ordering API, so we store our own.
     private var sortOrder: [String: Int] = [:]
+    /// Reminders the user explicitly pinned to Today. These appear in the
+    /// Today section regardless of their actual due date (Todoist-style
+    /// "starred for today" beyond just priority).
+    private(set) var pinnedToday: Set<String> = []
 
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.sortOrderKey),
            let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
             sortOrder = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: Self.pinnedTodayKey),
+           let decoded = try? JSONDecoder().decode(Set<String>.self, from: data) {
+            pinnedToday = decoded
         }
     }
 
@@ -915,6 +1003,24 @@ final class RemindersViewModel {
         if let data = try? JSONEncoder().encode(sortOrder) {
             UserDefaults.standard.set(data, forKey: Self.sortOrderKey)
         }
+    }
+
+    private func persistPinnedToday() {
+        if let data = try? JSONEncoder().encode(pinnedToday) {
+            UserDefaults.standard.set(data, forKey: Self.pinnedTodayKey)
+        }
+    }
+
+    func isPinnedToday(_ id: String) -> Bool { pinnedToday.contains(id) }
+
+    func togglePinToday(_ id: String) {
+        if pinnedToday.contains(id) {
+            pinnedToday.remove(id)
+        } else {
+            pinnedToday.insert(id)
+        }
+        persistPinnedToday()
+        Task { await reload() }
     }
 
     /// Comparator: lower sortOrder wins; absence treated as Int.max so unsorted
@@ -962,6 +1068,12 @@ final class RemindersViewModel {
 
         for item in items where !item.isCompleted {
             map[item.id] = item
+            // Pinned reminders surface in Today regardless of date so the
+            // user can curate a daily focus list beyond just priority=High.
+            if pinnedToday.contains(item.id) {
+                todayBucket.append(item)
+                continue
+            }
             if let due = item.dueDate {
                 if due < startOfDay {
                     overdueBucket.append(item)
