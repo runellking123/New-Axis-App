@@ -83,6 +83,7 @@ struct WorkflowView: View {
     @State private var selectedReminder: CalendarService.ReminderItem?
     @State private var inlineDateReminder: CalendarService.ReminderItem?
     @State private var expandedReminders: Set<String> = []
+    @State private var showKarma = false
     @State private var newQuickTitle = ""
     @FocusState private var quickFocused: Bool
     @AppStorage("workflow.grouping") private var grouping: Grouping = .date
@@ -140,6 +141,13 @@ struct WorkflowView: View {
                         .foregroundStyle(.secondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showKarma = true } label: {
+                        Image(systemName: "flame.fill")
+                            .foregroundStyle(.orange)
+                            .font(.title3)
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showAddSheet = true } label: {
                         Image(systemName: "plus.circle.fill")
                             .foregroundStyle(Color.axisAccent)
@@ -166,6 +174,9 @@ struct WorkflowView: View {
                     inlineDateReminder = nil
                 }
                 .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showKarma) {
+                KarmaView()
             }
             .task { await vm.requestAccessAndLoad() }
             .refreshable { await vm.reload() }
@@ -1106,16 +1117,27 @@ final class RemindersViewModel {
     }
 
     func toggleSubtask(_ subtask: Subtask) {
+        let wasCompleted = subtask.isCompleted
         subtask.isCompleted.toggle()
         PersistenceService.shared.updateSubtasks()
+        if !wasCompleted {
+            CompletionTracker.recordCompletion()
+        }
         Task { await reload() }
     }
 
     func toggleComplete(_ item: CalendarService.ReminderItem) async {
-        _ = item.isCompleted
-            ? CalendarService.shared.uncompleteReminder(id: item.id)
-            : CalendarService.shared.completeReminder(id: item.id)
+        if item.isCompleted {
+            _ = CalendarService.shared.uncompleteReminder(id: item.id)
+        } else {
+            _ = CalendarService.shared.completeReminder(id: item.id)
+            CompletionTracker.recordCompletion()
+        }
         await reload()
+    }
+
+    func recordSubtaskCompletion() {
+        CompletionTracker.recordCompletion()
     }
 
     func delete(_ item: CalendarService.ReminderItem) async {
@@ -1163,6 +1185,9 @@ struct ReminderEditorSheet: View {
     @State private var eventStart: Date = Date()
     @State private var eventEnd: Date = Date().addingTimeInterval(3600)
     @State private var eventLocation: String = ""
+    @State private var showTemplatePicker = false
+    @State private var showSaveTemplate = false
+    @State private var newTemplateName = ""
 
     private var isEditing: Bool {
         if case .edit = mode { return true }
@@ -1172,6 +1197,16 @@ struct ReminderEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if !isEditing {
+                    Section {
+                        Button {
+                            showTemplatePicker = true
+                        } label: {
+                            Label("Use a Template…", systemImage: "doc.text.below.ecg")
+                                .foregroundStyle(Color.axisAccent)
+                        }
+                    }
+                }
                 Section("Reminder") {
                     TextField("Title", text: $title, axis: .vertical)
                         .lineLimit(1...3)
@@ -1315,6 +1350,16 @@ struct ReminderEditorSheet: View {
                     }
                 }
 
+                Section {
+                    Button {
+                        newTemplateName = title.isEmpty ? "Untitled template" : title
+                        showSaveTemplate = true
+                    } label: {
+                        Label("Save as Template…", systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
                 if isEditing {
                     Section {
                         Button("Delete Reminder", role: .destructive) {
@@ -1338,8 +1383,66 @@ struct ReminderEditorSheet: View {
                         .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+            .sheet(isPresented: $showTemplatePicker) {
+                ReminderTemplatePicker { template in
+                    apply(template)
+                }
+            }
+            .alert("Save as Template", isPresented: $showSaveTemplate) {
+                TextField("Template name", text: $newTemplateName)
+                Button("Save") { saveAsTemplate() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Captures title, priority, labels, and subtasks.")
+            }
             .onAppear(perform: hydrate)
         }
+    }
+
+    private func apply(_ template: ReminderTemplate) {
+        title = template.titlePattern
+        priority = template.priority
+        labels = template.labels
+        subtasks = template.subtasks.enumerated().map { idx, sub in
+            PersistenceService.SubtaskDraft(
+                id: UUID(),
+                title: sub,
+                isCompleted: false,
+                sortOrder: idx
+            )
+        }
+        if let id = template.calendarIdentifier,
+           availableLists.contains(where: { $0.id == id }) {
+            selectedListId = id
+        }
+        if let offset = template.dueOffsetDays,
+           let date = Calendar.current.date(byAdding: .day, value: offset, to: Calendar.current.startOfDay(for: Date())) {
+            hasDueDate = true
+            dueDate = date
+        }
+    }
+
+    private func saveAsTemplate() {
+        let cleanedName = newTemplateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedName.isEmpty else { return }
+        let cleanedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let offset: Int? = hasDueDate
+            ? Calendar.current.dateComponents([.day],
+                                              from: Calendar.current.startOfDay(for: Date()),
+                                              to: Calendar.current.startOfDay(for: dueDate)).day
+            : nil
+        let template = ReminderTemplate(
+            name: cleanedName,
+            titlePattern: cleanedTitle,
+            priority: priority,
+            labels: labels,
+            subtasks: subtasks.map(\.title).filter { !$0.isEmpty },
+            calendarIdentifier: selectedListId.isEmpty ? nil : selectedListId,
+            dueOffsetDays: offset
+        )
+        var all = ReminderTemplateStore.loadAll()
+        all.append(template)
+        ReminderTemplateStore.saveAll(all)
     }
 
     private func hydrate() {
@@ -1576,5 +1679,329 @@ private struct InlineDatePickerSheet: View {
         )
         onSaved()
         dismiss()
+    }
+}
+
+// MARK: - Templates
+
+struct ReminderTemplate: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var name: String                // user-facing name e.g. "Weekly 1:1 prep"
+    var titlePattern: String        // becomes the reminder title (free text)
+    var priority: Int = 0
+    var labels: [String] = []
+    var subtasks: [String] = []     // ordered subtask titles
+    var calendarIdentifier: String? = nil
+    /// Number of days from "now" to set as the default due date when
+    /// instantiating. nil = no due date. 0 = today.
+    var dueOffsetDays: Int? = nil
+}
+
+/// File-private store so templates can be edited without crossing target boundaries.
+enum ReminderTemplateStore {
+    private static let key = "workflow.templates.v1"
+
+    static func loadAll() -> [ReminderTemplate] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let decoded = try? JSONDecoder().decode([ReminderTemplate].self, from: data) else {
+            return seeded
+        }
+        return decoded
+    }
+
+    static func saveAll(_ templates: [ReminderTemplate]) {
+        if let data = try? JSONEncoder().encode(templates) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    /// Built-in starter templates the user gets the first time they open
+    /// the picker. Easy to delete or override; we don't re-seed once the
+    /// store has been written.
+    static let seeded: [ReminderTemplate] = [
+        ReminderTemplate(
+            name: "Weekly 1:1 Prep",
+            titlePattern: "1:1 prep",
+            priority: 5,
+            labels: ["work"],
+            subtasks: ["Wins from last week", "Blockers", "Topics for this week", "Asks"],
+            dueOffsetDays: 0
+        ),
+        ReminderTemplate(
+            name: "Trip Packing",
+            titlePattern: "Pack for trip",
+            priority: 5,
+            labels: ["travel"],
+            subtasks: ["Charger", "Toiletries", "Clothes", "ID / passport", "Snacks"],
+            dueOffsetDays: 1
+        ),
+        ReminderTemplate(
+            name: "Weekly Review",
+            titlePattern: "Weekly review",
+            priority: 5,
+            labels: ["personal"],
+            subtasks: ["Clear inbox", "Process notes", "Plan next week", "Celebrate one win"],
+            dueOffsetDays: 7
+        )
+    ]
+}
+
+// MARK: - Karma / Completion tracking
+
+/// Tracks one completion per reminder per day. Used for streaks, weekly
+/// chart, and lifetime totals.
+enum CompletionTracker {
+    private static let key = "workflow.completions.v1"
+    private static let calendar = Calendar.current
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// Recorded counts keyed by yyyy-MM-dd string.
+    private static func load() -> [String: Int] {
+        (UserDefaults.standard.dictionary(forKey: key) as? [String: Int]) ?? [:]
+    }
+
+    private static func write(_ map: [String: Int]) {
+        UserDefaults.standard.set(map, forKey: key)
+    }
+
+    static func recordCompletion(on date: Date = Date()) {
+        var map = load()
+        let key = dayFormatter.string(from: date)
+        map[key, default: 0] += 1
+        write(map)
+    }
+
+    static func todayCount() -> Int {
+        let key = dayFormatter.string(from: Date())
+        return load()[key] ?? 0
+    }
+
+    static func allTimeTotal() -> Int {
+        load().values.reduce(0, +)
+    }
+
+    /// Number of consecutive days ending today (inclusive) that have at
+    /// least one completion.
+    static func currentStreak() -> Int {
+        let map = load()
+        var streak = 0
+        var cursor = calendar.startOfDay(for: Date())
+        while true {
+            let key = dayFormatter.string(from: cursor)
+            if (map[key] ?? 0) > 0 {
+                streak += 1
+                guard let prev = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+                cursor = prev
+            } else {
+                break
+            }
+        }
+        return streak
+    }
+
+    struct DailyBar: Identifiable {
+        let id: Date
+        let date: Date
+        let count: Int
+        var label: String {
+            let f = DateFormatter()
+            f.dateFormat = "EEE"
+            return f.string(from: date)
+        }
+    }
+
+    /// Last `n` days (default 7), oldest first.
+    static func lastDays(_ n: Int = 7) -> [DailyBar] {
+        let map = load()
+        let today = calendar.startOfDay(for: Date())
+        var bars: [DailyBar] = []
+        for offset in stride(from: n - 1, through: 0, by: -1) {
+            guard let d = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+            let key = dayFormatter.string(from: d)
+            bars.append(DailyBar(id: d, date: d, count: map[key] ?? 0))
+        }
+        return bars
+    }
+}
+
+// MARK: - Karma Dashboard
+
+struct KarmaView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var bars: [CompletionTracker.DailyBar] = []
+    @State private var todayCount: Int = 0
+    @State private var streak: Int = 0
+    @State private var total: Int = 0
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AxisSpacing.lg) {
+                    statTiles
+                    chartCard
+                    streakCard
+                }
+                .padding(AxisSpacing.lg)
+            }
+            .background(Color.axisBackground.ignoresSafeArea())
+            .navigationTitle("Karma")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
+            .onAppear(perform: reload)
+        }
+    }
+
+    private func reload() {
+        bars = CompletionTracker.lastDays(7)
+        todayCount = CompletionTracker.todayCount()
+        streak = CompletionTracker.currentStreak()
+        total = CompletionTracker.allTimeTotal()
+    }
+
+    private var statTiles: some View {
+        HStack(spacing: AxisSpacing.md) {
+            statTile(title: "Today", value: "\(todayCount)", icon: "checkmark.circle.fill", tint: Color.axisAccent)
+            statTile(title: "Streak", value: "\(streak)", icon: "flame.fill", tint: .orange)
+            statTile(title: "Lifetime", value: "\(total)", icon: "infinity", tint: Color.axisInfo)
+        }
+    }
+
+    private func statTile(title: String, value: String, icon: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: AxisSpacing.xs) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).foregroundStyle(tint)
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            }
+            Text(value)
+                .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AxisSpacing.md)
+        .axisCard()
+    }
+
+    private var chartCard: some View {
+        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+            AxisSectionHeader(title: "Last 7 Days", subtitle: "Completed reminders per day")
+            let maxCount = max(1, bars.map(\.count).max() ?? 1)
+            HStack(alignment: .bottom, spacing: AxisSpacing.sm) {
+                ForEach(bars) { bar in
+                    VStack(spacing: 4) {
+                        ZStack(alignment: .bottom) {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.axisDivider.opacity(0.4))
+                                .frame(height: 120)
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(LinearGradient(
+                                    colors: [Color.axisAccent, Color.axisAccent.opacity(0.6)],
+                                    startPoint: .top, endPoint: .bottom
+                                ))
+                                .frame(height: CGFloat(bar.count) / CGFloat(maxCount) * 120)
+                        }
+                        Text(bar.label)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text("\(bar.count)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .padding(AxisSpacing.md)
+        .axisCard()
+    }
+
+    private var streakCard: some View {
+        HStack(spacing: AxisSpacing.md) {
+            Image(systemName: streak > 0 ? "flame.fill" : "flame")
+                .font(.system(size: 32))
+                .foregroundStyle(streak > 0 ? .orange : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(streak > 0 ? "You're on fire" : "Start a streak today")
+                    .font(.headline)
+                Text(streak > 0
+                     ? "Complete at least one reminder tomorrow to keep \(streak)-day streak alive."
+                     : "Complete any reminder today to start a streak.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(AxisSpacing.md)
+        .axisCard()
+    }
+}
+
+// MARK: - Template Picker Sheet
+
+struct ReminderTemplatePicker: View {
+    @Environment(\.dismiss) private var dismiss
+    let onChoose: (ReminderTemplate) -> Void
+    @State private var templates: [ReminderTemplate] = []
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if templates.isEmpty {
+                        Text("No templates yet. Create one from any reminder.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(templates) { template in
+                            Button {
+                                onChoose(template)
+                                dismiss()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(template.name)
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                    Text(template.titlePattern)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    if !template.subtasks.isEmpty {
+                                        Text("\(template.subtasks.count) subtasks")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .onDelete { offsets in
+                            templates.remove(atOffsets: offsets)
+                            ReminderTemplateStore.saveAll(templates)
+                        }
+                    }
+                } header: {
+                    Text("Templates")
+                } footer: {
+                    Text("Picking a template prefills title, priority, labels, and subtasks. Edit anything before saving.")
+                }
+            }
+            .navigationTitle("Templates")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .onAppear { templates = ReminderTemplateStore.loadAll() }
+        }
     }
 }
