@@ -551,6 +551,33 @@ struct AppReducer {
                 case "meal":
                     state.selectedTab = .familyHQ
                     state.familyHQ.selectedSection = .meals
+                case "workflow":
+                    state.selectedTab = .tasks
+                    if url.path == "/add" || url.path == "/add/" {
+                        // Defer to next runloop so the Workflow view is on
+                        // screen when the focus notification fires.
+                        DispatchQueue.main.async {
+                            NotificationCenter.default.post(name: .axisFocusWorkflowQuickAdd, object: nil)
+                        }
+                    }
+                case "reminder":
+                    // axis://reminder?title=...&due=...&priority=...
+                    // Parse with QuickAddParser so natural-language tokens
+                    // ("tomorrow 5pm p1") also work in the title.
+                    state.selectedTab = .tasks
+                    if let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                       let rawTitle = comps.queryItems?.first(where: { $0.name == "title" })?.value,
+                       !rawTitle.isEmpty {
+                        let parsed = QuickAddParser.parse(rawTitle)
+                        let finalTitle = parsed.title.isEmpty ? rawTitle : parsed.title
+                        _ = CalendarService.shared.createReminder(
+                            title: finalTitle,
+                            dueDate: parsed.dueDate,
+                            includeDueTime: parsed.includesTime,
+                            priority: parsed.priority,
+                            recurrence: parsed.recurrence
+                        )
+                    }
                 default: break
                 }
                 return .none

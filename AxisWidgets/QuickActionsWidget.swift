@@ -40,8 +40,8 @@ struct QuickActionsWidgetView: View {
             }
 
             HStack(spacing: 12) {
+                actionButton(icon: "plus.circle.fill", label: "Add", destination: "axis://workflow/add")
                 actionButton(icon: "bubble.left.fill", label: "Chat", destination: "axis://chat")
-                actionButton(icon: "fork.knife", label: "Meal", destination: "axis://meal")
                 actionButton(icon: "note.text", label: "Note", destination: "axis://note")
                 actionButton(icon: "mic.fill", label: "Memo", destination: "axis://memo")
             }

@@ -2,6 +2,10 @@ import ComposableArchitecture
 import EventKit
 import SwiftUI
 
+extension Notification.Name {
+    static let axisFocusWorkflowQuickAdd = Notification.Name("axisFocusWorkflowQuickAdd")
+}
+
 // The Workflow tab is now a single Reminders-first view. Tasks / Timeline /
 // Projects have been collapsed into this one screen — everything you need to
 // do lives as an iOS Reminder that can optionally be placed on the calendar.
@@ -57,6 +61,8 @@ struct WorkflowView: View {
     @State private var vm = RemindersViewModel()
     @State private var showAddSheet = false
     @State private var selectedReminder: CalendarService.ReminderItem?
+    @State private var inlineDateReminder: CalendarService.ReminderItem?
+    @State private var expandedReminders: Set<String> = []
     @State private var newQuickTitle = ""
     @FocusState private var quickFocused: Bool
     @AppStorage("workflow.grouping") private var grouping: Grouping = .date
@@ -126,8 +132,19 @@ struct WorkflowView: View {
                     if case .deleted = result { selectedReminder = nil }
                 }
             }
+            .sheet(item: $inlineDateReminder) { reminder in
+                InlineDatePickerSheet(reminder: reminder) {
+                    Task { await vm.reload() }
+                    inlineDateReminder = nil
+                }
+                .presentationDetents([.medium])
+            }
             .task { await vm.requestAccessAndLoad() }
             .refreshable { await vm.reload() }
+            .onReceive(NotificationCenter.default.publisher(for: .axisFocusWorkflowQuickAdd)) { _ in
+                quickFocused = true
+                Task { await vm.reload() }
+            }
         }
     }
 
@@ -179,7 +196,7 @@ struct WorkflowView: View {
             } else {
                 switch grouping {
                 case .date:
-                    section(title: "Overdue", items: filtered(vm.overdue), accent: Color.axisDanger)
+                    overdueSection(items: filtered(vm.overdue))
                     todaySections()
                     section(title: "Upcoming", items: filtered(vm.upcoming), accent: Color.axisInfo)
                     section(title: "No Date", items: filtered(vm.undated), accent: Color.secondary)
@@ -211,7 +228,17 @@ struct WorkflowView: View {
             Section {
                 ForEach(items) { item in
                     Button { selectedReminder = item } label: {
-                        ReminderRow(item: item, accent: accent, subtaskProgress: vm.subtaskProgress[item.id], onToggle: { await vm.toggleComplete(item) })
+                        ReminderRow(
+                            item: item,
+                            accent: accent,
+                            subtaskProgress: vm.subtaskProgress[item.id],
+                            subtasks: vm.subtasksByReminder[item.id] ?? [],
+                            isExpanded: expandedReminders.contains(item.id),
+                            onToggle: { await vm.toggleComplete(item) },
+                            onTapDate: { inlineDateReminder = item },
+                            onToggleExpanded: { toggleExpansion(item.id) },
+                            onToggleSubtask: { vm.toggleSubtask($0) }
+                        )
                     }
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -384,6 +411,88 @@ struct WorkflowView: View {
     private func filtered(_ items: [CalendarService.ReminderItem]) -> [CalendarService.ReminderItem] {
         guard filter != .none else { return items }
         return items.filter(passesFilter)
+    }
+
+    /// Overdue section variant with a trailing "Move to Today" button that
+    /// batch-reschedules every overdue item.
+    @ViewBuilder
+    private func overdueSection(items: [CalendarService.ReminderItem]) -> some View {
+        if !items.isEmpty {
+            Section {
+                ForEach(items) { item in
+                    Button { selectedReminder = item } label: {
+                        ReminderRow(
+                            item: item,
+                            accent: Color.axisDanger,
+                            subtaskProgress: vm.subtaskProgress[item.id],
+                            onToggle: { await vm.toggleComplete(item) },
+                            onTapDate: { inlineDateReminder = item }
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            Task { await vm.delete(item) }
+                        } label: { Label("Delete", systemImage: "trash") }
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            Task { await vm.toggleComplete(item) }
+                        } label: { Label("Complete", systemImage: "checkmark.circle.fill") }
+                        .tint(Color.axisAccent)
+                    }
+                    .contextMenu { rescheduleMenu(for: item) }
+                }
+                .onMove { from, to in vm.moveItems(in: items, from: from, to: to) }
+            } header: {
+                HStack {
+                    Text("Overdue")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.axisDanger)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                    Spacer()
+                    Button {
+                        postponeAllOverdue(items)
+                    } label: {
+                        Label("Move to Today", systemImage: "arrow.uturn.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.axisAccent)
+                    }
+                    .buttonStyle(.plain)
+                    .textCase(nil)
+                }
+            }
+        }
+    }
+
+    private func toggleExpansion(_ id: String) {
+        if expandedReminders.contains(id) {
+            expandedReminders.remove(id)
+        } else {
+            expandedReminders.insert(id)
+        }
+    }
+
+    private func postponeAllOverdue(_ items: [CalendarService.ReminderItem]) {
+        let today = Calendar.current.startOfDay(for: Date())
+        Task {
+            for item in items {
+                var target = today
+                if item.hasDueTime, let original = item.dueDate {
+                    let comps = Calendar.current.dateComponents([.hour, .minute], from: original)
+                    if let combined = Calendar.current.date(bySettingHour: comps.hour ?? 0, minute: comps.minute ?? 0, second: 0, of: today) {
+                        target = combined
+                    }
+                }
+                _ = CalendarService.shared.updateReminder(
+                    id: item.id,
+                    dueDate: target,
+                    includeDueTime: item.hasDueTime
+                )
+            }
+            await vm.reload()
+        }
     }
 
     /// Renders Today as one section (when small) or four time-of-day buckets
@@ -632,7 +741,12 @@ private struct ReminderRow: View {
     let item: CalendarService.ReminderItem
     let accent: Color
     let subtaskProgress: RemindersViewModel.SubtaskProgress?
+    var subtasks: [Subtask] = []
+    var isExpanded: Bool = false
     let onToggle: () async -> Void
+    var onTapDate: (() -> Void)? = nil
+    var onToggleExpanded: (() -> Void)? = nil
+    var onToggleSubtask: ((Subtask) -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: AxisSpacing.md) {
@@ -653,13 +767,18 @@ private struct ReminderRow: View {
                     .lineLimit(2)
                 HStack(spacing: AxisSpacing.sm) {
                     if let due = item.dueDate {
-                        Label {
-                            Text(formattedDue(due, includesTime: item.hasDueTime))
-                        } icon: {
-                            Image(systemName: "calendar")
+                        Button {
+                            onTapDate?()
+                        } label: {
+                            Label {
+                                Text(formattedDue(due, includesTime: item.hasDueTime))
+                            } icon: {
+                                Image(systemName: "calendar")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
                     }
                     if let summary = item.recurrenceSummary {
                         Label {
@@ -671,13 +790,20 @@ private struct ReminderRow: View {
                         .foregroundStyle(.secondary)
                     }
                     if let progress = subtaskProgress, progress.total > 0 {
-                        Label {
-                            Text("\(progress.done)/\(progress.total)")
-                        } icon: {
-                            Image(systemName: progress.done == progress.total ? "checklist.checked" : "checklist")
+                        Button {
+                            onToggleExpanded?()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: progress.done == progress.total ? "checklist.checked" : "checklist")
+                                Text("\(progress.done)/\(progress.total)")
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(progress.done == progress.total ? accent : .secondary)
                         }
-                        .font(.caption)
-                        .foregroundStyle(progress.done == progress.total ? accent : .secondary)
+                        .buttonStyle(.plain)
                     }
                     if let calName = item.calendarTitle {
                         Text(calName)
@@ -705,6 +831,26 @@ private struct ReminderRow: View {
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
+                }
+                if isExpanded && !subtasks.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(subtasks) { sub in
+                            Button {
+                                onToggleSubtask?(sub)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: sub.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(sub.isCompleted ? accent : .secondary)
+                                    Text(sub.title)
+                                        .font(.subheadline)
+                                        .strikethrough(sub.isCompleted)
+                                        .foregroundStyle(sub.isCompleted ? .secondary : .primary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 6)
                 }
             }
             Spacer()
@@ -752,6 +898,7 @@ final class RemindersViewModel {
     var undated: [CalendarService.ReminderItem] = []
     var byId: [String: CalendarService.ReminderItem] = [:]
     var subtaskProgress: [String: SubtaskProgress] = [:]
+    var subtasksByReminder: [String: [Subtask]] = [:]
     var allLists: [CalendarService.ReminderList] = []
     /// Manual sort overrides keyed by reminder calendarItemIdentifier. EventKit
     /// has no per-reminder ordering API, so we store our own.
@@ -842,7 +989,14 @@ final class RemindersViewModel {
         subtaskProgress = grouped.mapValues { rows in
             SubtaskProgress(done: rows.filter(\.isCompleted).count, total: rows.count)
         }
+        subtasksByReminder = grouped
         allLists = CalendarService.shared.availableReminderLists()
+    }
+
+    func toggleSubtask(_ subtask: Subtask) {
+        subtask.isCompleted.toggle()
+        PersistenceService.shared.updateSubtasks()
+        Task { await reload() }
     }
 
     func toggleComplete(_ item: CalendarService.ReminderItem) async {
@@ -1250,6 +1404,65 @@ struct ReminderEditorSheet: View {
             _ = CalendarService.shared.deleteReminder(id: item.id)
         }
         onFinish(.deleted)
+        dismiss()
+    }
+}
+
+// MARK: - Inline Date Picker Sheet
+
+private struct InlineDatePickerSheet: View {
+    let reminder: CalendarService.ReminderItem
+    let onSaved: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var hasDueDate: Bool = true
+    @State private var dueDate: Date = Date()
+    @State private var includesTime: Bool = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Has due date", isOn: $hasDueDate)
+                    if hasDueDate {
+                        DatePicker(
+                            "Date",
+                            selection: $dueDate,
+                            displayedComponents: includesTime ? [.date, .hourAndMinute] : .date
+                        )
+                        .datePickerStyle(.graphical)
+                        Toggle("Include time", isOn: $includesTime)
+                    }
+                } header: {
+                    Text(reminder.title).font(.headline).foregroundStyle(.primary)
+                }
+            }
+            .navigationTitle("Reschedule")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }.fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                dueDate = reminder.dueDate ?? Date()
+                hasDueDate = reminder.dueDate != nil
+                includesTime = reminder.hasDueTime
+            }
+        }
+    }
+
+    private func save() {
+        _ = CalendarService.shared.updateReminder(
+            id: reminder.id,
+            dueDate: hasDueDate ? dueDate : nil,
+            clearDueDate: !hasDueDate,
+            includeDueTime: includesTime
+        )
+        onSaved()
         dismiss()
     }
 }
