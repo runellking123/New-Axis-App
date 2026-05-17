@@ -155,6 +155,7 @@ struct WorkflowView: View {
                 }
             }
             .background(Color.axisCream.ignoresSafeArea())
+            .axisConfetti(trigger: vm.celebrationTrigger)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1150,6 +1151,9 @@ final class RemindersViewModel {
     /// Today section regardless of their actual due date (Todoist-style
     /// "starred for today" beyond just priority).
     private(set) var pinnedToday: Set<String> = []
+    /// Flips when a high-priority reminder is just-completed so the view
+    /// can fire a confetti burst.
+    var celebrationTrigger: Bool = false
 
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.sortOrderKey),
@@ -1181,6 +1185,7 @@ final class RemindersViewModel {
             pinnedToday.remove(id)
         } else {
             pinnedToday.insert(id)
+            HapticService.impact(.light)
         }
         persistPinnedToday()
         Task { await reload() }
@@ -1281,9 +1286,18 @@ final class RemindersViewModel {
     func toggleComplete(_ item: CalendarService.ReminderItem) async {
         if item.isCompleted {
             _ = CalendarService.shared.uncompleteReminder(id: item.id)
+            HapticService.selection()
         } else {
             _ = CalendarService.shared.completeReminder(id: item.id)
             CompletionTracker.recordCompletion()
+            // High-priority completions get a heavier celebration + confetti
+            // so finishing important items always feels earned.
+            if item.priority >= 1 && item.priority <= 3 {
+                HapticService.celebration()
+                Task { @MainActor in self.celebrationTrigger.toggle() }
+            } else {
+                HapticService.impact(.medium)
+            }
         }
         await reload()
     }

@@ -155,6 +155,7 @@ struct VoiceMemosReducer {
             case .recordingPermissionGranted:
                 state.isRecording = true
                 state.recordingDuration = 0
+                HapticService.impact(.medium)
                 return .run { send in
                     while true {
                         try await clock.sleep(for: .seconds(1))
@@ -170,6 +171,7 @@ struct VoiceMemosReducer {
             case .stopRecording:
                 state.isRecording = false
                 let duration = state.recordingDuration
+                HapticService.impact(.heavy)
                 if let (url, _) = VoiceRecorder.shared.stopRecording() {
                     let fileName = url.lastPathComponent
                     return .concatenate(
@@ -209,6 +211,11 @@ struct VoiceMemosReducer {
 
             case let .transcriptionCompleted(id, transcript):
                 state.isTranscribing = false
+                // Successful transcription (not a "(…)" diagnostic message)
+                // earns a soft celebration so it lands like a win, not a noop.
+                if !transcript.isEmpty && !transcript.hasPrefix("(") {
+                    HapticService.celebration()
+                }
                 // Update in persistence
                 let memos = PersistenceService.shared.fetchVoiceMemos()
                 if let match = memos.first(where: { $0.uuid == id }) {
