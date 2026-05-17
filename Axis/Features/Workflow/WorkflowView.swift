@@ -115,41 +115,48 @@ struct WorkflowView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                switch vm.state {
-                case .loading:
-                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .denied:
-                    deniedState
-                case .loaded:
-                    switch viewMode {
-                    case .list: loadedList
-                    case .week: WeekScrollView(
-                        vm: vm,
-                        onSelect: { selectedReminder = $0 },
-                        onReschedule: { inlineDateReminder = $0 }
-                    )
-                    case .calendar: TasksCalendarView(
-                        vm: vm,
-                        onSelect: { selectedReminder = $0 },
-                        onReschedule: { inlineDateReminder = $0 }
-                    )
-                    case .board: BoardView(
-                        vm: vm,
-                        onSelect: { selectedReminder = $0 },
-                        onReschedule: { inlineDateReminder = $0 }
-                    )
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    switch vm.state {
+                    case .loading:
+                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .denied:
+                        deniedState
+                    case .loaded:
+                        switch viewMode {
+                        case .list: loadedList
+                        case .week: WeekScrollView(
+                            vm: vm,
+                            onSelect: { selectedReminder = $0 },
+                            onReschedule: { inlineDateReminder = $0 }
+                        )
+                        case .calendar: TasksCalendarView(
+                            vm: vm,
+                            onSelect: { selectedReminder = $0 },
+                            onReschedule: { inlineDateReminder = $0 }
+                        )
+                        case .board: BoardView(
+                            vm: vm,
+                            onSelect: { selectedReminder = $0 },
+                            onReschedule: { inlineDateReminder = $0 }
+                        )
+                        }
                     }
                 }
+                // Things signature: floating cobalt + button. Sits in the
+                // bottom-right of every Workflow view mode.
+                if case .loaded = vm.state {
+                    MagicPlusButton {
+                        showAddSheet = true
+                    }
+                    .padding(.trailing, AxisSpacing.lg)
+                    .padding(.bottom, AxisSpacing.lg)
+                }
             }
-            .navigationTitle("Reminders")
+            .background(Color.axisCream.ignoresSafeArea())
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Reminders")
-                        .font(.system(.title3, design: .serif).weight(.bold))
-                        .foregroundStyle(Color.axisAccent)
-                }
                 ToolbarItem(placement: .navigationBarLeading) {
                     Menu {
                         Picker("View", selection: $viewMode) {
@@ -237,6 +244,19 @@ struct WorkflowView: View {
 
     private var loadedList: some View {
         List {
+            // Things-style hero header — yellow star icon + "Today" title +
+            // today's date subtitle. Replaces the legacy gold serif nav title.
+            Section {
+                ThingsHeroHeader(
+                    title: heroTitle,
+                    subtitle: heroSubtitle,
+                    icon: heroIcon,
+                    color: heroIconColor
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0))
+            }
             // Quick add row always at the top — supports natural-language
             // input like "Call mom tomorrow 5pm p1 every weekday".
             Section {
@@ -304,7 +324,54 @@ struct WorkflowView: View {
                 .listRowSeparator(.hidden)
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    // MARK: - Hero header content
+    private var heroTitle: String {
+        switch filter {
+        case .none: return "Today"
+        case .pinnedOnly: return "Pinned"
+        case .overdueOnly: return "Overdue"
+        case .noDateOnly: return "No Date"
+        case .todayHighPriority: return "Today + High"
+        case .highPriorityOnly: return "High Priority"
+        case .label(let l): return "#\(l)"
+        case .priority: return "By Priority"
+        case .list(let id): return vm.allLists.first(where: { $0.id == id })?.title ?? "List"
+        }
+    }
+    private var heroSubtitle: String {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMM d"
+        return f.string(from: Date())
+    }
+    private var heroIcon: String {
+        switch filter {
+        case .none: return "star.fill"
+        case .pinnedOnly: return "pin.fill"
+        case .overdueOnly: return "exclamationmark.triangle.fill"
+        case .noDateOnly: return "calendar.badge.minus"
+        case .todayHighPriority: return "sparkles"
+        case .highPriorityOnly: return "flag.fill"
+        case .label: return "number"
+        case .priority: return "flag.fill"
+        case .list: return "list.bullet.rectangle"
+        }
+    }
+    private var heroIconColor: Color {
+        switch filter {
+        case .none: return .axisYellowTone
+        case .pinnedOnly: return .axisOrangeTone
+        case .overdueOnly: return .axisRedTone
+        case .noDateOnly: return .axisInkMute
+        case .todayHighPriority: return .axisPurpleTone
+        case .highPriorityOnly: return .axisRedTone
+        case .label: return .axisCobalt
+        case .priority: return .axisRedTone
+        case .list: return .axisCobalt
+        }
     }
 
     @ViewBuilder
@@ -358,11 +425,19 @@ struct WorkflowView: View {
                     vm.moveItems(in: items, from: from, to: to)
                 }
             } header: {
-                Text(title)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(accent)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(accent)
+                        .frame(width: 8, height: 8)
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.axisInk)
+                    Spacer()
+                    Text("\(items.count)")
+                        .font(.caption)
+                        .foregroundStyle(Color.axisInkMute)
+                }
+                .textCase(nil)
             }
         }
     }
