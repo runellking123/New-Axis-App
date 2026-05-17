@@ -83,11 +83,6 @@ struct EADashboardView: View {
             .scrollDismissesKeyboard(.immediately)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Executive Assistant")
-                        .font(.system(.headline, design: .serif).weight(.bold))
-                        .foregroundStyle(Color.axisAccent)
-                }
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button { onSettingsTapped?() } label: {
                         Image(systemName: "gearshape")
@@ -182,36 +177,207 @@ struct EADashboardView: View {
     // MARK: 1 - Animated Greeting Banner
 
     private var greetingBanner: some View {
-        AxisHeroHeader(
-            eyebrow: store.currentGreeting,
-            title: store.userName.isEmpty ? "Commander" : store.userName,
-            subtitle: store.streakDays > 0 ? "🔥 \(store.streakDays) day streak" : nil
-        ) {
-            if store.isEnergyLoaded {
-                AxisRingChart(
-                    progress: Double(store.energyScore) / 10.0,
-                    lineWidth: 6,
-                    tint: energyColor,
-                    trackColor: Color.white.opacity(0.18)
-                ) {
-                    VStack(spacing: 0) {
-                        Text("\(store.energyScore)")
-                            .font(.system(.callout, design: .rounded).weight(.bold))
-                            .foregroundStyle(.white)
-                        Text("Energy")
-                            .font(.system(size: 7))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .minimumScaleFactor(0.7)
-                    }
+        let tod = TimeOfDay.current()
+        let displayName = store.userName.isEmpty ? "Commander" : store.userName
+        let dateLine: String = {
+            let f = DateFormatter()
+            f.dateFormat = "EEEE, MMM d"
+            return f.string(from: Date())
+        }()
+        return VStack(alignment: .leading, spacing: AxisSpacing.md) {
+            HStack(spacing: AxisSpacing.md) {
+                ThingsIconCell(systemImage: tod.icon, color: tod.iconColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(tod.greeting), \(displayName)")
+                        .font(.system(size: 24, weight: .bold))
+                        .tracking(-0.4)
+                        .foregroundStyle(Color.axisInk)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                    Text(dateLine)
+                        .font(.footnote)
+                        .foregroundStyle(Color.axisInkMute)
                 }
-                .frame(width: 58, height: 58)
+                Spacer(minLength: 0)
             }
+            bentoGrid
         }
         .padding(.top, 8)
     }
 
     private var energyColor: Color {
         store.energyScore >= 7 ? .green : store.energyScore >= 4 ? .orange : .red
+    }
+
+    // MARK: Bento grid (Mercury / Vercel-style mixed-size widget grid)
+
+    private var bentoGrid: some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                energyHeroCell
+                    .frame(maxWidth: .infinity)
+                VStack(spacing: 10) {
+                    streakCell
+                    doneTodayCell
+                }
+                .frame(maxWidth: .infinity)
+            }
+            nextEventWideCell
+        }
+    }
+
+    private var energyHeroCell: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("ENERGY")
+                    .font(.caption2.weight(.bold))
+                    .tracking(0.6)
+                    .foregroundStyle(Color.axisInkMute)
+                Spacer()
+                if store.isEnergyLoaded {
+                    AxisRingChart(
+                        progress: Double(store.energyScore) / 10.0,
+                        lineWidth: 5,
+                        tint: energyColor
+                    ) {
+                        EmptyView()
+                    }
+                    .frame(width: 32, height: 32)
+                }
+            }
+            Spacer(minLength: 6)
+            Text("\(store.energyScore)")
+                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.axisInk)
+                .tracking(-1)
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.up.right")
+                    .font(.caption2.weight(.bold))
+                Text(store.streakDays > 0 ? "\(store.streakDays)-day streak" : "Today's score")
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(energyColor)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [Color.axisYellowSoft, Color.axisPaper],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.axisHairline, lineWidth: 0.5)
+        )
+    }
+
+    private var streakCell: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("STREAK")
+                .font(.caption2.weight(.bold))
+                .tracking(0.6)
+                .foregroundStyle(Color.axisInkMute)
+            HStack(alignment: .bottom, spacing: 4) {
+                Text("🔥")
+                    .font(.title3)
+                Text("\(store.streakDays)")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.axisInk)
+            }
+            Text("days in a row")
+                .font(.caption2)
+                .foregroundStyle(Color.axisInkMute)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+        .thingsCard(padding: 0, radius: 14)
+    }
+
+    private var doneTodayCell: some View {
+        Button { onCompletedTasksTapped?() } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("DONE TODAY")
+                    .font(.caption2.weight(.bold))
+                    .tracking(0.6)
+                    .foregroundStyle(Color.axisInkMute)
+                Text("\(store.tasksCompletedToday)")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.axisInk)
+                Text("reminders")
+                    .font(.caption2)
+                    .foregroundStyle(Color.axisInkMute)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+        }
+        .buttonStyle(.plain)
+        .thingsCard(padding: 0, radius: 14)
+    }
+
+    private var nextEventWideCell: some View {
+        Button { onNavigateToPlanner?() } label: {
+            HStack(spacing: 12) {
+                ThingsIconCell(systemImage: "calendar", color: .axisCobalt, size: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("NEXT UP")
+                        .font(.caption2.weight(.bold))
+                        .tracking(0.6)
+                        .foregroundStyle(Color.axisCobalt)
+                    Text(nextEventTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.axisInk)
+                        .lineLimit(1)
+                    Text(nextEventSub)
+                        .font(.caption2)
+                        .foregroundStyle(Color.axisInkMute)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.axisInkFaint)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: [Color.axisCobaltTint, Color.axisPaper],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.axisCobaltSoft, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var nextEventTitle: String {
+        if let evt = CalendarService.shared.upcomingEvent() {
+            return evt.title
+        }
+        if !todaysReminders.isEmpty {
+            return todaysReminders.first?.title ?? "Nothing scheduled"
+        }
+        return "You're clear"
+    }
+
+    private var nextEventSub: String {
+        if let evt = CalendarService.shared.upcomingEvent() {
+            let f = DateFormatter(); f.dateFormat = "h:mm a"
+            return "\(f.string(from: evt.startDate)) · \(evt.location ?? "Calendar")"
+        }
+        if let first = todaysReminders.first {
+            if let due = first.dueDate {
+                let f = DateFormatter(); f.dateFormat = "h:mm a"
+                return "\(f.string(from: due)) · Today"
+            }
+            return "Today · No time"
+        }
+        return "Nothing on the docket today."
     }
 
     // MARK: - Quick Add
