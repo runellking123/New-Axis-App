@@ -2030,37 +2030,130 @@ struct KarmaView: View {
         .axisCard()
     }
 
+    /// 7-day mini chart kept as a sparkline above the heat map for quick read.
     private var chartCard: some View {
         VStack(alignment: .leading, spacing: AxisSpacing.sm) {
-            AxisSectionHeader("Last 7 Days", subtitle: "Completed reminders per day")
+            HStack {
+                Text("Last 7 Days")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(bars.map(\.count).reduce(0, +)) completions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             let maxCount = max(1, bars.map(\.count).max() ?? 1)
-            HStack(alignment: .bottom, spacing: AxisSpacing.sm) {
+            HStack(alignment: .bottom, spacing: AxisSpacing.xs) {
                 ForEach(bars) { bar in
                     VStack(spacing: 4) {
                         ZStack(alignment: .bottom) {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.axisDivider.opacity(0.4))
-                                .frame(height: 120)
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(LinearGradient(
-                                    colors: [Color.axisAccent, Color.axisAccent.opacity(0.6)],
-                                    startPoint: .top, endPoint: .bottom
-                                ))
-                                .frame(height: CGFloat(bar.count) / CGFloat(maxCount) * 120)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.axisHairline)
+                                .frame(height: 60)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.axisCobalt)
+                                .frame(height: CGFloat(bar.count) / CGFloat(maxCount) * 60)
                         }
                         Text(bar.label)
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
-                        Text("\(bar.count)")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
                     }
                     .frame(maxWidth: .infinity)
                 }
             }
+            heatmapStrip
         }
-        .padding(AxisSpacing.md)
-        .axisCard()
+        .thingsCard(padding: AxisSpacing.md)
+    }
+
+    /// Full-year GitHub-style heat map of every day's completions. Scrolls
+    /// horizontally so all 52 weeks fit on phone screens.
+    private var heatmapStrip: some View {
+        let days = CompletionTracker.lastDays(364)
+        let weeks: [[CompletionTracker.DailyBar]] = stride(from: 0, to: days.count, by: 7).map {
+            Array(days[$0..<min($0 + 7, days.count)])
+        }
+        let maxCount = max(1, days.map(\.count).max() ?? 1)
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let streakLength = CompletionTracker.currentStreak()
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Last 12 months")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                HStack(spacing: 4) {
+                    Text("Less").font(.caption2).foregroundStyle(.secondary)
+                    ForEach(0..<5, id: \.self) { tier in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(heatColor(for: tier, of: 4))
+                            .frame(width: 10, height: 10)
+                    }
+                    Text("More").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.top, AxisSpacing.sm)
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 3) {
+                        ForEach(Array(weeks.enumerated()), id: \.offset) { idx, week in
+                            VStack(spacing: 3) {
+                                ForEach(week) { day in
+                                    let isToday = cal.isDate(day.date, inSameDayAs: today)
+                                    let inStreak = streakLength > 0 &&
+                                        day.date >= cal.date(byAdding: .day, value: -(streakLength - 1), to: today)!
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(heatColor(for: tier(of: day.count, max: maxCount), of: 4))
+                                        .frame(width: 11, height: 11)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 3)
+                                                .strokeBorder(
+                                                    isToday ? Color.axisCobalt :
+                                                    (inStreak && day.count > 0 ? Color.axisYellowTone : Color.clear),
+                                                    lineWidth: isToday ? 1.5 : (inStreak ? 1 : 0)
+                                                )
+                                        )
+                                }
+                                // Pad short weeks at the end so columns align.
+                                if week.count < 7 {
+                                    ForEach(0..<(7 - week.count), id: \.self) { _ in
+                                        Color.clear.frame(width: 11, height: 11)
+                                    }
+                                }
+                            }
+                            .id(idx)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .onAppear {
+                    // Scroll to today (last column).
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(weeks.count - 1, anchor: .trailing)
+                    }
+                }
+            }
+        }
+    }
+
+    private func tier(of count: Int, max: Int) -> Int {
+        guard count > 0 else { return 0 }
+        let ratio = Double(count) / Double(max)
+        if ratio > 0.75 { return 4 }
+        if ratio > 0.45 { return 3 }
+        if ratio > 0.20 { return 2 }
+        return 1
+    }
+
+    private func heatColor(for tier: Int, of maxTier: Int) -> Color {
+        switch tier {
+        case 0: return Color.axisHairline
+        case 1: return Color.axisCobalt.opacity(0.22)
+        case 2: return Color.axisCobalt.opacity(0.48)
+        case 3: return Color.axisCobalt.opacity(0.75)
+        default: return Color.axisCobalt
+        }
     }
 
     private var streakCard: some View {
