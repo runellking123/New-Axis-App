@@ -257,3 +257,208 @@ struct AxisEmptyState: View {
         .frame(maxWidth: .infinity)
     }
 }
+
+// MARK: - Things-style hero header
+// A circular colored icon-cell + 28pt bold title + small subtitle. Used as
+// the top-of-screen header on redesigned tabs (Today / Upcoming / Inbox etc.)
+// in place of bare navigationTitle("…").
+struct ThingsIconCell: View {
+    let systemImage: String
+    var color: Color = .axisCobalt
+    var size: CGFloat = 36
+
+    var body: some View {
+        ZStack {
+            Circle().fill(color)
+            Image(systemName: systemImage)
+                .font(.system(size: size * 0.45, weight: .bold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+struct ThingsHeroHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    let icon: String
+    var color: Color = .axisCobalt
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AxisSpacing.md) {
+            ThingsIconCell(systemImage: icon, color: color)
+                .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(Color.axisInk)
+                    .tracking(-0.4)
+                    .lineLimit(2)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(Color.axisInkMute)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, AxisSpacing.lg)
+        .padding(.vertical, AxisSpacing.sm)
+    }
+}
+
+// MARK: - Things-style flat row card
+// Paper background, hairline border, optional subtle shadow. Replaces
+// `.ultraThinMaterial`-style elevated cards on Things-treated screens.
+struct ThingsCardModifier: ViewModifier {
+    var padding: CGFloat = AxisSpacing.md
+    var radius: CGFloat = 14
+    var elevated: Bool = true
+    func body(content: Content) -> some View {
+        content
+            .padding(padding)
+            .background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(Color.axisPaper)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(Color.axisHairline, lineWidth: 0.5)
+            )
+            .shadow(color: elevated ? Color.black.opacity(0.04) : .clear,
+                    radius: elevated ? 4 : 0, y: elevated ? 1 : 0)
+    }
+}
+
+extension View {
+    /// Things-style paper card with hairline border. Use on cream backgrounds.
+    func thingsCard(padding: CGFloat = AxisSpacing.md,
+                    radius: CGFloat = 14,
+                    elevated: Bool = true) -> some View {
+        modifier(ThingsCardModifier(padding: padding, radius: radius, elevated: elevated))
+    }
+}
+
+// MARK: - Magic Plus floating action button
+// Cobalt-blue floating + button — Things 3 signature. Sits in the bottom-right
+// of any redesigned screen. Tap fires `action`. Long-press on a real device
+// would let you drag-and-drop where the new item lands (not implemented here).
+struct MagicPlusButton: View {
+    var color: Color = .axisCobalt
+    var systemImage: String = "plus"
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(color)
+                    .frame(width: 56, height: 56)
+                    .shadow(color: color.opacity(0.32), radius: 8, y: 4)
+                    .shadow(color: color.opacity(0.20), radius: 22, y: 12)
+                Image(systemName: systemImage)
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundStyle(.white)
+            }
+        }
+        .buttonStyle(MagicPlusPressStyle())
+        .accessibilityLabel("Add")
+    }
+}
+
+private struct MagicPlusPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.55), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Time-of-day sky gradient
+// Subtle background gradient behind hero headers that shifts through the day.
+// Dawn (peach) → Day (soft blue) → Dusk (lavender) → Night (deep indigo → cream).
+enum TimeOfDay {
+    case dawn, day, dusk, night
+
+    static func current(at date: Date = Date()) -> TimeOfDay {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case 6..<10: return .dawn
+        case 10..<17: return .day
+        case 17..<21: return .dusk
+        default: return .night
+        }
+    }
+
+    /// The greeting word for this time of day.
+    var greeting: String {
+        switch self {
+        case .dawn: return "Good morning"
+        case .day:  return "Hey"
+        case .dusk: return "Good evening"
+        case .night: return "Wind down"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .dawn: return "sun.horizon.fill"
+        case .day:  return "sun.max.fill"
+        case .dusk: return "moon.haze.fill"
+        case .night: return "moon.stars.fill"
+        }
+    }
+
+    var iconColor: Color {
+        switch self {
+        case .dawn: return .axisOrangeTone
+        case .day:  return .axisCobalt
+        case .dusk: return .axisPurpleTone
+        case .night: return Color(red: 0.35, green: 0.42, blue: 1.0)
+        }
+    }
+
+    /// Linear gradient for the background behind the greeting / hero header.
+    /// Fades to paper at the bottom so content below sits on a clean surface.
+    var skyGradient: LinearGradient {
+        switch self {
+        case .dawn:
+            return LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.89, blue: 0.84),
+                    Color(red: 1.0, green: 0.96, blue: 0.91),
+                    Color.axisPaper
+                ],
+                startPoint: .top, endPoint: .bottom)
+        case .day:
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.87, green: 0.93, blue: 1.0),
+                    Color(red: 0.95, green: 0.97, blue: 1.0),
+                    Color.axisPaper
+                ],
+                startPoint: .top, endPoint: .bottom)
+        case .dusk:
+            return LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.83, blue: 0.69),
+                    Color(red: 0.95, green: 0.88, blue: 1.0),
+                    Color.axisPaper
+                ],
+                startPoint: .top, endPoint: .bottom)
+        case .night:
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.10, green: 0.10, blue: 0.18),
+                    Color(red: 0.30, green: 0.27, blue: 0.47),
+                    Color.axisPaper
+                ],
+                startPoint: .top, endPoint: .bottom)
+        }
+    }
+
+    /// True when the gradient is dark enough that overlaid text should be white.
+    var prefersLightForeground: Bool {
+        self == .night
+    }
+}
