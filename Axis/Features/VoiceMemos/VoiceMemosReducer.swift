@@ -539,7 +539,18 @@ struct VoiceMemosReducer {
         }
         print("[Transcribe] Recognizer isAvailable=\(recognizer.isAvailable) supportsOnDevice=\(recognizer.supportsOnDeviceRecognition)")
         guard recognizer.isAvailable else {
-            return "(Speech recognizer unavailable — check network/device)"
+            #if targetEnvironment(simulator)
+            return "(Transcription not available on Simulator — works on a real device.)"
+            #else
+            return "(Speech recognizer unavailable — check network or try again in a moment.)"
+            #endif
+        }
+        // Wait for the on-device model to actually be ready; on a freshly
+        // installed app this can race the first transcription request and
+        // produce a "Failed to initialize" SFSpeechErrorCode 1101.
+        for _ in 0..<10 {
+            if recognizer.isAvailable { break }
+            try? await Task.sleep(nanoseconds: 300_000_000)
         }
 
         // Prefer server recognition in bounded chunks. Whole-file on-device recognition
@@ -651,7 +662,8 @@ struct VoiceMemosReducer {
 
             let task = recognizer.recognitionTask(with: request) { result, error in
                 if let error = error {
-                    print("[Transcribe] \(label) error: \(error)")
+                    let ns = error as NSError
+                    print("[Transcribe] \(label) error domain=\(ns.domain) code=\(ns.code) — \(error)")
                     if let best = accumulator.best {
                         finish(best)
                         return
@@ -659,7 +671,19 @@ struct VoiceMemosReducer {
                     if onDevice {
                         finish("")  // Empty signals caller to try server fallback
                     } else {
-                        finish("(Transcription failed: \(error.localizedDescription))")
+                        // SFSpeechErrorCode 1101 = "Failed to initialize speech
+                        // recognition" — usually a simulator limitation, but on
+                        // device it can also mean the daemon needs a moment.
+                        // Surface a clearer message either way.
+                        #if targetEnvironment(simulator)
+                        finish("(Transcription not available on Simulator — works on a real device.)")
+                        #else
+                        if ns.code == 1101 {
+                            finish("(Speech engine warming up — try transcribing again from the memo's actions.)")
+                        } else {
+                            finish("(Transcription failed: \(error.localizedDescription))")
+                        }
+                        #endif
                     }
                     return
                 }
