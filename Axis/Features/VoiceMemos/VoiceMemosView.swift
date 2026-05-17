@@ -156,6 +156,89 @@ struct VoiceMemosView: View {
         }
     }
 
+    // MARK: - Live recording card
+
+    /// Black recorder card with a real-time pulsing waveform (32 bars driven
+    /// by TimelineView), big mono timer, and a single red square stop button.
+    private var liveRecordingCard: some View {
+        VStack(spacing: 18) {
+            HStack {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 8, height: 8)
+                        .modifier(PulsingDot())
+                    Text("RECORDING")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.red)
+                        .tracking(0.8)
+                }
+                Spacer()
+                Text("High quality · 44.1kHz")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+
+            Text(formattedTime(store.recordingDuration))
+                .font(.system(size: 36, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            TimelineView(.periodic(from: .now, by: 0.08)) { context in
+                HStack(alignment: .center, spacing: 3) {
+                    ForEach(0..<32, id: \.self) { i in
+                        let t = context.date.timeIntervalSince1970
+                        let phase = t * 6 + Double(i) * 0.45
+                        let base = abs(sin(phase)) * 0.45 + 0.10
+                        let mid = 1 - abs(Double(i - 16) / 16.0) * 0.4
+                        let jitter = Double.random(in: 0...0.30)
+                        let h = min(1.0, max(0.08, (base + jitter) * mid))
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(i % 2 == 0
+                                  ? Color(red: 26.0/255, green: 107.0/255, blue: 251.0/255)
+                                  : Color(red: 0.35, green: 0.66, blue: 1.0))
+                            .frame(width: 4, height: 80 * CGFloat(h))
+                    }
+                }
+                .frame(height: 90)
+                .frame(maxWidth: .infinity)
+            }
+
+            HStack(spacing: 28) {
+                Button { } label: {
+                    Image(systemName: "pause.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                        .frame(width: 48, height: 48)
+                        .background(Color.white.opacity(0.10))
+                        .clipShape(Circle())
+                }
+                Button {
+                    store.send(.stopRecording)
+                } label: {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(.red)
+                        .frame(width: 22, height: 22)
+                        .padding(15)
+                        .background(.red.opacity(0.16))
+                        .clipShape(Circle())
+                }
+                Button { } label: {
+                    Image(systemName: "bookmark.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                        .frame(width: 48, height: 48)
+                        .background(Color.white.opacity(0.10))
+                        .clipShape(Circle())
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(20)
+        .background(Color.black)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
     private var emptyState: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -172,34 +255,12 @@ struct VoiceMemosView: View {
 
     private var memosList: some View {
         List {
-            // Recording indicator
+            // Recording — live waveform card
             if store.isRecording {
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(.red)
-                        .frame(width: 12, height: 12)
-                        .opacity(store.recordingDuration.truncatingRemainder(dividingBy: 2) < 1 ? 1 : 0.3)
-                    VStack(alignment: .leading) {
-                        Text("Recording...")
-                            .font(.headline)
-                        Text(formattedTime(store.recordingDuration))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button {
-                        store.send(.stopRecording)
-                    } label: {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.title)
-                            .foregroundStyle(.red)
-                    }
-                }
-                .padding(16)
-                .background(Color.red.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                liveRecordingCard
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
             }
 
             // Transcribing indicator
@@ -837,4 +898,15 @@ struct MemoDetailSheet: View {
             VoiceMemosReducer()
         }
     )
+}
+
+private struct PulsingDot: ViewModifier {
+    @State private var pulse = false
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(pulse ? 1.4 : 1.0)
+            .opacity(pulse ? 0.5 : 1.0)
+            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
+            .onAppear { pulse = true }
+    }
 }
