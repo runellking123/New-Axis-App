@@ -2014,6 +2014,7 @@ struct KarmaView: View {
                 VStack(alignment: .leading, spacing: AxisSpacing.lg) {
                     statTiles
                     chartCard
+                    achievementsCard
                     streakCard
                 }
                 .padding(AxisSpacing.lg)
@@ -2185,6 +2186,31 @@ struct KarmaView: View {
         case 3: return Color.axisCobalt.opacity(0.75)
         default: return Color.axisCobalt
         }
+    }
+
+    private var achievementsCard: some View {
+        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
+            HStack {
+                Text("Achievements")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(AchievementsStore.unlocked(streak: streak, total: total, todayCount: todayCount, bars: bars).count)/\(AchievementsStore.all.count) unlocked")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            let unlocked = AchievementsStore.unlocked(
+                streak: streak, total: total, todayCount: todayCount, bars: bars
+            )
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(AchievementsStore.all) { a in
+                        AchievementBadge(achievement: a, unlocked: unlocked.contains(a.id))
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .thingsCard(padding: AxisSpacing.md)
     }
 
     private var streakCard: some View {
@@ -3199,5 +3225,149 @@ struct CommandPaletteSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Achievements
+
+/// A single collectible milestone. Unlock logic lives in AchievementsStore.
+struct Achievement: Identifiable, Equatable {
+    enum ID: String, CaseIterable { case streak7, streak30, streak365,
+        centurion, halfThousand, perfectDay, perfectWeek }
+    let id: ID
+    let name: String
+    let description: String
+    let icon: String
+    let gradientStart: Color
+    let gradientEnd: Color
+}
+
+enum AchievementsStore {
+    static let all: [Achievement] = [
+        Achievement(id: .streak7, name: "7-Day Streak",
+                    description: "One reminder done every day for a week.",
+                    icon: "flame.fill",
+                    gradientStart: Color(red: 1.0, green: 0.89, blue: 0.51),
+                    gradientEnd: .axisYellowTone),
+        Achievement(id: .centurion, name: "Centurion",
+                    description: "100 reminders completed lifetime.",
+                    icon: "100.circle.fill",
+                    gradientStart: Color(red: 0.35, green: 0.66, blue: 1.0),
+                    gradientEnd: .axisCobalt),
+        Achievement(id: .perfectWeek, name: "Perfect Week",
+                    description: "Every day this week had a completion.",
+                    icon: "checkmark.seal.fill",
+                    gradientStart: Color(red: 0.58, green: 0.90, blue: 0.67),
+                    gradientEnd: .axisGreenTone),
+        Achievement(id: .perfectDay, name: "Perfect Day",
+                    description: "5+ reminders completed in one day.",
+                    icon: "sparkles",
+                    gradientStart: Color(red: 0.77, green: 0.71, blue: 0.99),
+                    gradientEnd: .axisPurpleTone),
+        Achievement(id: .streak30, name: "Monthly Strong",
+                    description: "30 consecutive days with at least one completion.",
+                    icon: "30.circle.fill",
+                    gradientStart: Color(red: 1.0, green: 0.60, blue: 0.55),
+                    gradientEnd: .axisRedTone),
+        Achievement(id: .halfThousand, name: "Five Hundred",
+                    description: "500 completions logged.",
+                    icon: "500.circle.fill",
+                    gradientStart: Color(red: 0.45, green: 0.78, blue: 0.74),
+                    gradientEnd: .axisTealTone),
+        Achievement(id: .streak365, name: "Year One",
+                    description: "365 consecutive days — legendary.",
+                    icon: "crown.fill",
+                    gradientStart: Color(red: 1.0, green: 0.74, blue: 0.42),
+                    gradientEnd: .axisOrangeTone)
+    ]
+
+    /// Returns the set of unlocked achievement IDs given the current stats.
+    static func unlocked(streak: Int, total: Int, todayCount: Int,
+                         bars: [CompletionTracker.DailyBar]) -> Set<Achievement.ID> {
+        var unlocked: Set<Achievement.ID> = []
+        if streak >= 7 { unlocked.insert(.streak7) }
+        if streak >= 30 { unlocked.insert(.streak30) }
+        if streak >= 365 { unlocked.insert(.streak365) }
+        if total >= 100 { unlocked.insert(.centurion) }
+        if total >= 500 { unlocked.insert(.halfThousand) }
+        if todayCount >= 5 { unlocked.insert(.perfectDay) }
+        if bars.count >= 7 && bars.suffix(7).allSatisfy({ $0.count > 0 }) {
+            unlocked.insert(.perfectWeek)
+        }
+        return unlocked
+    }
+}
+
+/// Single badge tile used in the achievements row of KarmaView.
+struct AchievementBadge: View {
+    let achievement: Achievement
+    let unlocked: Bool
+    @State private var showDetail = false
+
+    var body: some View {
+        Button { showDetail = true } label: {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(
+                            colors: unlocked
+                                ? [achievement.gradientStart, achievement.gradientEnd]
+                                : [Color.axisInkFaint.opacity(0.4), Color.axisInkFaint.opacity(0.2)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 54, height: 54)
+                        .shadow(color: (unlocked ? achievement.gradientEnd : Color.clear).opacity(0.30),
+                                radius: 6, y: 3)
+                    Image(systemName: achievement.icon)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(unlocked ? .white : Color.axisInkMute)
+                }
+                Text(achievement.name)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(unlocked ? Color.axisInk : Color.axisInkMute)
+                    .lineLimit(1)
+                    .frame(maxWidth: 80)
+            }
+        }
+        .buttonStyle(.plain)
+        .opacity(unlocked ? 1.0 : 0.55)
+        .sheet(isPresented: $showDetail) {
+            VStack(spacing: AxisSpacing.lg) {
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(
+                            colors: unlocked
+                                ? [achievement.gradientStart, achievement.gradientEnd]
+                                : [Color.axisInkFaint.opacity(0.4), Color.axisInkFaint.opacity(0.2)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 120, height: 120)
+                    Image(systemName: achievement.icon)
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundStyle(unlocked ? .white : Color.axisInkMute)
+                }
+                .padding(.top, AxisSpacing.xl)
+
+                Text(achievement.name)
+                    .font(.title2.weight(.bold))
+                Text(achievement.description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                Text(unlocked ? "Earned" : "Locked")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(unlocked ? Color.axisGreenSoft : Color.axisHairline))
+                    .foregroundStyle(unlocked ? Color.axisGreenTone : Color.axisInkMute)
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .presentationDetents([.medium])
+        }
     }
 }
