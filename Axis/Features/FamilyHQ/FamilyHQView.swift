@@ -172,6 +172,24 @@ struct FamilyHQView: View {
 
     private var calendarSection: some View {
         VStack(spacing: 16) {
+            // Editorial hero — the next upcoming, not-yet-completed event
+            // gets a full-width AxisCoverCard treatment so the family's
+            // "what's next" lands with weight on entry.
+            if let lead = nextUpcomingEvent {
+                Button { store.send(.selectEvent(lead.id)) } label: {
+                    AxisCoverCard(
+                        imageURL: nil,
+                        eyebrow: leadEventEyebrow(lead),
+                        title: lead.title,
+                        meta: leadEventMeta(lead),
+                        seed: lead.title,
+                        icon: lead.categoryIcon,
+                        height: 200
+                    )
+                }
+                .buttonStyle(.axisPressable)
+            }
+
             GlassCard {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -212,6 +230,28 @@ struct FamilyHQView: View {
                 emptyState(icon: "line.3.horizontal.decrease.circle", message: "No events match this filter yet.")
             }
         }
+    }
+
+    /// First not-yet-completed event in calendar order. Drives the
+    /// editorial hero at the top of the calendar section.
+    private var nextUpcomingEvent: FamilyHQReducer.State.EventState? {
+        store.events
+            .filter { !$0.isCompleted }
+            .sorted { $0.date < $1.date }
+            .first
+    }
+
+    private func leadEventEyebrow(_ event: FamilyHQReducer.State.EventState) -> String {
+        if event.date.isToday { return "Today · Family" }
+        if Calendar.current.isDateInTomorrow(event.date) { return "Tomorrow · Family" }
+        return "Next Up · Family"
+    }
+
+    private func leadEventMeta(_ event: FamilyHQReducer.State.EventState) -> String {
+        let dayPart = event.date.isToday
+            ? "Today \(event.date.timeString)"
+            : event.date.shortDateString
+        return dayPart
     }
 
     private func eventCard(_ event: FamilyHQReducer.State.EventState) -> some View {

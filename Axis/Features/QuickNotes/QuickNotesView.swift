@@ -149,7 +149,15 @@ struct QuickNotesView: View {
 
                 if !pinned.isEmpty {
                     sectionHeader("Pinned")
-                    ForEach(pinned) { note in
+                    // First pinned note as an editorial hero — big serif
+                    // headline, generous preview, color-tinted background.
+                    if let lead = pinned.first {
+                        Button { store.send(.editNote(lead)) } label: {
+                            pinnedEditorialHero(lead)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    ForEach(pinned.dropFirst()) { note in
                         noteCard(note)
                     }
                 }
@@ -166,6 +174,67 @@ struct QuickNotesView: View {
             .padding(.horizontal)
             .padding(.bottom, 20)
         }
+    }
+
+    /// Editorial hero for the first pinned note — Bear / Day One feel.
+    private func pinnedEditorialHero(_ note: QuickNotesReducer.State.NoteItem) -> some View {
+        let tint = colorForName(note.color)
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "pin.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tint)
+                Text("PINNED")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.2)
+                    .foregroundStyle(tint)
+                if let folder = QuickNotesReducer.State.Folder(rawValue: note.folder), folder != .all {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(folder.rawValue.uppercased())
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.0)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            Text(note.displayTitle)
+                .font(.system(.title, design: .serif).weight(.bold))
+                .tracking(-0.4)
+                .lineLimit(3)
+                .multilineTextAlignment(.leading)
+                .foregroundStyle(Color.axisInk)
+            if !note.preview.isEmpty {
+                Text(note.preview)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(Color.axisInkSoft)
+                    .lineLimit(4)
+                    .multilineTextAlignment(.leading)
+            }
+            HStack(spacing: 4) {
+                Text("Read")
+                    .font(.caption.weight(.semibold))
+                Image(systemName: "arrow.right")
+                    .font(.caption2.weight(.bold))
+            }
+            .foregroundStyle(tint)
+            .padding(.top, 4)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [tint.opacity(0.18), tint.opacity(0.04), Color.axisPaper],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(tint.opacity(0.25), lineWidth: 0.5)
+        )
+        .shadow(color: tint.opacity(0.10), radius: 8, y: 4)
     }
 
     private func sectionHeader(_ title: String) -> some View {

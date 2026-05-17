@@ -145,11 +145,12 @@ struct TrendsView: View {
                     if index == 0 {
                         AxisCoverCard(
                             imageURL: article.imageURL.flatMap { URL(string: $0) },
-                            eyebrow: article.source,
+                            eyebrow: "Featured · \(article.source)",
                             title: article.title,
                             meta: meta,
                             seed: article.source,
-                            icon: "newspaper.fill"
+                            icon: "newspaper.fill",
+                            height: 280
                         )
                     } else {
                         AxisThumbnailCard(
