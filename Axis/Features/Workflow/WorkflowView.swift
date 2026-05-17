@@ -106,6 +106,7 @@ struct WorkflowView: View {
     @State private var inlineDateReminder: CalendarService.ReminderItem?
     @State private var expandedReminders: Set<String> = []
     @State private var showKarma = false
+    @State private var showCommandPalette = false
     @State private var newQuickTitle = ""
     @FocusState private var quickFocused: Bool
     @AppStorage("workflow.grouping") private var grouping: Grouping = .date
@@ -194,6 +195,13 @@ struct WorkflowView: View {
                         .foregroundStyle(.secondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showCommandPalette = true } label: {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                            .font(.title3)
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showKarma = true } label: {
                         Image(systemName: "flame.fill")
                             .foregroundStyle(.orange)
@@ -230,6 +238,29 @@ struct WorkflowView: View {
             }
             .sheet(isPresented: $showKarma) {
                 KarmaView()
+            }
+            .sheet(isPresented: $showCommandPalette) {
+                CommandPaletteSheet(
+                    vm: vm,
+                    onOpenReminder: { item in
+                        showCommandPalette = false
+                        selectedReminder = item
+                    },
+                    onSelectFilter: { newFilter in
+                        showCommandPalette = false
+                        filter = newFilter
+                    },
+                    onSelectAction: { action in
+                        showCommandPalette = false
+                        switch action {
+                        case .newReminder: showAddSheet = true
+                        case .openKarma: showKarma = true
+                        case .quickAdd: quickFocused = true
+                        }
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
             .task { await vm.requestAccessAndLoad() }
             .refreshable { await vm.reload() }
@@ -2970,5 +3001,203 @@ struct TemplateEditorSheet: View {
         )
         onSave(updated)
         dismiss()
+    }
+}
+
+// MARK: - Command Palette
+
+/// Lightweight Spotlight-style search across reminders, smart-list filters,
+/// and actions. Fires from the magnifying-glass toolbar button in Workflow.
+struct CommandPaletteSheet: View {
+    enum Action { case newReminder, openKarma, quickAdd }
+
+    let vm: RemindersViewModel
+    let onOpenReminder: (CalendarService.ReminderItem) -> Void
+    let onSelectFilter: (WorkflowView.ReminderFilter) -> Void
+    let onSelectAction: (Action) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query: String = ""
+    @FocusState private var inputFocused: Bool
+
+    private var allReminders: [CalendarService.ReminderItem] {
+        vm.overdue + vm.today + vm.upcoming + vm.undated
+    }
+
+    private var matchedReminders: [CalendarService.ReminderItem] {
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
+        let q = query.lowercased()
+        return allReminders.filter { item in
+            item.title.lowercased().contains(q) ||
+            (item.calendarTitle?.lowercased().contains(q) ?? false) ||
+            item.labels.contains(where: { $0.lowercased().contains(q) })
+        }.prefix(8).map { $0 }
+    }
+
+    private var matchedFilters: [(WorkflowView.ReminderFilter, String, String, Color)] {
+        let presets: [(WorkflowView.ReminderFilter, String, String, Color)] = [
+            (.none, "All Reminders", "tray.full", .axisCobalt),
+            (.todayHighPriority, "Today + High Priority", "sparkles", .axisPurpleTone),
+            (.overdueOnly, "Overdue", "exclamationmark.triangle.fill", .axisRedTone),
+            (.noDateOnly, "No Date", "calendar.badge.minus", .axisInkMute),
+            (.highPriorityOnly, "High Priority Anywhere", "flag.fill", .axisRedTone),
+            (.pinnedOnly, "Pinned to Today", "pin.fill", .axisOrangeTone)
+        ]
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return presets }
+        let q = query.lowercased()
+        return presets.filter { $0.1.lowercased().contains(q) }
+    }
+
+    private var matchedLists: [(CalendarService.ReminderList, Color)] {
+        let lists = vm.allLists.map { ($0, Color.axisCobalt) }
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return lists }
+        let q = query.lowercased()
+        return lists.filter { $0.0.title.lowercased().contains(q) }
+    }
+
+    private var matchedActions: [(Action, String, String, Color)] {
+        let actions: [(Action, String, String, Color)] = [
+            (.newReminder, "Create new reminder", "plus.circle.fill", .axisGreenTone),
+            (.quickAdd, "Quick add (natural language)", "text.cursor", .axisCobalt),
+            (.openKarma, "Open Karma & streaks", "flame.fill", .axisOrangeTone)
+        ]
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return actions }
+        let q = query.lowercased()
+        return actions.filter { $0.1.lowercased().contains(q) }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Search input
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(Color.axisInkMute)
+                TextField("Search reminders, lists, actions…", text: $query)
+                    .font(.system(size: 17))
+                    .focused($inputFocused)
+                    .submitLabel(.go)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                if !query.isEmpty {
+                    Button { query = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Color.axisInkFaint)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, AxisSpacing.lg)
+            .padding(.vertical, AxisSpacing.md)
+            .background(Color.axisCream)
+            .overlay(Divider(), alignment: .bottom)
+
+            // Results
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    if !matchedReminders.isEmpty {
+                        sectionLabel("Reminders")
+                        ForEach(matchedReminders) { item in
+                            row(icon: "circle", color: .axisCobalt, name: item.title,
+                                meta: reminderMeta(item)) {
+                                onOpenReminder(item)
+                            }
+                        }
+                    }
+                    if !matchedFilters.isEmpty {
+                        sectionLabel("Smart Lists")
+                        ForEach(matchedFilters, id: \.1) { entry in
+                            row(icon: entry.2, color: entry.3, name: entry.1, meta: "") {
+                                onSelectFilter(entry.0)
+                            }
+                        }
+                    }
+                    if !matchedLists.isEmpty {
+                        sectionLabel("Lists")
+                        ForEach(matchedLists, id: \.0.id) { entry in
+                            row(icon: "list.bullet.rectangle", color: entry.1,
+                                name: entry.0.title, meta: entry.0.isDefault ? "Default" : "") {
+                                onSelectFilter(.list(entry.0.id))
+                            }
+                        }
+                    }
+                    if !matchedActions.isEmpty {
+                        sectionLabel("Actions")
+                        ForEach(matchedActions, id: \.1) { entry in
+                            row(icon: entry.2, color: entry.3, name: entry.1, meta: "") {
+                                onSelectAction(entry.0)
+                            }
+                        }
+                    }
+                    if matchedReminders.isEmpty && matchedFilters.isEmpty &&
+                       matchedLists.isEmpty && matchedActions.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 28))
+                                .foregroundStyle(Color.axisInkFaint)
+                            Text("No matches")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.axisInkSoft)
+                            Text("Try a different keyword.")
+                                .font(.caption)
+                                .foregroundStyle(Color.axisInkMute)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 48)
+                    }
+                }
+                .padding(.vertical, AxisSpacing.sm)
+            }
+            .background(Color.axisCream)
+        }
+        .background(Color.axisCream.ignoresSafeArea())
+        .onAppear { inputFocused = true }
+    }
+
+    private func reminderMeta(_ item: CalendarService.ReminderItem) -> String {
+        var bits: [String] = []
+        if let due = item.dueDate {
+            let f = DateFormatter(); f.dateFormat = "MMM d"
+            bits.append(f.string(from: due))
+        }
+        if let list = item.calendarTitle { bits.append(list) }
+        return bits.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption2.weight(.bold))
+            .tracking(0.6)
+            .foregroundStyle(Color.axisInkMute)
+            .padding(.horizontal, AxisSpacing.lg)
+            .padding(.top, AxisSpacing.sm)
+            .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private func row(icon: String, color: Color, name: String, meta: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                ThingsIconCell(systemImage: icon, color: color, size: 26)
+                Text(name)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.axisInk)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                if !meta.isEmpty {
+                    Text(meta)
+                        .font(.caption)
+                        .foregroundStyle(Color.axisInkMute)
+                        .lineLimit(1)
+                }
+                Image(systemName: "return")
+                    .font(.caption2)
+                    .foregroundStyle(Color.axisInkFaint)
+            }
+            .padding(.vertical, 9)
+            .padding(.horizontal, AxisSpacing.lg)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
