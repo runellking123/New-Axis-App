@@ -28,6 +28,35 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - name: Validate App Store Connect secrets
+        run: |
+          if [ -z "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" ]; then
+            echo "::error::Missing APP_STORE_CONNECT_KEY_ID. Add it under Settings → Secrets and variables → Actions. See docs/testflight-setup.md"
+            exit 1
+          fi
+          if [ -z "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" ]; then
+            echo "::error::Missing APP_STORE_CONNECT_ISSUER_ID. See docs/testflight-setup.md"
+            exit 1
+          fi
+          if [ -z "${{ secrets.APP_STORE_CONNECT_API_KEY }}" ]; then
+            echo "::error::Missing APP_STORE_CONNECT_API_KEY (base64-encoded .p8 file). See docs/testflight-setup.md"
+            exit 1
+          fi
+
+      - name: Prepare App Store Connect API key
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          KEY_CONTENT_B64: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${KEY_ID}.p8"
+          echo "$KEY_CONTENT_B64" | base64 --decode > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          if ! openssl ec -in "$KEY_PATH" -noout 2>/dev/null; then
+            echo "::error::APP_STORE_CONNECT_API_KEY is not a valid base64-encoded .p8 key. Re-encode with: base64 -i AuthKey_XXXX.p8"
+            exit 1
+          fi
+          echo "APP_STORE_CONNECT_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
       - name: Generate Secrets.swift
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -46,6 +75,5 @@ jobs:
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: bundle exec fastlane beta
