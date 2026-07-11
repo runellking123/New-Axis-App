@@ -14,6 +14,7 @@ struct AIChatReducer {
         var streamingContent: String = ""
         var error: String?
         var isConfigured: Bool = false
+        var userName: String = ""
         var selectedModelName: String = ""
         var showThreadList: Bool = false
         var showModelPicker: Bool = false
@@ -118,6 +119,7 @@ struct AIChatReducer {
                 let service = MultiProviderChatService.shared
                 state.isConfigured = service.isConfigured
                 state.selectedModelName = service.selectedModel.displayName
+                state.userName = persistence.getOrCreateProfile().name
                 return .run { send in
                     let threads = persistence.fetchChatThreads()
                     let threadStates = threads.map { t in

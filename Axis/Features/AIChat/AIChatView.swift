@@ -25,7 +25,9 @@ struct AIChatView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                quickActionChips
+                if store.messages.isEmpty && !store.isStreaming {
+                    quickActionChips
+                }
 
                 if store.messages.isEmpty && !store.isStreaming {
                     emptyState
@@ -34,25 +36,7 @@ struct AIChatView: View {
                 }
 
                 if !store.suggestedFollowUps.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(store.suggestedFollowUps, id: \.self) { suggestion in
-                                Button { store.send(.tappedFollowUp(suggestion)) } label: {
-                                    Text(suggestion)
-                                        .font(.caption)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.axisGold.opacity(0.12))
-                                        .foregroundStyle(Color.axisGold)
-                                        .clipShape(.capsule)
-                                        .lineLimit(1)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                    .frame(height: 36)
+                    followUpChips
                 }
 
                 if hasAttachments {
@@ -61,7 +45,7 @@ struct AIChatView: View {
 
                 inputBar
             }
-            .background(Color(.systemGroupedBackground))
+            .background(chatBackground)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -244,16 +228,57 @@ struct AIChatView: View {
         PlatformServices.share(items: [tempURL])
     }
 
+    // MARK: - Background
+
+    private var chatBackground: some View {
+        ZStack {
+            Color.axisBackground
+            TimeOfDay.current().skyGradient
+                .opacity(0.55)
+        }
+        .ignoresSafeArea()
+    }
+
+    // MARK: - Follow-up Chips
+
+    private var followUpChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: AxisSpacing.sm) {
+                ForEach(store.suggestedFollowUps, id: \.self) { suggestion in
+                    Button { store.send(.tappedFollowUp(suggestion)) } label: {
+                        HStack(spacing: AxisSpacing.xs) {
+                            Image(systemName: "arrow.turn.down.right")
+                                .font(.caption2)
+                            Text(suggestion)
+                                .font(.caption.weight(.medium))
+                        }
+                        .padding(.horizontal, AxisSpacing.md)
+                        .padding(.vertical, AxisSpacing.xs + 2)
+                        .foregroundStyle(Color.axisAccent)
+                        .background(
+                            Capsule().fill(Color.axisAccent.opacity(0.10))
+                        )
+                        .overlay(
+                            Capsule().strokeBorder(Color.axisAccent.opacity(0.22), lineWidth: 0.5)
+                        )
+                        .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, AxisSpacing.lg)
+            .padding(.vertical, AxisSpacing.sm)
+        }
+    }
+
     // MARK: - Quick Action Chips
 
     private var quickActionChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: AxisSpacing.sm) {
-                // Action chips — execute immediately. Give the AI a directive.
                 chipButton("Plan my day", icon: "sun.max", run: { store.send(.quickAction("Plan my day based on today's calendar, overdue reminders, and priorities. Be concise.")) })
                 chipButton("Today", icon: "calendar", run: { store.send(.quickAction("Summarize my calendar and open reminders for today.")) })
                 chipButton("Recap memos", icon: "waveform", run: { store.send(.quickAction("Summarize my most recent voice memos and extract action items as reminders.")) })
-                // Prefill chips — user finishes the sentence.
                 chipButton("Add reminder…", icon: "checkmark.circle", run: { store.send(.prefillInput("Add a reminder for ")); isInputFocused = true })
                 chipButton("Schedule…", icon: "calendar.badge.plus", run: { store.send(.prefillInput("Schedule a meeting on ")); isInputFocused = true })
                 chipButton("Draft email…", icon: "envelope", run: { store.send(.prefillInput("Draft a professional email to ")); isInputFocused = true })
@@ -261,26 +286,26 @@ struct AIChatView: View {
             .padding(.horizontal, AxisSpacing.lg)
             .padding(.vertical, AxisSpacing.sm)
         }
-        .background(Color(.systemGroupedBackground))
     }
 
     private func chipButton(_ title: String, icon: String, run: @escaping () -> Void) -> some View {
         Button(action: run) {
             HStack(spacing: AxisSpacing.xs) {
                 Image(systemName: icon)
-                    .font(.caption2)
+                    .font(.caption2.weight(.semibold))
                 Text(title)
                     .font(.caption.weight(.medium))
             }
             .padding(.horizontal, AxisSpacing.md)
             .padding(.vertical, AxisSpacing.xs + 2)
-            .foregroundStyle(Color.axisAccent)
+            .foregroundStyle(Color.axisInkSoft)
             .background(
-                Capsule().fill(Color.axisAccent.opacity(0.12))
+                Capsule().fill(Color.axisPaper.opacity(0.85))
             )
             .overlay(
-                Capsule().strokeBorder(Color.axisAccent.opacity(0.25), lineWidth: 0.5)
+                Capsule().strokeBorder(Color.axisHairline, lineWidth: 0.5)
             )
+            .shadow(color: AxisTheme.cardShadow, radius: 4, y: 1)
         }
         .buttonStyle(.plain)
     }
@@ -288,27 +313,44 @@ struct AIChatView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Spacer().frame(height: 40)
+        let tod = TimeOfDay.current()
+        let displayName = store.userName.isEmpty ? "there" : store.userName
 
-                Image(systemName: "sparkles")
-                    .font(.system(size: 56))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.axisGold, Color.axisGold.opacity(0.6)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+        return ScrollView {
+            VStack(spacing: AxisSpacing.xl) {
+                Spacer().frame(height: AxisSpacing.xxxl)
+
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.axisGold.opacity(0.25), Color.axisGold.opacity(0.08)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
+                        .frame(width: 96, height: 96)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 40, weight: .medium))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.axisGold, Color.axisGoldLight],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .symbolEffect(.pulse, options: .repeating.speed(0.4))
+                }
 
-                VStack(spacing: 8) {
-                    Text("How can I help you, Dr. King?")
-                        .font(.title3)
-                        .fontWeight(.semibold)
+                VStack(spacing: AxisSpacing.sm) {
+                    Text("\(tod.greeting), \(displayName)")
+                        .font(.axisScreenTitle)
+                        .foregroundStyle(Color.axisInk)
+                        .multilineTextAlignment(.center)
                     Text("Ask me anything or tap a quick action below")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.axisSubheadline)
+                        .foregroundStyle(Color.axisInkMute)
+                        .multilineTextAlignment(.center)
                 }
 
                 if !store.isConfigured {
@@ -319,7 +361,7 @@ struct AIChatView: View {
 
                 Spacer()
             }
-            .padding()
+            .padding(AxisSpacing.lg)
         }
     }
 
@@ -339,19 +381,17 @@ struct AIChatView: View {
 
     private var emptyStateQuickActionGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AxisSpacing.sm) {
-            gridActionButton("Plan my day", icon: "sun.max", color: .orange, prompt: "Plan my day based on today's calendar, overdue reminders, and priorities. Be concise.")
-            gridActionButton("What's today?", icon: "calendar", color: .blue, prompt: "Summarize my calendar and open reminders for today.")
-            gridActionButton("Add reminder", icon: "checkmark.circle", color: Color.axisAccent, prompt: "Add a reminder for ")
-            gridActionButton("Schedule meeting", icon: "calendar.badge.plus", color: .purple, prompt: "Schedule a meeting on ")
-            gridActionButton("Recap memos", icon: "waveform", color: .teal, prompt: "Summarize my most recent voice memos and extract action items as reminders.")
-            gridActionButton("Draft email", icon: "envelope", color: .indigo, prompt: "Draft a professional email to ")
+            gridActionButton("Plan my day", icon: "sun.max", color: .axisOrangeTone, softColor: .axisOrangeSoft, prompt: "Plan my day based on today's calendar, overdue reminders, and priorities. Be concise.")
+            gridActionButton("What's today?", icon: "calendar", color: .axisCobalt, softColor: .axisCobaltSoft, prompt: "Summarize my calendar and open reminders for today.")
+            gridActionButton("Add reminder", icon: "checkmark.circle", color: .axisGreenTone, softColor: .axisGreenSoft, prompt: "Add a reminder for ")
+            gridActionButton("Schedule meeting", icon: "calendar.badge.plus", color: .axisPurpleTone, softColor: .axisPurpleSoft, prompt: "Schedule a meeting on ")
+            gridActionButton("Recap memos", icon: "waveform", color: .axisTealTone, softColor: .axisTealSoft, prompt: "Summarize my most recent voice memos and extract action items as reminders.")
+            gridActionButton("Draft email", icon: "envelope", color: .axisYellowTone, softColor: .axisYellowSoft, prompt: "Draft a professional email to ")
         }
     }
 
-    private func gridActionButton(_ title: String, icon: String, color: Color, prompt: String) -> some View {
+    private func gridActionButton(_ title: String, icon: String, color: Color, softColor: Color, prompt: String) -> some View {
         Button {
-            // Prompts ending with a trailing space are prefill chips — let the
-            // user finish the sentence before sending. Everything else fires.
             if prompt.hasSuffix(" ") {
                 store.send(.prefillInput(prompt))
                 isInputFocused = true
@@ -359,19 +399,31 @@ struct AIChatView: View {
                 store.send(.quickAction(prompt))
             }
         } label: {
-            VStack(spacing: AxisSpacing.xs + 2) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(color)
+            VStack(spacing: AxisSpacing.sm) {
+                ZStack {
+                    Circle()
+                        .fill(softColor)
+                        .frame(width: 44, height: 44)
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(color)
+                }
                 Text(title)
-                    .font(.caption.weight(.medium))
+                    .font(.caption.weight(.semibold))
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.axisInk)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, AxisSpacing.lg)
-            .background(color.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card))
+            .background(
+                RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
+                    .fill(Color.axisPaper.opacity(0.92))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
+                    .strokeBorder(Color.axisHairline, lineWidth: 0.5)
+            )
+            .shadow(color: AxisTheme.cardShadow, radius: 6, y: 2)
         }
         .buttonStyle(.plain)
     }
@@ -381,7 +433,7 @@ struct AIChatView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 16) {
+                LazyVStack(spacing: AxisSpacing.lg) {
                     ForEach(store.messages) { msg in
                         messageBubble(msg)
                             .id(msg.id)
@@ -403,8 +455,8 @@ struct AIChatView: View {
                         errorBubble(error)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
+                .padding(.horizontal, AxisSpacing.lg)
+                .padding(.vertical, AxisSpacing.sm)
             }
             .scrollDismissesKeyboard(.immediately)
             .defaultScrollAnchor(.bottom)
@@ -439,22 +491,23 @@ struct AIChatView: View {
     // MARK: - Message Bubble
 
     private func messageBubble(_ msg: AIChatReducer.State.MessageState) -> some View {
-        HStack(alignment: .bottom) {
-            if msg.role == "user" { Spacer(minLength: 48) }
+        HStack(alignment: .bottom, spacing: AxisSpacing.sm) {
+            if msg.role == "user" {
+                Spacer(minLength: 56)
+            } else {
+                AssistantAvatarView()
+            }
 
-            VStack(alignment: msg.role == "user" ? .trailing : .leading, spacing: 6) {
-                // Model badge (assistant only)
+            VStack(alignment: msg.role == "user" ? .trailing : .leading, spacing: AxisSpacing.xs) {
                 if msg.role == "assistant" && !msg.model.isEmpty {
                     modelBadge(msg.model)
                 }
 
-                // Message bubble
                 VStack(alignment: .leading, spacing: AxisSpacing.xs) {
                     Text(msg.content)
-                        .font(.body)
+                        .font(.axisBodyDynamic)
                         .textSelection(.enabled)
 
-                    // Attachment count badge
                     if msg.hasAttachments {
                         HStack(spacing: AxisSpacing.xs) {
                             Image(systemName: "paperclip")
@@ -462,34 +515,35 @@ struct AIChatView: View {
                             Text("\(msg.attachmentCount) attachment\(msg.attachmentCount == 1 ? "" : "s")")
                                 .font(.caption2)
                         }
-                        .foregroundStyle(msg.role == "user" ? Color.black.opacity(0.7) : .secondary)
+                        .foregroundStyle(msg.role == "user" ? Color.black.opacity(0.65) : Color.axisInkMute)
                     }
                 }
                 .padding(.horizontal, AxisSpacing.lg)
                 .padding(.vertical, AxisSpacing.md)
                 .background {
                     if msg.role == "user" {
-                        RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
+                        ChatBubbleShape(isUser: true)
                             .fill(AxisTheme.goldGradient)
+                            .shadow(color: Color.axisGold.opacity(0.25), radius: 8, y: 3)
                     } else {
-                        RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
-                            .fill(.ultraThinMaterial)
+                        ChatBubbleShape(isUser: false)
+                            .fill(Color.axisPaper.opacity(0.95))
                             .overlay(
-                                RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
-                                    .strokeBorder(Color.axisDivider, lineWidth: 1)
+                                ChatBubbleShape(isUser: false)
+                                    .strokeBorder(Color.axisHairline, lineWidth: 0.5)
                             )
+                            .shadow(color: AxisTheme.cardShadow, radius: 6, y: 2)
                     }
                 }
-                .foregroundStyle(msg.role == "user" ? Color.black : .primary)
+                .foregroundStyle(msg.role == "user" ? Color.black.opacity(0.85) : Color.axisInk)
                 .contextMenu {
                     contextMenuItems(for: msg)
                 }
 
-                // Bottom row: timestamp + action buttons
-                HStack(spacing: 12) {
+                HStack(spacing: AxisSpacing.md) {
                     Text(msg.timestamp, style: .relative)
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.axisInkFaint)
 
                     if msg.role == "assistant" {
                         Button {
@@ -498,7 +552,7 @@ struct AIChatView: View {
                         } label: {
                             Image(systemName: "doc.on.doc")
                                 .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(Color.axisInkFaint)
                         }
                         .buttonStyle(.plain)
 
@@ -507,66 +561,77 @@ struct AIChatView: View {
                         } label: {
                             Image(systemName: "arrow.counterclockwise")
                                 .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(Color.axisInkFaint)
                         }
                         .buttonStyle(.plain)
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: msg.role == "user" ? .trailing : .leading)
+            .frame(maxWidth: 320, alignment: msg.role == "user" ? .trailing : .leading)
 
-            if msg.role == "assistant" { Spacer(minLength: 48) }
+            if msg.role == "assistant" {
+                Spacer(minLength: 24)
+            }
         }
     }
 
     private func modelBadge(_ modelName: String) -> some View {
-        Text(modelName)
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(Color(.tertiarySystemGroupedBackground))
-            .clipShape(Capsule())
+        HStack(spacing: 4) {
+            Image(systemName: "cpu")
+                .font(.system(size: 8, weight: .bold))
+            Text(modelName)
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(Color.axisInkMute)
+        .padding(.horizontal, AxisSpacing.sm)
+        .padding(.vertical, 3)
+        .background(
+            Capsule().fill(Color.axisPaper.opacity(0.8))
+        )
+        .overlay(
+            Capsule().strokeBorder(Color.axisHairline, lineWidth: 0.5)
+        )
     }
 
     private func actionConfirmationCard(_ action: AIChatReducer.State.ExecutedAction) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: AxisSpacing.sm + 2) {
             Image(systemName: action.icon)
                 .font(.title3)
-                .foregroundStyle(.green)
-                .frame(width: 32, height: 32)
-                .background(.green.opacity(0.12))
+                .foregroundStyle(Color.axisGreenTone)
+                .frame(width: 36, height: 36)
+                .background(Color.axisGreenSoft)
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption2)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.axisGreenTone)
                     Text("\(action.type.capitalized) Created")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.green)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.axisGreenTone)
                 }
                 Text(action.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.axisInk)
                 if !action.details.isEmpty {
                     Text(action.details)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.axisInkMute)
                 }
             }
             Spacer()
         }
-        .padding(12)
-        .background(.green.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(.green.opacity(0.2), lineWidth: 1)
+        .padding(AxisSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: AxisRadius.button, style: .continuous)
+                .fill(Color.axisGreenSoft)
         )
-        .padding(.leading, 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: AxisRadius.button, style: .continuous)
+                .strokeBorder(Color.axisGreenTone.opacity(0.2), lineWidth: 0.5)
+        )
+        .padding(.leading, 36)
     }
 
     @ViewBuilder
@@ -638,63 +703,82 @@ struct AIChatView: View {
     // MARK: - Streaming Bubble
 
     private var streamingBubble: some View {
-        HStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .bottom, spacing: AxisSpacing.sm) {
+            AssistantAvatarView()
+
+            VStack(alignment: .leading, spacing: AxisSpacing.xs) {
                 modelBadge(MultiProviderChatService.shared.selectedModel.displayName)
 
-                if store.streamingContent.isEmpty {
-                    HStack(spacing: 6) {
-                        TypingDotsView()
-                        Text("Thinking... \(Int(streamingElapsed))s")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(12)
-                    .background(Color(.secondarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                } else {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(store.streamingContent)
-                            .font(.subheadline)
-                            .padding(12)
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 18))
+                Group {
+                    if store.streamingContent.isEmpty {
+                        HStack(spacing: AxisSpacing.sm) {
+                            TypingDotsView()
+                            Text("Thinking… \(Int(streamingElapsed))s")
+                                .font(.caption)
+                                .foregroundStyle(Color.axisInkMute)
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: AxisSpacing.xs) {
+                            Text(store.streamingContent)
+                                .font(.axisBodyDynamic)
+                                .foregroundStyle(Color.axisInk)
 
-                        HStack(spacing: 4) {
-                            ProgressView()
-                                .scaleEffect(0.5)
-                            Text("\(Int(streamingElapsed))s")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .scaleEffect(0.55)
+                                    .tint(Color.axisGold)
+                                Text("\(Int(streamingElapsed))s")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.axisInkFaint)
+                            }
                         }
                     }
                 }
+                .padding(.horizontal, AxisSpacing.lg)
+                .padding(.vertical, AxisSpacing.md)
+                .background {
+                    ChatBubbleShape(isUser: false)
+                        .fill(Color.axisPaper.opacity(0.95))
+                        .overlay(
+                            ChatBubbleShape(isUser: false)
+                                .strokeBorder(Color.axisHairline, lineWidth: 0.5)
+                        )
+                        .shadow(color: AxisTheme.cardShadow, radius: 6, y: 2)
+                }
+                .modifier(StreamingShimmer(isActive: store.streamingContent.isEmpty))
             }
-            .frame(maxWidth: 300, alignment: .leading)
-            Spacer(minLength: 48)
+            .frame(maxWidth: 320, alignment: .leading)
+
+            Spacer(minLength: 24)
         }
     }
 
     // MARK: - Error Bubble
 
     private func errorBubble(_ error: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AxisSpacing.sm) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.axisRedTone)
             Text(error)
                 .font(.caption)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.axisRedTone)
             Spacer()
             Button("Dismiss") {
                 store.send(.dismissError)
             }
-            .font(.caption)
+            .font(.caption.weight(.semibold))
             .buttonStyle(.bordered)
-            .tint(.red)
+            .tint(Color.axisRedTone)
         }
-        .padding()
-        .background(.red.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(AxisSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: AxisRadius.button, style: .continuous)
+                .fill(Color.axisRedSoft)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AxisRadius.button, style: .continuous)
+                .strokeBorder(Color.axisRedTone.opacity(0.2), lineWidth: 0.5)
+        )
     }
 
     // MARK: - Attachment Preview Bar
@@ -818,9 +902,7 @@ struct AIChatView: View {
 
     private var inputBar: some View {
         VStack(spacing: 0) {
-            Divider()
-            HStack(alignment: .bottom, spacing: 8) {
-                // Attachment button
+            HStack(alignment: .bottom, spacing: AxisSpacing.sm) {
                 Button {
                     store.send(.toggleAttachmentMenu)
                 } label: {
@@ -830,18 +912,25 @@ struct AIChatView: View {
                 }
                 .buttonStyle(.plain)
 
-                // Text field
                 TextField("Ask AXIS anything...", text: $store.inputText.sending(\.inputTextChanged), axis: .vertical)
                     .focused($isInputFocused)
                     .lineLimit(1...6)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(.secondarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .padding(.horizontal, AxisSpacing.md)
+                    .padding(.vertical, AxisSpacing.sm + 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: AxisRadius.sheet, style: .continuous)
+                            .fill(Color.axisSurface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AxisRadius.sheet, style: .continuous)
+                            .strokeBorder(
+                                isInputFocused ? Color.axisGold.opacity(0.45) : Color.axisHairline,
+                                lineWidth: isInputFocused ? 1.5 : 0.5
+                            )
+                    )
+                    .animation(.easeOut(duration: 0.15), value: isInputFocused)
                     .submitLabel(.done)
                     .toolbar {
-                        // Keyboard accessory toolbar — guarantees a way to
-                        // dismiss without scrolling or tapping empty space.
                         ToolbarItemGroup(placement: .keyboard) {
                             Spacer()
                             Button {
@@ -856,11 +945,9 @@ struct AIChatView: View {
                         }
                     }
 
-                // Mic button — real speech-to-text via SpeechService
                 Button {
                     if speechService.isRecording {
                         speechService.stopRecording()
-                        // Append transcribed text to input after a brief delay for finalization
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(300))
                             let text = speechService.transcribedText
@@ -881,12 +968,11 @@ struct AIChatView: View {
                 } label: {
                     Image(systemName: speechService.isRecording ? "mic.fill" : "mic")
                         .font(.title3)
-                        .foregroundStyle(speechService.isRecording ? Color.red : .secondary)
+                        .foregroundStyle(speechService.isRecording ? Color.axisRedTone : Color.axisInkMute)
                         .symbolEffect(.pulse, isActive: speechService.isRecording)
                 }
                 .buttonStyle(.plain)
 
-                // Send / Stop button
                 Button {
                     store.send(.sendMessage)
                 } label: {
@@ -895,16 +981,25 @@ struct AIChatView: View {
                         .foregroundStyle(
                             canSend || store.isStreaming
                                 ? Color.axisGold
-                                : Color.gray.opacity(0.4)
+                                : Color.axisInkFaint
                         )
+                        .shadow(color: (canSend || store.isStreaming) ? Color.axisGold.opacity(0.3) : .clear, radius: 6, y: 2)
                 }
                 .disabled(!canSend && !store.isStreaming)
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, AxisSpacing.md)
+            .padding(.vertical, AxisSpacing.sm + 2)
         }
-        .background(.bar)
+        .background {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(alignment: .top) {
+                    Divider()
+                }
+                .shadow(color: AxisTheme.cardShadow, radius: 12, y: -4)
+                .ignoresSafeArea(edges: .bottom)
+        }
     }
 
     // MARK: - Thread List Sheet
@@ -1071,6 +1166,71 @@ struct AIChatView: View {
         switch provider {
         case .claude:
             return Image(systemName: "brain.head.profile")
+        }
+    }
+}
+
+// MARK: - Chat Bubble Shape
+
+private struct ChatBubbleShape: Shape {
+    let isUser: Bool
+    private let radius: CGFloat = AxisRadius.card
+    private let tailRadius: CGFloat = 4
+
+    func path(in rect: CGRect) -> Path {
+        let corners: RectangleCornerRadii
+        if isUser {
+            corners = RectangleCornerRadii(
+                topLeading: radius,
+                bottomLeading: radius,
+                bottomTrailing: tailRadius,
+                topTrailing: radius
+            )
+        } else {
+            corners = RectangleCornerRadii(
+                topLeading: radius,
+                bottomLeading: tailRadius,
+                bottomTrailing: radius,
+                topTrailing: radius
+            )
+        }
+        return UnevenRoundedRectangle(cornerRadii: corners, style: .continuous)
+            .path(in: rect)
+    }
+}
+
+// MARK: - Assistant Avatar
+
+private struct AssistantAvatarView: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.axisGold.opacity(0.25), Color.axisGold.opacity(0.10)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 28, height: 28)
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.axisGold)
+        }
+        .padding(.bottom, 2)
+    }
+}
+
+// MARK: - Streaming Shimmer
+
+private struct StreamingShimmer: ViewModifier {
+    let isActive: Bool
+
+    func body(content: Content) -> some View {
+        if isActive {
+            content.shimmer()
+        } else {
+            content
         }
     }
 }
