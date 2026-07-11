@@ -29,6 +29,11 @@ jobs:
         run: |
           xcodebuild -resolvePackageDependencies -project Axis.xcodeproj
 
+      - name: Generate Secrets.swift
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: bash scripts/generate_secrets.sh
+
       - name: Build (Debug, iOS Simulator)
         run: |
           xcodebuild \
