@@ -19,8 +19,13 @@ platform :ios do
       build_number: build_number
     )
 
+    auth_args = [
+      "-authenticationKeyPath", ENV["APP_STORE_CONNECT_KEY_PATH"],
+      "-authenticationKeyID", ENV["APP_STORE_CONNECT_KEY_ID"],
+      "-authenticationKeyIssuerID", ENV["APP_STORE_CONNECT_ISSUER_ID"]
+    ].join(" ")
+
     build_app(
-      api_key: api_key,
       project: "Axis.xcodeproj",
       scheme: "Axis",
       configuration: "Release",
@@ -29,7 +34,7 @@ platform :ios do
       output_directory: "build",
       output_name: "Axis.ipa",
       clean: true,
-      xcargs: "-skipMacroValidation -allowProvisioningUpdates DEVELOPMENT_TEAM=Q62397NX22 CODE_SIGN_STYLE=Automatic"
+      xcargs: "-skipMacroValidation -allowProvisioningUpdates #{auth_args} DEVELOPMENT_TEAM=Q62397NX22 CODE_SIGN_STYLE=Automatic"
     )
 
     upload_to_testflight(
