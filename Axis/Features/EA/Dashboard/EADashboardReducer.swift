@@ -19,6 +19,8 @@ struct EADashboardReducer {
         var nextEventTime: String = ""
         var energyScore: Int = 0
         var isEnergyLoaded: Bool = false
+        var sleepHours: Double = 0
+        var isSleepLoaded: Bool = false
 
         // Plan summary
         var planSummary: String = ""
@@ -115,6 +117,7 @@ struct EADashboardReducer {
         case refreshTapped
         case weatherLoaded(temp: String, icon: String, note: String, location: String, condition: String, feelsLike: String, humidity: String)
         case energyLoaded(Int)
+        case sleepLoaded(Double)
         case planLoaded(summary: String, blocks: [State.TimeBlockState])
         case atRiskTasksLoaded([State.AtRiskTaskState])
         case nextBestActionLoaded(State.NextBestActionState?)
@@ -198,6 +201,7 @@ struct EADashboardReducer {
                         let snapshot = await health.fetchAllData()
                         energyScore = snapshot.energy
                         await send(.energyLoaded(snapshot.energy))
+                        await send(.sleepLoaded(snapshot.sleep))
                     }
 
                     // Calendar events for plan + stats — only current/future
@@ -351,6 +355,11 @@ struct EADashboardReducer {
             case let .energyLoaded(score):
                 state.energyScore = score
                 state.isEnergyLoaded = true
+                return .none
+
+            case let .sleepLoaded(hours):
+                state.sleepHours = hours
+                state.isSleepLoaded = true
                 return .none
 
             case let .planLoaded(summary, blocks):

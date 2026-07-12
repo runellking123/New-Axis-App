@@ -1,6 +1,9 @@
 import SwiftUI
 import SwiftData
 import ComposableArchitecture
+#if DEBUG
+import Inject   // InjectionNext hot-reload runtime hook (DEBUG only)
+#endif
 
 @main
 struct AxisApp: App {
@@ -103,14 +106,45 @@ struct AxisApp: App {
                     AppReducer()
                 }
             )
+            .hotReloadRoot()
             #else
             AppView(
                 store: Store(initialState: AppReducer.State()) {
                     AppReducer()
                 }
             )
+            .hotReloadRoot()
             #endif
         }
         .modelContainer(container)
     }
 }
+
+// MARK: - Hot Reload (InjectionNext)
+
+extension View {
+    /// Rebuilds the entire view tree every time InjectionNext hot-swaps source,
+    /// so EVERY screen reflects code edits live — no per-view `@ObserveInjection`
+    /// wiring required. Applied once, at the app root. No-op in release builds.
+    func hotReloadRoot() -> some View {
+        #if DEBUG
+        InjectionRoot { self }
+        #else
+        self
+        #endif
+    }
+}
+
+#if DEBUG
+/// Observes InjectionNext's shared injection counter and keys the wrapped content
+/// on it via `.id(...)`. When you save a file, InjectionNext recompiles + rebinds
+/// the symbol and bumps `injectionNumber`; the `.id` change forces SwiftUI to
+/// discard and rebuild the whole tree, so the swapped code is what gets rendered.
+private struct InjectionRoot<Content: View>: View {
+    @ObservedObject private var observer = InjectConfiguration.observer
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        content().id(observer.injectionNumber)
+    }
+}
+#endif

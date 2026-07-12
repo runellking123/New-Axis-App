@@ -1,6 +1,12 @@
 import ComposableArchitecture
 import SwiftUI
 
+// MARK: - EA Dashboard · The Private Bank Treatment
+//
+// A daily briefing prepared for the principal, not a feed of widgets.
+// Three time-of-day registers (morning / midday / evening) share the same
+// chrome and content surfaces; only the hero copy and palette morph.
+
 struct EADashboardView: View {
     @Bindable var store: StoreOf<EADashboardReducer>
     var onNavigateToPlanner: (() -> Void)?
@@ -14,100 +20,64 @@ struct EADashboardView: View {
     var onToggleDarkMode: (() -> Void)?
     var isDarkMode: Bool = false
 
-    @State private var animateStats = false
-    @State private var pulseInbox = false
     @State private var showWeatherDetail = false
     @State private var selectedTimeBlock: EADashboardReducer.State.TimeBlockState?
     @State private var todaysReminders: [CalendarService.ReminderItem] = []
     @State private var overdueReminders: [CalendarService.ReminderItem] = []
     @Environment(\.colorScheme) private var colorScheme
 
+    // Brushed-navy used for the hero card and command bar in the Private Bank
+    // palette. Kept local so we don't pollute the global Color token system.
+    private static let pbNavy = Color(red: 20.0/255, green: 33.0/255, blue: 61.0/255)
+    private static let pbNavyDeep = Color(red: 13.0/255, green: 22.0/255, blue: 44.0/255)
+    private static let pbGoldSoft = Color.axisGold.opacity(0.18)
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: AxisSpacing.xl) {
-                    // Greeting first — quick orientation, then straight into what matters.
-                    greetingBanner
+                VStack(alignment: .leading, spacing: AxisSpacing.xl) {
+                    helloBlock
                         .axisAppear()
 
-                    // Timeline-first hierarchy: the most useful thing on this screen
-                    // is "what does the rest of my day look like?" — show it immediately.
-                    todayTimeline
-                        .axisAppear(delay: 0.08)
+                    heroCard
+                        .axisAppear(delay: 0.05)
 
                     if !store.isFocusMode {
-                        // AI recommendation — surface above the fold when present.
-                        if store.nextBestAction != nil { nextBestActionCard }
-
-                        // Overdue reminders — top priority since they're already past due.
-                        if !overdueReminders.isEmpty { overdueRemindersSection }
-
-                        // Today's reminders — what's on deck today.
-                        if !todaysReminders.isEmpty { todaysRemindersSection }
-
-                        // Legacy at-risk tasks (from SwiftData EATask). Shows
-                        // only if the user still has un-migrated tasks.
-                        if !store.atRiskTasks.isEmpty { priorityCarousel }
+                        prioritiesSection
+                            .axisAppear(delay: 0.08)
                     }
 
-                    // Quick capture — after the user has reviewed today, let them add.
-                    quickAddField
+                    dayStripSection
+                        .axisAppear(delay: 0.10)
 
-                    // Stats + weather — supporting context, not hero content.
-                    animatedStatsRow
-                        .axisAppear(delay: 0.12)
-
-                    Button { showWeatherDetail = true } label: {
-                        weatherGlance
-                    }
-                    .buttonStyle(.plain)
-
-                    if !store.isFocusMode {
-                        if store.inboxCount > 0 { inboxPulse }
-                        // Projects retired. If legacy EAProject rows still exist,
-                        // they're quietly shown here for visibility only.
-                        if !store.activeProjects.isEmpty { projectsScroll }
-                        if !store.upcomingDeadlines.isEmpty { deadlinesSection }
-                        if !store.recentChatSummary.isEmpty { recentChatSection }
+                    if !store.isFocusMode, !todaysReminders.isEmpty || !overdueReminders.isEmpty {
+                        remindersSection
                     }
 
-                    // Daily quote — flavor, bottom of screen.
+                    Button { showWeatherDetail = true } label: { weatherCard }
+                        .buttonStyle(.plain)
+
+                    if !store.isFocusMode, !store.activeProjects.isEmpty {
+                        projectsSection
+                    }
+
+                    if !store.isFocusMode, !store.upcomingDeadlines.isEmpty {
+                        deadlinesSection
+                    }
+
                     quoteCard
                 }
                 .padding(.horizontal, AxisSpacing.lg)
-                .padding(.bottom, 100)
+                .padding(.top, AxisSpacing.sm)
+                .padding(.bottom, 120)
             }
             .refreshable { store.send(.refreshTapped) }
-            .background(timeOfDayGradient)
+            .background(timeOfDayBackground.ignoresSafeArea())
             .axisConfetti(trigger: store.streakDays > 0 && store.streakDays % 7 == 0)
             .scrollDismissesKeyboard(.immediately)
+            .safeAreaInset(edge: .bottom) { commandBar }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button { onSettingsTapped?() } label: {
-                        Image(systemName: "gearshape")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: AxisSpacing.md) {
-                        Button { onToggleDarkMode?() } label: {
-                            Image(systemName: isDarkMode ? "sun.max" : "moon")
-                                .foregroundStyle(.secondary)
-                        }
-                        Button { store.send(.toggleFocusMode) } label: {
-                            Image(systemName: store.isFocusMode ? "eye.slash" : "eye")
-                                .foregroundStyle(store.isFocusMode ? Color.axisWarning : .secondary)
-                        }
-                        // The ONE gold action in the toolbar — the primary "add" CTA.
-                        Button { onAddTapped?() } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(Color.axisAccent)
-                                .font(.title3)
-                        }
-                    }
-                }
-            }
+            .toolbar { toolbarContent }
             .sheet(item: $selectedTimeBlock) { block in
                 TimeBlockDetailSheet(
                     block: block,
@@ -131,938 +101,971 @@ struct EADashboardView: View {
                     )
                 }
             }
-            .onAppear {
-                store.send(.onAppear)
-                withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
-                    animateStats = true
-                }
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    pulseInbox = true
-                }
-            }
+            .onAppear { store.send(.onAppear) }
             .task { await loadReminders() }
             .refreshable { await loadReminders() }
         }
     }
 
-    // MARK: - Time-of-day gradient background
+    // MARK: - Time of day
 
-    private var timeOfDayGradient: some View {
+    private enum DayPeriod { case morning, midday, evening }
+    private var dayPeriod: DayPeriod {
         let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12: return .morning
+        case 12..<17: return .midday
+        default: return .evening
+        }
+    }
+    private var isEvening: Bool { dayPeriod == .evening }
+
+    private var greetingPhrase: String {
+        switch dayPeriod {
+        case .morning: return "Good morning, Dr. King."
+        case .midday:  return "Good afternoon, Dr. King."
+        case .evening: return "Good evening, Dr. King."
+        }
+    }
+
+    private var subtitleLine: String {
+        switch dayPeriod {
+        case .morning:
+            return store.planTimeBlocks.isEmpty
+                ? "Your day is in order."
+                : "Your day is in order."
+        case .midday:
+            return store.meetingsRemaining > 0
+                ? "\(store.meetingsRemaining) block\(store.meetingsRemaining == 1 ? "" : "s") remain."
+                : "The afternoon is yours."
+        case .evening:
+            return "A strong day. Tomorrow is ready."
+        }
+    }
+
+    private var datelineString: String {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE · d MMMM"
+        return f.string(from: Date())
+    }
+
+    // MARK: - Background
+
+    private var timeOfDayBackground: some View {
         let dark = colorScheme == .dark
-        let colors: [Color] = {
-            if dark {
-                // Dark mode: subtle dark gradients that keep text legible
-                switch hour {
-                case 5..<8: return [Color(red: 0.08, green: 0.06, blue: 0.02), Color(red: 0.1, green: 0.08, blue: 0.03)]
-                case 8..<17: return [Color(red: 0.07, green: 0.07, blue: 0.09), Color(red: 0.05, green: 0.05, blue: 0.07)]
-                case 17..<20: return [Color(red: 0.06, green: 0.04, blue: 0.08), Color(red: 0.04, green: 0.03, blue: 0.06)]
-                default: return [Color(red: 0.04, green: 0.04, blue: 0.06), Color(red: 0.02, green: 0.02, blue: 0.04)]
-                }
-            } else {
-                // Light mode
-                switch hour {
-                case 5..<8: return [Color(red: 1.0, green: 0.97, blue: 0.9), Color(red: 0.98, green: 0.95, blue: 0.87)]
-                case 8..<12: return [Color(red: 0.96, green: 0.96, blue: 0.94), Color(red: 0.94, green: 0.93, blue: 0.91)]
-                case 12..<17: return [Color(.systemGroupedBackground), Color(.systemGroupedBackground)]
-                case 17..<20: return [Color(red: 0.93, green: 0.91, blue: 0.95), Color(red: 0.95, green: 0.93, blue: 0.96)]
-                default: return [Color(red: 0.92, green: 0.92, blue: 0.94), Color(red: 0.9, green: 0.9, blue: 0.93)]
-                }
-            }
-        }()
+        let colors: [Color]
+        switch dayPeriod {
+        case .morning:
+            colors = dark
+                ? [Color(red: 0.07, green: 0.07, blue: 0.10), Color(red: 0.05, green: 0.05, blue: 0.08)]
+                : [Color(red: 0.984, green: 0.980, blue: 0.969), Color(red: 0.953, green: 0.941, blue: 0.910)]
+        case .midday:
+            colors = dark
+                ? [Color(red: 0.06, green: 0.06, blue: 0.09), Color(red: 0.04, green: 0.04, blue: 0.07)]
+                : [Color(red: 0.984, green: 0.980, blue: 0.969), Color(red: 0.973, green: 0.957, blue: 0.910)]
+        case .evening:
+            colors = [Self.pbNavyDeep, Color(red: 0.06, green: 0.08, blue: 0.14)]
+        }
         return LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
-            .ignoresSafeArea()
     }
 
-    // MARK: 1 - Animated Greeting Banner
+    private var foregroundOnBackground: Color {
+        isEvening ? Color(red: 0.95, green: 0.93, blue: 0.86) : Color.axisInk
+    }
+    private var mutedOnBackground: Color {
+        isEvening ? Color(red: 0.70, green: 0.67, blue: 0.60) : Color.axisInkMute
+    }
+    private var hairlineOnBackground: Color {
+        isEvening ? Color.white.opacity(0.10) : Color.axisHairline
+    }
+    private var cardBackground: Color {
+        isEvening ? Color.white.opacity(0.04) : Color.white
+    }
 
-    private var greetingBanner: some View {
-        let tod = TimeOfDay.current()
-        let displayName = store.userName.isEmpty ? "Commander" : store.userName
-        let dateLine: String = {
-            let f = DateFormatter()
-            f.dateFormat = "EEEE, MMM d"
-            return f.string(from: Date())
-        }()
-        return VStack(alignment: .leading, spacing: AxisSpacing.md) {
-            HStack(spacing: AxisSpacing.md) {
-                ThingsIconCell(systemImage: tod.icon, color: tod.iconColor)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(tod.greeting), \(displayName)")
-                        .font(.system(size: 24, weight: .bold))
-                        .tracking(-0.4)
-                        .foregroundStyle(Color.axisInk)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                    Text(dateLine)
-                        .font(.footnote)
-                        .foregroundStyle(Color.axisInkMute)
-                }
-                Spacer(minLength: 0)
-            }
-            bentoGrid
+    // MARK: - Hello block
+
+    private var helloBlock: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(datelineString.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(1.8)
+                .foregroundStyle(mutedOnBackground)
+            Text(greetingPhrase)
+                .font(.system(.title, design: .serif).weight(.semibold))
+                .tracking(-0.4)
+                .foregroundStyle(foregroundOnBackground)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+            Text(subtitleLine)
+                .font(.system(size: 13))
+                .foregroundStyle(mutedOnBackground)
         }
-        .padding(.top, 8)
+        .padding(.top, 4)
     }
 
-    private var energyColor: Color {
-        store.energyScore >= 7 ? .green : store.energyScore >= 4 ? .orange : .red
-    }
+    // MARK: - Hero capacity card
 
-    // MARK: Bento grid (Mercury / Vercel-style mixed-size widget grid)
+    private var heroCard: some View {
+        ZStack(alignment: .topTrailing) {
+            // brushed-gold corner light
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.axisGold.opacity(0.35), Color.axisGold.opacity(0.0)],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 160
+                    )
+                )
+                .frame(width: 220, height: 220)
+                .offset(x: 70, y: -90)
+                .blendMode(.screen)
+                .allowsHitTesting(false)
 
-    private var bentoGrid: some View {
-        VStack(spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
-                energyHeroCell
-                    .frame(maxWidth: .infinity)
-                VStack(spacing: 10) {
-                    streakCell
-                    doneTodayCell
-                }
-                .frame(maxWidth: .infinity)
-            }
-            nextEventWideCell
-        }
-    }
+            VStack(alignment: .leading, spacing: 10) {
+                Text(heroLabel)
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.8)
+                    .foregroundStyle(Color.axisGold)
 
-    private var energyHeroCell: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("ENERGY")
-                    .font(.caption2.weight(.bold))
-                    .tracking(0.6)
-                    .foregroundStyle(Color.axisInkMute)
-                Spacer()
-                if store.isEnergyLoaded {
-                    AxisRingChart(
-                        progress: Double(store.energyScore) / 10.0,
-                        lineWidth: 5,
-                        tint: energyColor
-                    ) {
-                        EmptyView()
+                heroValueView
+
+                Text(heroSubtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(white: 0.78))
+
+                Divider()
+                    .overlay(Color.white.opacity(0.12))
+                    .padding(.top, 6)
+
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(heroStats, id: \.label) { stat in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(stat.label.uppercased())
+                                .font(.system(size: 9, weight: .bold))
+                                .tracking(1.2)
+                                .foregroundStyle(Color.axisGold)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                            Text(stat.value)
+                                .font(.system(.callout, design: .serif).weight(.medium))
+                                .foregroundStyle(Color(red: 0.95, green: 0.93, blue: 0.86))
+                                .tracking(-0.3)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(width: 32, height: 32)
                 }
+                .padding(.top, 4)
             }
-            Spacer(minLength: 6)
-            Text("\(store.energyScore)")
-                .font(.system(size: 44, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.axisInk)
-                .tracking(-1)
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.up.right")
-                    .font(.caption2.weight(.bold))
-                Text(store.streakDays > 0 ? "\(store.streakDays)-day streak" : "Today's score")
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(energyColor)
+            .padding(22)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(LinearGradient(
-                    colors: [Color.axisYellowSoft, Color.axisPaper],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
+            LinearGradient(
+                colors: [Self.pbNavy, Self.pbNavyDeep],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.axisHairline, lineWidth: 0.5)
+                .strokeBorder(Color.axisGold.opacity(0.25), lineWidth: 0.5)
         )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Self.pbNavy.opacity(0.25), radius: 22, x: 0, y: 16)
     }
 
-    private var streakCell: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("STREAK")
-                .font(.caption2.weight(.bold))
-                .tracking(0.6)
-                .foregroundStyle(Color.axisInkMute)
-            HStack(alignment: .bottom, spacing: 4) {
-                Text("🔥")
-                    .font(.title3)
-                Text("\(store.streakDays)")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.axisInk)
-            }
-            Text("days in a row")
-                .font(.caption2)
-                .foregroundStyle(Color.axisInkMute)
+    private var heroLabel: String {
+        switch dayPeriod {
+        case .morning: return "CAPACITY INDEX"
+        case .midday:  return "NEXT PROTECTED BLOCK"
+        case .evening: return "THE DAY · CLOSING"
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
-        .thingsCard(padding: 0, radius: 14)
     }
 
-    private var doneTodayCell: some View {
-        Button { onCompletedTasksTapped?() } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("DONE TODAY")
-                    .font(.caption2.weight(.bold))
-                    .tracking(0.6)
-                    .foregroundStyle(Color.axisInkMute)
-                Text("\(store.tasksCompletedToday)")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.axisInk)
-                Text("reminders")
-                    .font(.caption2)
-                    .foregroundStyle(Color.axisInkMute)
+    @ViewBuilder
+    private var heroValueView: some View {
+        switch dayPeriod {
+        case .morning:
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text("\(store.energyScore)")
+                    .font(.system(size: 44, weight: .semibold, design: .serif))
+                    .tracking(-1.5)
+                    .foregroundStyle(Color(red: 0.95, green: 0.93, blue: 0.86))
+                Text("/10")
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.55))
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+        case .midday:
+            Text(nextBlockTitle)
+                .font(.system(size: 26, weight: .semibold, design: .serif))
+                .tracking(-0.6)
+                .foregroundStyle(Color(red: 0.95, green: 0.93, blue: 0.86))
+                .lineLimit(2)
+        case .evening:
+            Text("\(store.tasksCompletedToday) shipped")
+                .font(.system(size: 30, weight: .semibold, design: .serif))
+                .tracking(-0.8)
+                .foregroundStyle(Color(red: 0.95, green: 0.93, blue: 0.86))
         }
-        .buttonStyle(.plain)
-        .thingsCard(padding: 0, radius: 14)
     }
 
-    private var nextEventWideCell: some View {
-        Button { onNavigateToPlanner?() } label: {
-            HStack(spacing: 12) {
-                ThingsIconCell(systemImage: "calendar", color: .axisCobalt, size: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("NEXT UP")
-                        .font(.caption2.weight(.bold))
-                        .tracking(0.6)
-                        .foregroundStyle(Color.axisCobalt)
-                    Text(nextEventTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.axisInk)
-                        .lineLimit(1)
-                    Text(nextEventSub)
-                        .font(.caption2)
-                        .foregroundStyle(Color.axisInkMute)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.axisInkFaint)
+    private var heroSubtitle: String {
+        switch dayPeriod {
+        case .morning:
+            if let action = store.nextBestAction {
+                return action.reasoning
             }
-            .padding(14)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [Color.axisCobaltTint, Color.axisPaper],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
+            if store.energyScore >= 7 { return "A strong morning to lead with the heaviest item." }
+            if store.energyScore >= 4 { return "Moderate capacity — protect one focus window." }
+            return "Lighter day ahead. Choose one thing."
+        case .midday:
+            if let next = store.planTimeBlocks.first {
+                return "\(next.startTime) – \(next.endTime) · capacity holds"
+            }
+            return "The afternoon is open."
+        case .evening:
+            return "\(String(format: "%.1f", store.deepWorkHoursToday))h of focus · streak now \(store.streakDays) day\(store.streakDays == 1 ? "" : "s")."
+        }
+    }
+
+    private struct HeroStat {
+        let label: String
+        let value: String
+    }
+
+    private var heroStats: [HeroStat] {
+        [
+            HeroStat(label: "Deadline", value: nextDeadlineValue),
+            HeroStat(label: "Sleep", value: sleepValue),
+            HeroStat(label: "Meetings", value: "\(store.meetingsRemaining)"),
+            HeroStat(label: "Streak", value: "\(store.streakDays)d")
+        ]
+    }
+
+    private var nextDeadlineValue: String {
+        guard let next = store.upcomingDeadlines.first else { return "—" }
+        switch next.daysLeft {
+        case ..<0: return "Past"
+        case 0:    return "Today"
+        case 1:    return "1d"
+        default:   return "\(next.daysLeft)d"
+        }
+    }
+
+    private var sleepValue: String {
+        guard store.isSleepLoaded, store.sleepHours > 0 else { return "—" }
+        let hours = Int(store.sleepHours)
+        let minutes = Int(round((store.sleepHours - Double(hours)) * 60))
+        if minutes == 60 { return "\(hours + 1):00" }
+        return String(format: "%d:%02d", hours, minutes)
+    }
+
+    private var nextBlockTitle: String {
+        store.planTimeBlocks.first?.title ?? "The afternoon is yours"
+    }
+
+    // MARK: - Priorities (Top 3, Roman numerals)
+
+    private struct PriorityVM: Identifiable {
+        let id = UUID()
+        let title: String
+        let detail: String
+        let pill: String
+        let pillTint: PillTint
+        let action: PriorityAction
+    }
+    private enum PillTint { case gold, red, green }
+    private enum PriorityAction { case openTasks, openPlanner, none }
+
+    private var topPriorities: [PriorityVM] {
+        var result: [PriorityVM] = []
+
+        // I — next best action (AI), if any
+        if let action = store.nextBestAction {
+            result.append(
+                PriorityVM(
+                    title: action.taskTitle,
+                    detail: action.reasoning,
+                    pill: "RECOMMENDED",
+                    pillTint: .gold,
+                    action: .openTasks
+                )
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(Color.axisCobaltSoft, lineWidth: 0.5)
+        }
+
+        // II — earliest overdue reminder
+        if let first = overdueReminders.first {
+            let days = daysOverdue(first.dueDate)
+            let label = days <= 0 ? "OVERDUE" : "\(days) DAY\(days == 1 ? "" : "S") OVERDUE"
+            result.append(
+                PriorityVM(
+                    title: first.title,
+                    detail: "Past due — close it out or carry it forward.",
+                    pill: label,
+                    pillTint: .red,
+                    action: .openTasks
+                )
             )
         }
-        .buttonStyle(.plain)
-    }
 
-    private var nextEventTitle: String {
-        if let evt = CalendarService.shared.upcomingEvent() {
-            return evt.title
+        // III — highest-priority at-risk task
+        if let task = store.atRiskTasks.first {
+            let pill = task.priority.uppercased()
+            result.append(
+                PriorityVM(
+                    title: task.title,
+                    detail: "Due \(formattedRelative(task.deadline)).",
+                    pill: pill,
+                    pillTint: pill.contains("CRITICAL") ? .red : .gold,
+                    action: .openTasks
+                )
+            )
         }
-        if !todaysReminders.isEmpty {
-            return todaysReminders.first?.title ?? "Nothing scheduled"
-        }
-        return "You're clear"
-    }
 
-    private var nextEventSub: String {
-        if let evt = CalendarService.shared.upcomingEvent() {
-            let f = DateFormatter(); f.dateFormat = "h:mm a"
-            return "\(f.string(from: evt.startDate)) · \(evt.location ?? "Calendar")"
-        }
-        if let first = todaysReminders.first {
-            if let due = first.dueDate {
+        // Fill remaining slots with today's reminders
+        for reminder in todaysReminders {
+            if result.count >= 3 { break }
+            if result.contains(where: { $0.title == reminder.title }) { continue }
+            let detail: String
+            if let due = reminder.dueDate, reminder.hasDueTime {
                 let f = DateFormatter(); f.dateFormat = "h:mm a"
-                return "\(f.string(from: due)) · Today"
-            }
-            return "Today · No time"
-        }
-        return "Nothing on the docket today."
-    }
-
-    // MARK: - Quick Add
-
-    private var quickAddField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "plus.circle.fill")
-                .foregroundStyle(Color.axisGold)
-            TextField("Quick add a task...", text: $store.quickAddText.sending(\.quickAddTextChanged))
-                .font(.subheadline)
-                .onSubmit { store.send(.quickAddSubmit) }
-            if !store.quickAddText.isEmpty {
-                Button { store.send(.quickAddSubmit) } label: {
-                    Text("Add")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.axisGold)
-                        .clipShape(.capsule)
-                }
-            }
-        }
-        .padding(12)
-        .background(.ultraThinMaterial)
-        .clipShape(.rect(cornerRadius: 12))
-    }
-
-    // MARK: 8 - Weather Glance
-
-    private var weatherGlance: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if store.isWeatherLoaded {
-                // Row 1: Icon + Temp + Condition
-                HStack(spacing: 12) {
-                    Image(systemName: store.weatherIcon)
-                        .font(.system(size: 36))
-                        .symbolRenderingMode(.multicolor)
-                        .frame(width: 40)
-
-                    Text(store.weatherTemp)
-                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                        .minimumScaleFactor(0.7)
-
-                    Text(store.weatherCondition)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-                }
-
-                // Row 2: Location + Details
-                HStack(spacing: 16) {
-                    if !store.locationName.isEmpty {
-                        HStack(spacing: 4) {
-                            Image(systemName: "location.fill")
-                                .font(.caption2)
-                                .foregroundStyle(Color.axisGold)
-                            Text(store.locationName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    if !store.weatherFeelsLike.isEmpty {
-                        Text("Feels \(store.weatherFeelsLike)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if !store.weatherHumidity.isEmpty {
-                        Text("\(store.weatherHumidity)")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-
-                // Row 3: Actionable note
-                HStack(spacing: 6) {
-                    Image(systemName: "lightbulb.fill")
-                        .font(.caption)
-                        .foregroundStyle(Color.axisGold)
-                    Text(store.weatherNote)
-                        .font(.caption)
-                        .foregroundStyle(.primary)
-                }
+                detail = "Today · \(f.string(from: due))"
             } else {
-                HStack(spacing: 12) {
-                    ProgressView()
-                    Text("Loading weather...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
+                detail = "On your list for today."
             }
+            result.append(
+                PriorityVM(
+                    title: reminder.title,
+                    detail: detail,
+                    pill: "TODAY",
+                    pillTint: .gold,
+                    action: .openTasks
+                )
+            )
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+
+        return Array(result.prefix(3))
     }
 
-    // MARK: 6 - Animated Stats Row
+    private var prioritiesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(
+                title: dayPeriod == .evening ? "Tomorrow's Priorities" : "Today's Priorities",
+                meta: dayPeriod == .evening ? "For your approval" : "Curated"
+            )
 
-    private var animatedStatsRow: some View {
-        HStack(spacing: AxisSpacing.md) {
-            Button { onCompletedTasksTapped?() } label: {
-                AxisStatTile(
-                    icon: "checkmark.circle.fill",
-                    value: animateStats ? "\(store.tasksCompletedToday)" : "0",
-                    label: "Done",
-                    tint: .green
-                )
-            }
-            .buttonStyle(.axisPressable)
-
-            Button { onMeetingsTapped?() } label: {
-                AxisStatTile(
-                    icon: "calendar",
-                    value: animateStats ? "\(store.meetingsRemaining)" : "0",
-                    label: "Meetings",
-                    tint: .purple
-                )
-            }
-            .buttonStyle(.axisPressable)
-
-            Button { onDeepWorkTapped?() } label: {
-                AxisStatTile(
-                    icon: "brain.head.profile",
-                    value: animateStats ? String(format: "%.1fh", store.deepWorkHoursToday) : "0h",
-                    label: "Deep Work",
-                    tint: .blue
-                )
-            }
-            .buttonStyle(.axisPressable)
-        }
-    }
-
-    // MARK: 3 - Today's Timeline
-
-    private var todayTimeline: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "calendar.badge.clock")
-                        .foregroundStyle(Color.axisGold)
-                    Text("Today's Timeline")
-                        .font(.headline)
-                        .foregroundStyle(Color.axisGold)
-                    Spacer()
-                    Button { onNavigateToPlanner?() } label: {
-                        Text("Full Plan")
-                            .font(.caption)
-                            .foregroundStyle(Color.axisGold)
+            if topPriorities.isEmpty {
+                Text("Nothing demands you. Choose what's worth your morning.")
+                    .font(.system(.subheadline, design: .serif).italic())
+                    .foregroundStyle(mutedOnBackground)
+                    .padding(.vertical, 8)
+            } else {
+                ForEach(Array(topPriorities.enumerated()), id: \.element.id) { idx, p in
+                    Button {
+                        switch p.action {
+                        case .openTasks: onNavigateToTasks?()
+                        case .openPlanner: onNavigateToPlanner?()
+                        case .none: break
+                        }
+                    } label: {
+                        priorityRow(index: idx, model: p)
+                    }
+                    .buttonStyle(.plain)
+                    if idx < topPriorities.count - 1 {
+                        Divider().overlay(hairlineOnBackground)
                     }
                 }
+            }
+        }
+    }
 
-                if store.isPlanLoaded {
-                    if store.planTimeBlocks.isEmpty {
-                        Text(store.planSummary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        // Vertical timeline with NOW marker
-                        let nowString = {
-                            let f = DateFormatter()
-                            f.dateFormat = "h:mm a"
-                            return f.string(from: Date())
-                        }()
+    private func priorityRow(index: Int, model: PriorityVM) -> some View {
+        let roman = ["I.", "II.", "III."][min(index, 2)]
+        return HStack(alignment: .top, spacing: 14) {
+            Text(roman)
+                .font(.system(size: 22, weight: .semibold, design: .serif))
+                .tracking(-0.5)
+                .foregroundStyle(Color.axisGold)
+                .frame(width: 28, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.title)
+                    .font(.system(.callout, design: .serif).weight(.semibold))
+                    .foregroundStyle(foregroundOnBackground)
+                    .lineLimit(2)
+                Text(model.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(mutedOnBackground)
+                    .lineLimit(2)
+                pillView(text: model.pill, tint: model.pillTint)
+                    .padding(.top, 2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+    }
 
-                        ForEach(Array(store.planTimeBlocks.prefix(6).enumerated()), id: \.element.id) { index, block in
+    private func pillView(text: String, tint: PillTint) -> some View {
+        let (fg, bg): (Color, Color) = {
+            switch tint {
+            case .gold: return (Color.axisGold, Self.pbGoldSoft)
+            case .red:  return (Color.axisDanger, Color.axisDanger.opacity(0.10))
+            case .green: return (Color.axisGreenTone, Color.axisGreenSoft)
+            }
+        }()
+        return Text(text)
+            .font(.system(size: 9, weight: .bold))
+            .tracking(1.0)
+            .foregroundStyle(fg)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(bg)
+            .clipShape(Capsule())
+    }
+
+    // MARK: - Day strip (calendar)
+
+    private var dayStripSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(
+                title: dayPeriod == .evening ? "Tomorrow's Calendar" : "The Day Ahead",
+                meta: store.planTimeBlocks.isEmpty ? "Open" : "\(store.planTimeBlocks.count) block\(store.planTimeBlocks.count == 1 ? "" : "s")"
+            )
+
+            if !store.isPlanLoaded {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Preparing your day…")
+                        .font(.system(size: 12))
+                        .foregroundStyle(mutedOnBackground)
+                }
+                .padding(.vertical, 6)
+            } else if store.planTimeBlocks.isEmpty {
+                Text(store.planSummary.isEmpty ? "A clear day. The hours are yours." : store.planSummary)
+                    .font(.system(.subheadline, design: .serif).italic())
+                    .foregroundStyle(mutedOnBackground)
+                    .padding(.vertical, 4)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(Array(store.planTimeBlocks.prefix(8).enumerated()), id: \.element.id) { idx, block in
                             Button { selectedTimeBlock = block } label: {
-                                HStack(alignment: .top, spacing: 12) {
-                                    // Timeline line + dot
-                                    VStack(spacing: 0) {
-                                        Circle()
-                                            .fill(blockColor(block.blockType))
-                                            .frame(width: 10, height: 10)
-                                        if index < min(store.planTimeBlocks.count - 1, 5) {
-                                            Rectangle()
-                                                .fill(Color.secondary.opacity(0.2))
-                                                .frame(width: 2, height: 32)
-                                        }
-                                    }
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(block.title)
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .lineLimit(1)
-                                            .foregroundStyle(.primary)
-                                        HStack(spacing: 4) {
-                                            Text(block.startTime)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                            Text("–")
-                                                .font(.caption2)
-                                                .foregroundStyle(.tertiary)
-                                            Text(block.endTime)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-
-                                    Spacer()
-
-                                    Text(block.blockType == "meeting" ? "Meeting" : block.blockType == "task" ? "Task" : block.blockType == "focusBlock" ? "Focus" : "Break")
-                                        .font(.caption2)
-                                        .fontWeight(.medium)
-                                        .foregroundStyle(blockColor(block.blockType))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(blockColor(block.blockType).opacity(0.12))
-                                        .clipShape(Capsule())
-
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                }
-                                .contentShape(Rectangle())
+                                eventCard(block: block, isNow: idx == 0)
                             }
                             .buttonStyle(.plain)
                         }
-
-                        if store.planTimeBlocks.count > 6 {
-                            Text("+\(store.planTimeBlocks.count - 6) more")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.leading, 22)
-                        }
                     }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+    }
+
+    private func eventCard(block: EADashboardReducer.State.TimeBlockState, isNow: Bool) -> some View {
+        let label: String = {
+            switch block.blockType {
+            case "meeting": return "Meeting"
+            case "focusBlock": return "Focus"
+            case "break": return "Break"
+            case "task": return "Task"
+            default: return "Block"
+            }
+        }()
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Text(block.startTime)
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(isNow ? Color.axisGold : Color.axisGold)
+                if isNow {
+                    Text("· NOW")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundStyle(isNow ? (isEvening ? Self.pbNavy : Color.axisGold) : Color.axisGold)
+                }
+            }
+            Text(block.title)
+                .font(.system(.subheadline, design: .serif).weight(.semibold))
+                .foregroundStyle(isNow ? (isEvening ? Self.pbNavy : Color.axisPaper) : foregroundOnBackground)
+                .lineLimit(2)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(isNow ? (isEvening ? Self.pbNavy.opacity(0.7) : Color.white.opacity(0.7)) : mutedOnBackground)
+        }
+        .padding(14)
+        .frame(width: 150, alignment: .leading)
+        .background(
+            Group {
+                if isNow {
+                    isEvening ? Color.axisGold : Self.pbNavy
                 } else {
-                    HStack {
-                        ProgressView()
-                        Text("Building your timeline...")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+                    cardBackground
                 }
             }
-        }
-    }
-
-    // MARK: 5 - Next Best Action
-
-    private var nextBestActionCard: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(Color.axisGold)
-                    Text("Your Next Move")
-                        .font(.headline)
-                        .foregroundStyle(Color.axisGold)
-                    Spacer()
-                }
-                if let action = store.nextBestAction {
-                    Text(action.taskTitle)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    Text(action.reasoning)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Button { onNavigateToTasks?() } label: {
-                        Text("Start Now")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
-                            .background(Color.axisGold)
-                            .clipShape(Capsule())
-                    }
-                }
-            }
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.axisGold.opacity(0.3), lineWidth: 1)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(
+                    isNow ? Color.clear : hairlineOnBackground,
+                    lineWidth: 0.5
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    // MARK: 4 - Priority Cards Carousel
+    // MARK: - Reminders
 
-    private var priorityCarousel: some View {
+    private var remindersSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                Text("At Risk")
-                    .font(.headline)
-                    .foregroundStyle(.red)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(store.atRiskTasks) { task in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(task.title)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .lineLimit(2)
-                            Text("Due \(task.deadline, style: .relative)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            HStack {
-                                Text(task.priority.uppercased())
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(task.priority == "critical" ? .red : .orange)
-                                    .clipShape(Capsule())
-                                Spacer()
-                                Button("Schedule") {
-                                    store.send(.scheduleAtRiskTask(task.id))
-                                }
-                                .font(.caption2)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.orange)
-                            }
-                        }
-                        .padding(14)
-                        .frame(width: 200)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: 9 - Inbox Pulse
-
-    private var inboxPulse: some View {
-        Button { onNavigateToTasks?() } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(.orange.opacity(pulseInbox ? 0.3 : 0.1))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "tray.fill")
-                        .foregroundStyle(.orange)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(store.inboxCount) unreviewed item\(store.inboxCount == 1 ? "" : "s")")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    Text("Tap to quick-triage")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(14)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(.orange.opacity(0.2), lineWidth: 1)
+            sectionHeader(
+                title: "Reminders",
+                meta: overdueReminders.isEmpty
+                    ? "\(todaysReminders.count) today"
+                    : "\(overdueReminders.count) overdue"
             )
-        }
-        .buttonStyle(.plain)
-    }
 
-    // MARK: - Active Projects
-
-    private var projectsScroll: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Active Projects")
-                .font(.headline)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(store.activeProjects) { project in
-                        Button { onNavigateToProjects?() } label: {
-                            GlassCard {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text(project.title)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .lineLimit(1)
-                                        Spacer()
-                                    }
-                                    ProgressView(value: project.progress)
-                                        .tint(Color.axisGold)
-                                    HStack {
-                                        Text("\(Int(project.progress * 100))%")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                        Spacer()
-                                        if let days = project.daysToDeadline {
-                                            Text("\(days)d left")
-                                                .font(.caption2)
-                                                .foregroundStyle(days < 3 ? .red : .secondary)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .frame(width: 180)
-                    }
-                }
+            ForEach(overdueReminders.prefix(2)) { reminder in
+                reminderRow(reminder, isOverdue: true)
+            }
+            ForEach(todaysReminders.prefix(3)) { reminder in
+                reminderRow(reminder, isOverdue: false)
             }
         }
-    }
-
-    // MARK: - Deadlines
-
-    private var deadlinesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "clock.badge.exclamationmark")
-                    .foregroundStyle(.red)
-                Text("Upcoming Deadlines")
-                    .font(.headline)
-                    .foregroundStyle(.red)
-            }
-            ForEach(store.upcomingDeadlines) { deadline in
-                GlassCard {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(deadline.title)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                            Text(deadline.category.capitalized)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text(deadline.daysLeft == 0 ? "Today" : deadline.daysLeft == 1 ? "Tomorrow" : "\(deadline.daysLeft)d left")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(deadline.daysLeft <= 1 ? .red : deadline.daysLeft <= 3 ? .orange : .secondary)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Recent Chat
-
-    private var recentChatSection: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "bubble.left.and.text.bubble.right")
-                        .foregroundStyle(Color.axisGold)
-                    Text("Recent AI Chat")
-                        .font(.headline)
-                        .foregroundStyle(Color.axisGold)
-                }
-                Text(store.recentChatSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-            }
-        }
-    }
-
-    // MARK: 10 - Daily Quote
-
-    private var quoteCard: some View {
-        VStack(spacing: 12) {
-            if !store.dailyQuote.isEmpty {
-                VStack(spacing: 16) {
-                    // Bible verse
-                    VStack(spacing: 8) {
-                        Image(systemName: "book.closed.fill")
-                            .font(.title3)
-                            .foregroundStyle(Color.axisGold.opacity(0.6))
-
-                        Text(store.dailyQuote)
-                            .font(.system(.subheadline, design: .serif).weight(.medium))
-                            .multilineTextAlignment(.center)
-                            .italic()
-                            .foregroundStyle(.primary)
-
-                        Text("— \(store.dailyQuoteAuthor)")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.axisGold)
-                    }
-
-                    // Grandma's version
-                    if !store.dailyQuoteGrandma.isEmpty {
-                        VStack(spacing: 6) {
-                            HStack(spacing: 4) {
-                                Text("🪑")
-                                    .font(.caption)
-                                Text("Grandma's Version")
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.secondary)
-                                    .textCase(.uppercase)
-                                    .tracking(1)
-                            }
-
-                            Text("\"\(store.dailyQuoteGrandma)\"")
-                                .font(.footnote.weight(.medium))
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(.primary)
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.axisGold.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-
-                    // Actions
-                    HStack(spacing: 10) {
-                        Button {
-                            store.send(.previousQuote)
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(store.quoteHistoryIndex > 0 ? Color.axisGold : .gray)
-                                .frame(width: 32, height: 32)
-                                .background(store.quoteHistoryIndex > 0 ? Color.axisGold.opacity(0.1) : Color.gray.opacity(0.1))
-                                .clipShape(Circle())
-                        }
-                        .disabled(store.quoteHistoryIndex <= 0)
-
-                        Button {
-                            store.send(.refreshQuote)
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: store.quoteHistoryIndex < store.quoteHistory.count - 1 ? "chevron.right" : "arrow.clockwise")
-                                    .font(.caption2)
-                                Text(store.quoteHistoryIndex < store.quoteHistory.count - 1 ? "Next" : "New Word")
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                            }
-                            .foregroundStyle(Color.axisGold)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(Color.axisGold.opacity(0.1))
-                            .clipShape(Capsule())
-                        }
-
-                        Button {
-                            let shareText = "\"\(store.dailyQuote)\"\n— \(store.dailyQuoteAuthor)\n\n\(store.dailyQuoteGrandma)\n\n— Shared from AXIS"
-                            PlatformServices.share(items: [shareText])
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.caption2)
-                                Text("Share")
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                            }
-                            .foregroundStyle(Color.axisGold)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(Color.axisGold.opacity(0.1))
-                            .clipShape(Capsule())
-                        }
-                    }
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-            }
-        }
-    }
-
-    // MARK: - Reminders sections
-
-    private var overdueRemindersSection: some View {
-        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
-            HStack(spacing: AxisSpacing.sm) {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(Color.axisDanger)
-                Text("Overdue Reminders")
-                    .font(.headline)
-                    .foregroundStyle(Color.axisDanger)
-                Spacer()
-                Text("\(overdueReminders.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.axisDanger)
-            }
-            ForEach(overdueReminders.prefix(3)) { item in
-                reminderRow(item, accent: Color.axisDanger)
-            }
-            if overdueReminders.count > 3 {
-                Text("+\(overdueReminders.count - 3) more overdue")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, AxisSpacing.lg)
-            }
-        }
-        .padding(AxisSpacing.lg)
-        .background(.ultraThinMaterial)
+        .padding(14)
+        .background(cardBackground)
         .overlay(
-            RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous)
-                .strokeBorder(Color.axisDanger.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(hairlineOnBackground, lineWidth: 0.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private var todaysRemindersSection: some View {
-        VStack(alignment: .leading, spacing: AxisSpacing.sm) {
-            HStack(spacing: AxisSpacing.sm) {
-                Image(systemName: "checklist")
-                    .foregroundStyle(Color.axisAccent)
-                Text("Today's Reminders")
-                    .font(.headline)
-                Spacer()
-                Text("\(todaysReminders.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(todaysReminders.prefix(4)) { item in
-                reminderRow(item, accent: Color.axisAccent)
-            }
-            if todaysReminders.count > 4 {
-                Text("+\(todaysReminders.count - 4) more today")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, AxisSpacing.lg)
-            }
-        }
-        .padding(AxisSpacing.lg)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
-    }
-
-    private func reminderRow(_ item: CalendarService.ReminderItem, accent: Color) -> some View {
+    private func reminderRow(_ item: CalendarService.ReminderItem, isOverdue: Bool) -> some View {
         Button {
             Task {
                 _ = CalendarService.shared.completeReminder(id: item.id)
                 await loadReminders()
             }
         } label: {
-            HStack(alignment: .top, spacing: AxisSpacing.sm) {
-                Image(systemName: "circle")
-                    .foregroundStyle(accent)
-                    .font(.body)
+            HStack(alignment: .top, spacing: 12) {
+                Circle()
+                    .strokeBorder(
+                        isOverdue ? Color.axisDanger : mutedOnBackground,
+                        lineWidth: 1.5
+                    )
+                    .frame(width: 18, height: 18)
+                    .padding(.top, 2)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
+                        .font(.system(.callout, design: .serif).weight(.medium))
+                        .foregroundStyle(foregroundOnBackground)
                         .lineLimit(2)
                     if let due = item.dueDate {
                         Text(formattedReminderDue(due, hasTime: item.hasDueTime))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 10))
+                            .foregroundStyle(isOverdue ? Color.axisDanger : mutedOnBackground)
                     }
                 }
                 Spacer()
             }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .contentShape(Rectangle())
     }
 
+    // MARK: - Weather
+
+    private var weatherCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                Image(systemName: store.weatherIcon)
+                    .font(.system(size: 32))
+                    .symbolRenderingMode(.multicolor)
+                    .foregroundStyle(Color.axisGold)
+                    .frame(width: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(store.weatherTemp)
+                        .font(.system(size: 28, weight: .semibold, design: .serif))
+                        .tracking(-1.0)
+                        .foregroundStyle(foregroundOnBackground)
+                    Text(weatherSubline)
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(1.0)
+                        .foregroundStyle(mutedOnBackground)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(store.locationName.isEmpty ? "LOCATION" : store.locationName.uppercased())
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(1.2)
+                        .foregroundStyle(mutedOnBackground)
+                    if !store.weatherFeelsLike.isEmpty {
+                        Text("Feels \(store.weatherFeelsLike)")
+                            .font(.system(size: 12, design: .serif))
+                            .foregroundStyle(foregroundOnBackground.opacity(0.9))
+                    }
+                }
+            }
+            if store.isWeatherLoaded, !store.weatherNote.isEmpty {
+                Divider().overlay(hairlineOnBackground)
+                Text(store.weatherNote)
+                    .font(.system(.footnote, design: .serif).italic())
+                    .foregroundStyle(mutedOnBackground)
+                    .multilineTextAlignment(.leading)
+            }
+            if !store.isWeatherLoaded {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Loading weather…")
+                        .font(.system(size: 12))
+                        .foregroundStyle(mutedOnBackground)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(hairlineOnBackground, lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var weatherSubline: String {
+        let c = store.weatherCondition.uppercased()
+        let f = store.weatherFeelsLike.isEmpty ? "" : " · FEELS \(store.weatherFeelsLike)"
+        return c + f
+    }
+
+    // MARK: - Projects
+
+    private var projectsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(title: "Active Projects", meta: "\(store.activeProjects.count) in flight")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(store.activeProjects) { project in
+                        Button { onNavigateToProjects?() } label: {
+                            projectCard(project: project)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func projectCard(project: EADashboardReducer.State.ProjectSummaryState) -> some View {
+        let days = project.daysToDeadline ?? 0
+        let warn = (project.daysToDeadline != nil) && days < 3
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(project.title)
+                .font(.system(.subheadline, design: .serif).weight(.semibold))
+                .foregroundStyle(foregroundOnBackground)
+                .lineLimit(2)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 100)
+                        .fill(hairlineOnBackground)
+                        .frame(height: 4)
+                    RoundedRectangle(cornerRadius: 100)
+                        .fill(Color.axisGold)
+                        .frame(width: max(4, geo.size.width * CGFloat(project.progress)), height: 4)
+                }
+            }
+            .frame(height: 4)
+            HStack {
+                Text("\(Int(project.progress * 100))%")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(mutedOnBackground)
+                Spacer()
+                if let d = project.daysToDeadline {
+                    Text("\(d)D LEFT")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .tracking(0.5)
+                        .foregroundStyle(warn ? Color.axisDanger : mutedOnBackground)
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 180, alignment: .leading)
+        .background(cardBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(hairlineOnBackground, lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    // MARK: - Deadlines
+
+    private var deadlinesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(title: "Upcoming Deadlines", meta: "\(store.upcomingDeadlines.count) ahead")
+            VStack(spacing: 0) {
+                ForEach(Array(store.upcomingDeadlines.enumerated()), id: \.element.id) { idx, deadline in
+                    deadlineRow(deadline)
+                    if idx < store.upcomingDeadlines.count - 1 {
+                        Divider().overlay(hairlineOnBackground)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 4)
+            .background(cardBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(hairlineOnBackground, lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    private func deadlineRow(_ deadline: EADashboardReducer.State.DeadlineState) -> some View {
+        let tint: Color = {
+            if deadline.daysLeft <= 1 { return .axisDanger }
+            if deadline.daysLeft <= 3 { return .axisGold }
+            return foregroundOnBackground
+        }()
+        let label: String = {
+            if deadline.daysLeft == 0 { return "TODAY" }
+            if deadline.daysLeft == 1 { return "1D" }
+            return "\(deadline.daysLeft)D"
+        }()
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(deadline.title)
+                    .font(.system(.callout, design: .serif).weight(.medium))
+                    .foregroundStyle(foregroundOnBackground)
+                Text(deadline.category.uppercased())
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(mutedOnBackground)
+            }
+            Spacer()
+            Text(label)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .tracking(0.5)
+                .foregroundStyle(tint)
+        }
+        .padding(.vertical, 10)
+    }
+
+    // MARK: - Quote (kept — Bible + Grandma's Version)
+
+    private var quoteCard: some View {
+        Group {
+            if !store.dailyQuote.isEmpty {
+                VStack(spacing: 16) {
+                    Text("✦")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.axisGold)
+
+                    VStack(spacing: 10) {
+                        Text("\u{201C}\(store.dailyQuote)\u{201D}")
+                            .font(.system(.subheadline, design: .serif).italic())
+                            .foregroundStyle(foregroundOnBackground)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(store.dailyQuoteAuthor.uppercased())
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(2.0)
+                            .foregroundStyle(Color.axisGold)
+                    }
+
+                    if !store.dailyQuoteGrandma.isEmpty {
+                        VStack(spacing: 6) {
+                            HStack(spacing: 4) {
+                                Text("🪑")
+                                    .font(.system(size: 11))
+                                Text("Grandma's Version")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .tracking(1.5)
+                                    .foregroundStyle(Color.axisGold)
+                                    .textCase(.uppercase)
+                            }
+                            Text("\u{201C}\(store.dailyQuoteGrandma)\u{201D}")
+                                .font(.system(.footnote, design: .serif))
+                                .foregroundStyle(foregroundOnBackground.opacity(0.95))
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity)
+                        .background(Self.pbGoldSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+
+                    HStack(spacing: 8) {
+                        quoteButton(systemImage: "chevron.left", label: nil) {
+                            store.send(.previousQuote)
+                        }
+                        .disabled(store.quoteHistoryIndex <= 0)
+                        .opacity(store.quoteHistoryIndex <= 0 ? 0.4 : 1)
+
+                        quoteButton(
+                            systemImage: store.quoteHistoryIndex < store.quoteHistory.count - 1 ? "chevron.right" : "arrow.clockwise",
+                            label: store.quoteHistoryIndex < store.quoteHistory.count - 1 ? "Next" : "New Word"
+                        ) {
+                            store.send(.refreshQuote)
+                        }
+
+                        quoteButton(systemImage: "square.and.arrow.up", label: "Share") {
+                            let shareText = "\"\(store.dailyQuote)\"\n— \(store.dailyQuoteAuthor)\n\n\(store.dailyQuoteGrandma)\n\n— Shared from AXIS"
+                            PlatformServices.share(items: [shareText])
+                        }
+                    }
+                }
+                .padding(22)
+                .frame(maxWidth: .infinity)
+                .background(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(hairlineOnBackground, lineWidth: 0.5)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
+    }
+
+    private func quoteButton(systemImage: String, label: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+                if let label {
+                    Text(label)
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(0.8)
+                }
+            }
+            .foregroundStyle(Color.axisGold)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Self.pbGoldSoft)
+            .clipShape(Capsule())
+        }
+    }
+
+    // MARK: - Section header
+
+    private func sectionHeader(title: String, meta: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.system(.callout, design: .serif).weight(.semibold))
+                .foregroundStyle(foregroundOnBackground)
+            Spacer()
+            Text(meta.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(1.4)
+                .foregroundStyle(Color.axisGold)
+        }
+    }
+
+    // MARK: - Command bar
+
+    private var commandBar: some View {
+        HStack(spacing: 10) {
+            Text("EA")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .tracking(1.0)
+                .foregroundStyle(Color.axisGold)
+            TextField(
+                "A request, Dr. King?",
+                text: $store.quickAddText.sending(\.quickAddTextChanged)
+            )
+            .textFieldStyle(.plain)
+            .font(.system(size: 13))
+            .foregroundStyle(Color.axisPaper)
+            .tint(Color.axisGold)
+            .onSubmit { store.send(.quickAddSubmit) }
+            if !store.quickAddText.isEmpty {
+                Button { store.send(.quickAddSubmit) } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Self.pbNavy)
+                        .frame(width: 28, height: 28)
+                        .background(Color.axisGold)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(Self.pbNavy)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule().strokeBorder(Color.axisGold.opacity(0.25), lineWidth: 0.5)
+        )
+        .shadow(color: Self.pbNavy.opacity(0.35), radius: 18, x: 0, y: 10)
+        .padding(.horizontal, AxisSpacing.lg)
+        .padding(.bottom, 12)
+    }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button { onSettingsTapped?() } label: {
+                Image(systemName: "gearshape")
+                    .foregroundStyle(mutedOnBackground)
+            }
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            HStack(spacing: AxisSpacing.md) {
+                Button { onToggleDarkMode?() } label: {
+                    Image(systemName: isDarkMode ? "sun.max" : "moon")
+                        .foregroundStyle(mutedOnBackground)
+                }
+                Button { store.send(.toggleFocusMode) } label: {
+                    Image(systemName: store.isFocusMode ? "eye.slash" : "eye")
+                        .foregroundStyle(store.isFocusMode ? Color.axisWarning : mutedOnBackground)
+                }
+                Button { onAddTapped?() } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(Color.axisGold)
+                        .font(.title3)
+                }
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
     private func formattedReminderDue(_ date: Date, hasTime: Bool) -> String {
+        let cal = Calendar.current
         let f = DateFormatter()
         if hasTime { f.dateStyle = .none; f.timeStyle = .short } else { f.dateStyle = .medium; f.timeStyle = .none }
-        let cal = Calendar.current
-        if cal.isDateInToday(date) { return hasTime ? f.string(from: date) : "Today" }
+        if cal.isDateInToday(date) { return hasTime ? "Today · \(f.string(from: date))" : "Today" }
         if cal.isDateInYesterday(date) { return "Yesterday" }
         if cal.isDateInTomorrow(date) { return "Tomorrow" }
         let df = DateFormatter(); df.dateStyle = .medium
         if hasTime { df.timeStyle = .short }
         return df.string(from: date)
+    }
+
+    private func formattedRelative(_ date: Date) -> String {
+        let cal = Calendar.current
+        let days = cal.dateComponents([.day], from: Date(), to: date).day ?? 0
+        if days < 0 { return "\(abs(days)) day\(abs(days) == 1 ? "" : "s") ago" }
+        if days == 0 { return "today" }
+        if days == 1 { return "tomorrow" }
+        return "in \(days) days"
+    }
+
+    private func daysOverdue(_ date: Date?) -> Int {
+        guard let date else { return 0 }
+        let cal = Calendar.current
+        let days = cal.dateComponents([.day], from: date, to: Date()).day ?? 0
+        return max(0, days)
     }
 
     private func loadReminders() async {
@@ -1087,18 +1090,6 @@ struct EADashboardView: View {
         await MainActor.run {
             self.overdueReminders = overdue
             self.todaysReminders = today
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func blockColor(_ type: String) -> Color {
-        switch type {
-        case "meeting": return .purple
-        case "focusBlock": return .blue
-        case "break": return .green
-        case "task": return Color.axisGold
-        default: return .gray
         }
     }
 }
@@ -1150,9 +1141,6 @@ struct TimeBlockDetailSheet: View {
     }
 
     private var durationText: String {
-        // Parse "h:mm a" formatted strings back into Dates on today's calendar
-        // to compute a friendly duration string. Best-effort: if parsing fails,
-        // we just omit the duration.
         let df = DateFormatter()
         df.dateFormat = "h:mm a"
         guard let start = df.date(from: block.startTime),
@@ -1169,7 +1157,6 @@ struct TimeBlockDetailSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AxisSpacing.xl) {
-                    // Title + type badge
                     VStack(alignment: .leading, spacing: AxisSpacing.sm) {
                         HStack(spacing: AxisSpacing.sm) {
                             Image(systemName: blockIcon)
@@ -1185,7 +1172,6 @@ struct TimeBlockDetailSheet: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    // Time card
                     VStack(alignment: .leading, spacing: AxisSpacing.md) {
                         HStack {
                             Image(systemName: "clock")
@@ -1204,7 +1190,6 @@ struct TimeBlockDetailSheet: View {
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: AxisRadius.card, style: .continuous))
 
-                    // Actions
                     VStack(spacing: AxisSpacing.md) {
                         Button {
                             onOpenPlanner()
