@@ -741,7 +741,7 @@ struct AIChatView: View {
                         .fill(Color.axisPaper.opacity(0.95))
                         .overlay(
                             ChatBubbleShape(isUser: false)
-                                .strokeBorder(Color.axisHairline, lineWidth: 0.5)
+                                .stroke(Color.axisHairline, lineWidth: 0.5)
                         )
                         .shadow(color: AxisTheme.cardShadow, radius: 6, y: 2)
                 }
