@@ -1172,12 +1172,18 @@ struct AIChatView: View {
 
 // MARK: - Chat Bubble Shape
 
-private struct ChatBubbleShape: Shape {
+private struct ChatBubbleShape: InsettableShape {
     let isUser: Bool
+    var inset: CGFloat = 0
     private let radius: CGFloat = AxisRadius.card
     private let tailRadius: CGFloat = 4
 
+    func inset(by amount: CGFloat) -> ChatBubbleShape {
+        ChatBubbleShape(isUser: isUser, inset: inset + amount)
+    }
+
     func path(in rect: CGRect) -> Path {
+        let rect = rect.insetBy(dx: inset, dy: inset)
         let corners: RectangleCornerRadii
         if isUser {
             corners = RectangleCornerRadii(
