@@ -20,6 +20,7 @@ platform :ios do
     )
 
     build_app(
+      api_key: api_key,
       project: "Axis.xcodeproj",
       scheme: "Axis",
       configuration: "Release",
