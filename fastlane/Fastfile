@@ -28,7 +28,7 @@ platform :ios do
       output_directory: "build",
       output_name: "Axis.ipa",
       clean: true,
-      xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=Q62397NX22 CODE_SIGN_STYLE=Automatic"
+      xcargs: "-skipMacroValidation -allowProvisioningUpdates DEVELOPMENT_TEAM=Q62397NX22 CODE_SIGN_STYLE=Automatic"
     )
 
     upload_to_testflight(
