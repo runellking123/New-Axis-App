@@ -24,8 +24,8 @@ platform :ios do
       scheme: "Axis",
       configuration: "Release",
       export_method: "app-store",
-      export_options: "../ExportOptions.plist",
-      output_directory: "../build",
+      export_options: "ExportOptions.plist",
+      output_directory: "build",
       output_name: "Axis.ipa",
       clean: true,
       xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=Q62397NX22 CODE_SIGN_STYLE=Automatic"
