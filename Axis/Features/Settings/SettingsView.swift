@@ -11,6 +11,23 @@ struct SettingsView: View {
                 profileSection
                 locationSection
                 scheduleSection
+                if !store.calendarAccessGranted || store.availableCalendars.isEmpty {
+                    calendarsAccessSection
+                } else {
+                    ForEach(calendarsGroupedBySource, id: \.source) { group in
+                        calendarSourceSection(group)
+                    }
+                    if store.calendarSelectionConfigured {
+                        Section {
+                            Button("Include All Calendars") {
+                                store.send(.includeAllCalendars)
+                            }
+                            .foregroundStyle(Color.axisGold)
+                        } footer: {
+                            Text("Only enabled calendars appear in Day Brief, daily plans, schedule analysis, and calendar AI actions.")
+                        }
+                    }
+                }
                 executiveAssistantSection
                 eaNotificationsSection
                 preferencesSection
@@ -117,7 +134,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Schedule
+    // MARK: - Daily Schedule
 
     private var scheduleSection: some View {
         Section {
@@ -128,6 +145,92 @@ struct SettingsView: View {
             Text("Daily Schedule")
         } footer: {
             Text("Used for Day Brief timing and context mode auto-switching.")
+        }
+    }
+
+    // MARK: - Calendars
+
+    private var calendarsAccessSection: some View {
+        Section {
+            if !store.calendarAccessGranted {
+                Label("Calendar access required", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.subheadline)
+                Text("Allow calendar access so AXIS can list your accounts and choose which feed daily analysis.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("No calendars found. Add accounts in iPhone Settings → Calendar → Accounts.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Calendars for Daily Analysis")
+        }
+    }
+
+    private func calendarSourceSection(_ group: (source: String, sourceType: String, calendars: [CalendarService.CalendarInfo])) -> some View {
+        Section {
+            ForEach(group.calendars) { cal in
+                Toggle(isOn: Binding(
+                    get: { store.includedCalendarIDs.contains(cal.id) },
+                    set: { store.send(.calendarInclusionToggled(cal.id, $0)) }
+                )) {
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(calendarColor(cal.colorComponents))
+                            .frame(width: 10, height: 10)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(cal.title)
+                                .font(.subheadline.weight(.medium))
+                            HStack(spacing: 4) {
+                                Text(cal.sourceType)
+                                if cal.isDefault {
+                                    Text("· Default")
+                                }
+                                if !cal.allowsContentModifications {
+                                    Text("· Read-only")
+                                }
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .tint(Color.axisGold)
+            }
+        } header: {
+            Label(group.source, systemImage: iconForSourceType(group.sourceType))
+        } footer: {
+            if group.source == calendarsGroupedBySource.last?.source && !store.calendarSelectionConfigured {
+                Text("Only enabled calendars appear in Day Brief, daily plans, schedule analysis, and calendar AI actions. Accounts stay linked in iOS Settings — this only controls what AXIS includes.")
+            }
+        }
+    }
+
+    private var calendarsGroupedBySource: [(source: String, sourceType: String, calendars: [CalendarService.CalendarInfo])] {
+        let grouped = Dictionary(grouping: store.availableCalendars, by: \.sourceTitle)
+        return grouped.keys.sorted().compactMap { key in
+            guard let calendars = grouped[key], let first = calendars.first else { return nil }
+            return (source: key, sourceType: first.sourceType, calendars: calendars)
+        }
+    }
+
+    private func calendarColor(_ components: [CGFloat]) -> Color {
+        guard components.count >= 3 else { return Color.axisCobalt }
+        let alpha = components.count >= 4 ? components[3] : 1
+        return Color(red: components[0], green: components[1], blue: components[2], opacity: alpha)
+    }
+
+    private func iconForSourceType(_ type: String) -> String {
+        switch type {
+        case "iCloud": return "icloud.fill"
+        case "Exchange / Outlook": return "building.2.fill"
+        case "CalDAV / Google": return "globe"
+        case "On My iPhone": return "iphone"
+        case "Subscribed": return "link"
+        case "Birthdays": return "gift.fill"
+        default: return "calendar"
         }
     }
 

@@ -179,6 +179,7 @@
 		A10000000000000000000011 /* WidgetLayoutConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* WidgetLayoutConfig.swift */; };
 		A10000000000000000000012 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* AIService.swift */; };
 		A10000000000000000000013 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* CalendarService.swift */; };
+		CALSELPREF000000000002 /* CalendarSelectionPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALSELPREF000000000001 /* CalendarSelectionPreferences.swift */; };
 		A10000000000000000000014 /* HapticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* HapticService.swift */; };
 		A10000000000000000000015 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* NotificationService.swift */; };
 		A10000000000000000000016 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* SpeechService.swift */; };
@@ -220,6 +221,7 @@
 		A6341E29A00796D99277A140 /* Subtask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BD786DFB311D43DF079264 /* Subtask.swift */; };
 		A887435D791B028E3D8DF258 /* StepsDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22256BD2C7057E9798C3289 /* StepsDetailView.swift */; };
 		A8B8CA6992374D0AF5144858 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* CalendarService.swift */; };
+		CALSELPREF000000000003 /* CalendarSelectionPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALSELPREF000000000001 /* CalendarSelectionPreferences.swift */; };
 		AA72B987351215C7D3BCCEAF /* EnergyCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F3F06821DF2F1F7099C4BD /* EnergyCheckIn.swift */; };
 		AA84A1CA226003D46F45BCDF /* MetricDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1EBABED5E29BFB6A0E8EC97 /* MetricDetailView.swift */; };
 		ABE4C5FC64D2D4346306D0BE /* EAProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90304734B32FD29C4C9128C8 /* EAProjectListView.swift */; };
@@ -434,6 +436,7 @@
 		B10000000000000000000011 /* WidgetLayoutConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLayoutConfig.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
+		CALSELPREF000000000001 /* CalendarSelectionPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarSelectionPreferences.swift; sourceTree = "<group>"; };
 		B10000000000000000000014 /* HapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticService.swift; sourceTree = "<group>"; };
 		B10000000000000000000015 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
@@ -933,6 +936,7 @@
 			children = (
 				B10000000000000000000012 /* AIService.swift */,
 				B10000000000000000000013 /* CalendarService.swift */,
+				CALSELPREF000000000001 /* CalendarSelectionPreferences.swift */,
 				B10000000000000000000014 /* HapticService.swift */,
 				B10000000000000000000042 /* HealthKitService.swift */,
 				AA0000000000000000000004 /* LocationService.swift */,
@@ -1271,6 +1275,7 @@
 				A10000000000000000000011 /* WidgetLayoutConfig.swift in Sources */,
 				A10000000000000000000012 /* AIService.swift in Sources */,
 				A10000000000000000000013 /* CalendarService.swift in Sources */,
+				CALSELPREF000000000002 /* CalendarSelectionPreferences.swift in Sources */,
 				A10000000000000000000014 /* HapticService.swift in Sources */,
 				A10000000000000000000015 /* NotificationService.swift in Sources */,
 				A10000000000000000000016 /* SpeechService.swift in Sources */,
@@ -1430,6 +1435,7 @@
 				78566B683886407FE3C9688E /* WidgetLayoutConfig.swift in Sources */,
 				23CFCDFA81D2B302F2F6D2F8 /* AIService.swift in Sources */,
 				A8B8CA6992374D0AF5144858 /* CalendarService.swift in Sources */,
+				CALSELPREF000000000003 /* CalendarSelectionPreferences.swift in Sources */,
 				15B76CAF75F523C39610199E /* HapticService.swift in Sources */,
 				D4AFAA42AED7F4AC43D04F15 /* NotificationService.swift in Sources */,
 				10E52B568899BA265D167487 /* SpeechService.swift in Sources */,
@@ -1645,6 +1651,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = AxisWidgets/AxisWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q62397NX22;
@@ -1672,6 +1679,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = AxisWidgets/AxisWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q62397NX22;

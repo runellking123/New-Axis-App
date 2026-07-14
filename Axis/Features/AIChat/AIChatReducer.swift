@@ -943,7 +943,14 @@ struct AIChatReducer {
             windowStart = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
             windowEnd = calendar.date(byAdding: .day, value: 60, to: Date()) ?? Date().addingTimeInterval(86400 * 60)
         }
-        let predicate = store.predicateForEvents(withStart: windowStart, end: windowEnd, calendars: nil)
+        let calendars: [EKCalendar]?
+        if let included = CalendarSelectionPreferences.includedCalendarIDs {
+            calendars = store.calendars(for: .event).filter { included.contains($0.calendarIdentifier) }
+            if calendars?.isEmpty == true { return [] }
+        } else {
+            calendars = nil
+        }
+        let predicate = store.predicateForEvents(withStart: windowStart, end: windowEnd, calendars: calendars)
         var events = store.events(matching: predicate)
 
         if let rawTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines), !rawTitle.isEmpty {
