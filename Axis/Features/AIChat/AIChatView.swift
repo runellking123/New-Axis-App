@@ -974,9 +974,13 @@ struct AIChatView: View {
                                 : Color.axisInkFaint
                         )
                         .shadow(color: (canSend || store.isStreaming) ? Color.axisGold.opacity(0.3) : .clear, radius: 6, y: 2)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
                 }
                 .disabled(!canSend && !store.isStreaming)
                 .buttonStyle(.plain)
+                .accessibilityLabel(store.isStreaming ? "Stop" : "Send")
+                .layoutPriority(1)
             }
             .padding(.horizontal, AxisSpacing.md)
             .padding(.vertical, AxisSpacing.sm + 2)
