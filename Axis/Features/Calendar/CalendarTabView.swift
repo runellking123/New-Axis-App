@@ -46,18 +46,26 @@ struct CalendarTabView: View {
         let endDate: Date
         let location: String?
         let calendarName: String
+        let sourceName: String
         let calendarColor: CGColor?
         let isAllDay: Bool
         let notes: String?
         let url: URL?
+
+        var sourceBadge: String {
+            if sourceName.isEmpty || sourceName == calendarName {
+                return calendarName
+            }
+            return "\(calendarName) · \(sourceName)"
+        }
     }
 
     struct CalSourceInfo: Identifiable {
-        let id = UUID()
+        let id: String
         let name: String
         let type: String
         let calendarCount: Int
-        let isEnabled: Bool
+        let calendars: [CalendarService.CalendarInfo]
     }
 
     var body: some View {
@@ -182,17 +190,29 @@ struct CalendarTabView: View {
                         HStack {
                             Image(systemName: "link.circle.fill")
                                 .foregroundStyle(Color.axisGold)
-                            Text("\(connectedSources.count) calendar account\(connectedSources.count == 1 ? "" : "s") connected")
+                            let total = connectedSources.reduce(0) { $0 + $1.calendarCount }
+                            let included: Int = {
+                                if CalendarSelectionPreferences.hasExplicitSelection {
+                                    return connectedSources
+                                        .flatMap(\.calendars)
+                                        .filter { CalendarSelectionPreferences.isIncluded($0.id) }
+                                        .count
+                                }
+                                return total
+                            }()
+                            Text(total == 0
+                                 ? "Connect calendar accounts"
+                                 : "\(included) of \(total) calendars in analysis · \(connectedSources.count) account\(connectedSources.count == 1 ? "" : "s")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Text("Manage")
-                                .font(.caption)
-                                .foregroundStyle(Color.axisGold)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
                         }
-                        .padding(10)
-                        .background(.ultraThinMaterial)
-                        .clipShape(.rect(cornerRadius: 10))
+                        .padding(12)
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .clipShape(.rect(cornerRadius: 12))
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal)
@@ -423,7 +443,7 @@ struct CalendarTabView: View {
                             Text("• \(loc)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
-                    Text(event.calendarName).font(.caption2).foregroundStyle(.tertiary)
+                    Text(event.sourceBadge).font(.caption2).foregroundStyle(.tertiary)
                 }
                 Spacer()
                 // Inline Join button — one-tap to open Zoom/Teams/Meet/etc.
@@ -569,24 +589,68 @@ struct CalendarTabView: View {
             List {
                 Section {
                     ForEach(connectedSources) { source in
-                        HStack {
-                            Image(systemName: iconForSource(source.type))
-                                .foregroundStyle(Color.axisGold)
-                                .frame(width: 24)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(source.name).font(.subheadline).fontWeight(.medium)
-                                Text("\(source.calendarCount) calendar\(source.calendarCount == 1 ? "" : "s") • \(source.type)")
-                                    .font(.caption).foregroundStyle(.secondary)
+                        DisclosureGroup {
+                            ForEach(source.calendars) { cal in
+                                Toggle(isOn: Binding(
+                                    get: { CalendarSelectionPreferences.isIncluded(cal.id) },
+                                    set: { enabled in
+                                        CalendarSelectionPreferences.setIncluded(
+                                            cal.id,
+                                            enabled: enabled,
+                                            knownIDs: CalendarService.shared.availableCalendars().map(\.id)
+                                        )
+                                        loadEvents()
+                                    }
+                                )) {
+                                    HStack(spacing: 8) {
+                                        Circle()
+                                            .fill(swiftUIColor(from: cal.colorComponents))
+                                            .frame(width: 10, height: 10)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(cal.title)
+                                                .font(.subheadline.weight(.medium))
+                                            if cal.isDefault {
+                                                Text("Default for new events")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            } else if !cal.allowsContentModifications {
+                                                Text("Read-only")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                }
+                                .tint(Color.axisGold)
                             }
-                            Spacer()
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+                        } label: {
+                            HStack {
+                                Image(systemName: iconForSource(source.type))
+                                    .foregroundStyle(Color.axisGold)
+                                    .frame(width: 24)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(source.name).font(.subheadline).fontWeight(.medium)
+                                    let included = source.calendars.filter { CalendarSelectionPreferences.isIncluded($0.id) }.count
+                                    Text("\(included) of \(source.calendarCount) included · \(source.type)")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
                 } header: {
-                    Text("Connected Accounts")
+                    Text("Accounts & Calendars")
                 } footer: {
-                    Text("Calendars are synced through your iPhone's Settings \u{2192} Calendar \u{2192} Accounts. Add Google, Outlook, Exchange, or other accounts there and they'll appear here automatically.")
+                    Text("Toggle which calendars AXIS includes in Day Brief, daily plans, and this schedule. Accounts themselves are managed in iPhone Settings → Calendar → Accounts.")
+                }
+
+                if CalendarSelectionPreferences.hasExplicitSelection {
+                    Section {
+                        Button("Include All Calendars") {
+                            CalendarSelectionPreferences.includeAll()
+                            loadEvents()
+                        }
+                        .foregroundStyle(Color.axisGold)
+                    }
                 }
 
                 Section {
@@ -614,10 +678,10 @@ struct CalendarTabView: View {
                 } header: {
                     Text("Connect Accounts")
                 } footer: {
-                    Text("To connect Outlook, Gmail, or Exchange:\n\n1. Open iPhone Settings\n2. Tap Calendar \u{2192} Accounts\n3. Tap Add Account\n4. Select Microsoft Exchange, Google, or Outlook.com\n5. Sign in with your credentials\n\nCalendars will sync automatically and appear here.")
+                    Text("To connect Outlook, Gmail, or Exchange:\n\n1. Open iPhone Settings\n2. Tap Calendar → Accounts\n3. Tap Add Account\n4. Select Microsoft Exchange, Google, or Outlook.com\n5. Sign in with your credentials\n\nCalendars will sync automatically and appear here.")
                 }
             }
-            .navigationTitle("Calendar Accounts")
+            .navigationTitle("Calendar Sources")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -999,65 +1063,66 @@ struct CalendarTabView: View {
         let store = EKEventStore()
         let start = Calendar.current.startOfDay(for: selectedDate)
         guard let end = Calendar.current.date(byAdding: .day, value: 1, to: start) else { return }
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
-        let ekEvents = store.events(matching: predicate).sorted { $0.startDate < $1.startDate }
-        events = ekEvents.map { e in
-            CalEventItem(
-                id: e.calendarItemIdentifier,
-                title: e.title ?? "Untitled",
-                startDate: e.startDate,
-                endDate: e.endDate,
-                location: e.location,
-                calendarName: e.calendar?.title ?? "Calendar",
-                calendarColor: e.calendar?.cgColor,
-                isAllDay: e.isAllDay,
-                notes: e.notes,
-                url: e.url
-            )
+        let calendars = analysisCalendars(in: store)
+        if let calendars, calendars.isEmpty {
+            events = []
+            return
         }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
+        let ekEvents = store.events(matching: predicate).sorted { $0.startDate < $1.startDate }
+        events = ekEvents.map(mapCalEvent)
     }
 
     private func loadEventsForDateRange(start: Date, end: Date) -> [CalEventItem] {
         guard calendarGranted else { return [] }
         let store = EKEventStore()
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        let calendars = analysisCalendars(in: store)
+        if let calendars, calendars.isEmpty { return [] }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         let ekEvents = store.events(matching: predicate).sorted { $0.startDate < $1.startDate }
-        return ekEvents.map { e in
-            CalEventItem(
-                id: e.calendarItemIdentifier,
-                title: e.title ?? "Untitled",
-                startDate: e.startDate,
-                endDate: e.endDate,
-                location: e.location,
-                calendarName: e.calendar?.title ?? "Calendar",
-                calendarColor: e.calendar?.cgColor,
-                isAllDay: e.isAllDay,
-                notes: e.notes,
-                url: e.url
+        return ekEvents.map(mapCalEvent)
+    }
+
+    private func analysisCalendars(in store: EKEventStore) -> [EKCalendar]? {
+        guard let included = CalendarSelectionPreferences.includedCalendarIDs else { return nil }
+        return store.calendars(for: .event).filter { included.contains($0.calendarIdentifier) }
+    }
+
+    private func mapCalEvent(_ e: EKEvent) -> CalEventItem {
+        CalEventItem(
+            id: e.calendarItemIdentifier,
+            title: e.title ?? "Untitled",
+            startDate: e.startDate,
+            endDate: e.endDate,
+            location: e.location,
+            calendarName: e.calendar?.title ?? "Calendar",
+            sourceName: e.calendar?.source.title ?? "",
+            calendarColor: e.calendar?.cgColor,
+            isAllDay: e.isAllDay,
+            notes: e.notes,
+            url: e.url
+        )
+    }
+
+    private func loadSources() {
+        let calendars = CalendarService.shared.availableCalendars()
+        let grouped = Dictionary(grouping: calendars, by: \.sourceTitle)
+        connectedSources = grouped.keys.sorted().compactMap { name in
+            guard let list = grouped[name], let first = list.first else { return nil }
+            return CalSourceInfo(
+                id: name,
+                name: name,
+                type: first.sourceType,
+                calendarCount: list.count,
+                calendars: list
             )
         }
     }
 
-    private func loadSources() {
-        let store = EKEventStore()
-        connectedSources = store.sources.filter { $0.sourceType != .local || !$0.calendars(for: .event).isEmpty }.map { source in
-            let typeName: String
-            switch source.sourceType {
-            case .local: typeName = "On My iPhone"
-            case .exchange: typeName = "Exchange"
-            case .calDAV: typeName = "CalDAV"
-            case .mobileMe: typeName = "iCloud"
-            case .subscribed: typeName = "Subscribed"
-            case .birthdays: typeName = "Birthdays"
-            default: typeName = "Other"
-            }
-            return CalSourceInfo(
-                name: source.title,
-                type: typeName,
-                calendarCount: source.calendars(for: .event).count,
-                isEnabled: true
-            )
-        }
+    private func swiftUIColor(from components: [CGFloat]) -> Color {
+        guard components.count >= 3 else { return Color.axisCobalt }
+        let alpha = components.count >= 4 ? components[3] : 1
+        return Color(red: components[0], green: components[1], blue: components[2], opacity: alpha)
     }
 
     private func createEvent() {
@@ -1078,8 +1143,8 @@ struct CalendarTabView: View {
     private func iconForSource(_ type: String) -> String {
         switch type {
         case "iCloud": return "icloud.fill"
-        case "Exchange": return "building.2.fill"
-        case "CalDAV": return "globe"
+        case "Exchange", "Exchange / Outlook": return "building.2.fill"
+        case "CalDAV", "CalDAV / Google": return "globe"
         case "On My iPhone": return "iphone"
         case "Subscribed": return "link"
         case "Birthdays": return "gift.fill"

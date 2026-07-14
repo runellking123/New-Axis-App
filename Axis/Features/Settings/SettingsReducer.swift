@@ -40,6 +40,12 @@ struct SettingsReducer {
         var eaNotifyAtRisk: Bool = true
         var eaNotifyInbox: Bool = true
 
+        // Calendar sources included in Day Brief / daily plans
+        var availableCalendars: [CalendarService.CalendarInfo] = []
+        var includedCalendarIDs: Set<String> = []
+        var calendarSelectionConfigured: Bool = false
+        var calendarAccessGranted: Bool = false
+
         enum DarkModeOption: String, CaseIterable, Equatable, Identifiable {
             case system = "System"
             case light = "Light"
@@ -79,12 +85,16 @@ struct SettingsReducer {
         case eaNotifyMeetingsToggled(Bool)
         case eaNotifyAtRiskToggled(Bool)
         case eaNotifyInboxToggled(Bool)
+        case calendarsLoaded([CalendarService.CalendarInfo], Bool)
+        case calendarInclusionToggled(String, Bool)
+        case includeAllCalendars
         case saveProfile
     }
 
     @Dependency(\.axisPersistence) var persistence
     @Dependency(\.axisHealth) var health
     @Dependency(\.axisNotifications) var notifications
+    @Dependency(\.axisCalendar) var calendar
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -101,7 +111,12 @@ struct SettingsReducer {
                 state.notificationsEnabled = profile.notificationsEnabled
                 state.hapticFeedbackEnabled = profile.hapticFeedbackEnabled
                 HapticService.setEnabled(profile.hapticFeedbackEnabled)
+                state.calendarSelectionConfigured = CalendarSelectionPreferences.hasExplicitSelection
+                state.includedCalendarIDs = CalendarSelectionPreferences.includedCalendarIDs ?? []
                 return .run { send in
+                    let granted = await calendar.requestAccess()
+                    let calendars = calendar.availableCalendars()
+                    await send(.calendarsLoaded(calendars, granted))
                     let isAuth = await health.isAuthorized()
                     if isAuth {
                         await send(.healthKitAuthResult(true))
@@ -258,6 +273,30 @@ struct SettingsReducer {
             case let .eaNotifyInboxToggled(on):
                 state.eaNotifyInbox = on
                 if !on { NotificationService.shared.cancelAll(withPrefix: "ea-inbox") }
+                return .none
+
+            case let .calendarsLoaded(calendars, granted):
+                state.availableCalendars = calendars
+                state.calendarAccessGranted = granted
+                if state.calendarSelectionConfigured {
+                    state.includedCalendarIDs = CalendarSelectionPreferences.includedCalendarIDs ?? []
+                } else {
+                    // Default: all calendars included until the user customizes.
+                    state.includedCalendarIDs = Set(calendars.map(\.id))
+                }
+                return .none
+
+            case let .calendarInclusionToggled(id, enabled):
+                let knownIDs = state.availableCalendars.map(\.id)
+                CalendarSelectionPreferences.setIncluded(id, enabled: enabled, knownIDs: knownIDs)
+                state.calendarSelectionConfigured = true
+                state.includedCalendarIDs = CalendarSelectionPreferences.includedCalendarIDs ?? []
+                return .none
+
+            case .includeAllCalendars:
+                CalendarSelectionPreferences.includeAll()
+                state.calendarSelectionConfigured = false
+                state.includedCalendarIDs = Set(state.availableCalendars.map(\.id))
                 return .none
 
             case let .healthKitAuthResult(authorized):

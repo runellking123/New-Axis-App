@@ -167,7 +167,11 @@ final class AIService {
             let firstEvent = events.first!
             let formatter = DateFormatter()
             formatter.dateFormat = "h:mm a"
-            parts.append("You have \(eventCount) event\(eventCount == 1 ? "" : "s") today. First up: \(firstEvent.title) at \(formatter.string(from: firstEvent.startDate)).")
+            var line = "You have \(eventCount) event\(eventCount == 1 ? "" : "s") today. First up: \(firstEvent.title) at \(formatter.string(from: firstEvent.startDate))"
+            if !firstEvent.calendarTitle.isEmpty {
+                line += " (\(firstEvent.sourceBadge))"
+            }
+            parts.append(line + ".")
         } else {
             parts.append("No meetings today — clear runway for deep work.")
         }

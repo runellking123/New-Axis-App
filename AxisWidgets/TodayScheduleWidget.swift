@@ -64,7 +64,16 @@ struct TodayProvider: TimelineProvider {
         let cal = Calendar.current
         let start = cal.startOfDay(for: Date())
         let end = cal.date(byAdding: .day, value: 1, to: start)!
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        let calendars: [EKCalendar]?
+        if let included = includedCalendarIDs() {
+            calendars = store.calendars(for: .event).filter { included.contains($0.calendarIdentifier) }
+            if calendars?.isEmpty == true {
+                return TodayEntry(date: Date(), greeting: greeting(), events: [])
+            }
+        } else {
+            calendars = nil
+        }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         let ekEvents = store.events(matching: predicate)
             .sorted { $0.startDate < $1.startDate }
 
@@ -79,6 +88,15 @@ struct TodayProvider: TimelineProvider {
         }
 
         return TodayEntry(date: Date(), greeting: greeting(), events: events)
+    }
+
+    /// Mirrors `CalendarSelectionPreferences` keys so the widget honors the
+    /// same inclusion list without linking the main app target.
+    private func includedCalendarIDs() -> Set<String>? {
+        let suite = UserDefaults(suiteName: "group.com.runellking.axis")
+        let defaults = (suite?.bool(forKey: "axis_calendar_selection_configured") == true) ? suite! : UserDefaults.standard
+        guard defaults.bool(forKey: "axis_calendar_selection_configured") else { return nil }
+        return Set(defaults.stringArray(forKey: "axis_included_calendar_ids") ?? [])
     }
 
     private func greeting() -> String {

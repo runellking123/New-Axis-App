@@ -17,6 +17,10 @@ final class CalendarService {
         let location: String?
         let calendarColor: String
         let isAllDay: Bool
+        let calendarIdentifier: String
+        let calendarTitle: String
+        let sourceTitle: String
+        let sourceType: String
 
         var duration: TimeInterval {
             endDate.timeIntervalSince(startDate)
@@ -27,6 +31,29 @@ final class CalendarService {
             let formatter = DateFormatter()
             formatter.dateFormat = "h:mm a"
             return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+        }
+
+        /// Compact label like "Work · Outlook" for UI badges.
+        var sourceBadge: String {
+            if sourceTitle.isEmpty || sourceTitle == calendarTitle {
+                return calendarTitle
+            }
+            return "\(calendarTitle) · \(sourceTitle)"
+        }
+    }
+
+    /// A user-visible EventKit calendar with its account/source identity.
+    struct CalendarInfo: Identifiable, Equatable, Hashable {
+        let id: String
+        let title: String
+        let sourceTitle: String
+        let sourceType: String
+        let allowsContentModifications: Bool
+        let isDefault: Bool
+        let colorComponents: [CGFloat]
+
+        var isIncludedInAnalysis: Bool {
+            CalendarSelectionPreferences.isIncluded(id)
         }
     }
 
@@ -64,24 +91,88 @@ final class CalendarService {
         let startOfDay = calendar.startOfDay(for: Date())
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
 
-        let predicate = store.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: nil)
-        let ekEvents = store.events(matching: predicate)
-
-        let mapped = ekEvents.map { event in
-            CalendarEvent(
-                id: event.eventIdentifier ?? UUID().uuidString,
-                title: event.title ?? "Untitled",
-                startDate: event.startDate,
-                endDate: event.endDate,
-                location: event.location,
-                calendarColor: event.calendar?.cgColor?.components?.description ?? "blue",
-                isAllDay: event.isAllDay
-            )
-        }.sorted { $0.startDate < $1.startDate }
+        let mapped = fetchEvents(start: startOfDay, end: endOfDay)
 
         await MainActor.run {
             self.todayEvents = mapped
         }
+    }
+
+    // MARK: - Calendar Catalog & Selection
+
+    func availableCalendars() -> [CalendarInfo] {
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess
+                || EKEventStore.authorizationStatus(for: .event) == .writeOnly else {
+            return []
+        }
+        let defaultID = store.defaultCalendarForNewEvents?.calendarIdentifier
+        return store.calendars(for: .event)
+            .map { cal in
+                CalendarInfo(
+                    id: cal.calendarIdentifier,
+                    title: cal.title,
+                    sourceTitle: cal.source.title,
+                    sourceType: Self.displayName(for: cal.source.sourceType),
+                    allowsContentModifications: cal.allowsContentModifications,
+                    isDefault: cal.calendarIdentifier == defaultID,
+                    colorComponents: Self.rgbaComponents(from: cal.cgColor)
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.sourceTitle != rhs.sourceTitle {
+                    return lhs.sourceTitle.localizedCaseInsensitiveCompare(rhs.sourceTitle) == .orderedAscending
+                }
+                if lhs.isDefault != rhs.isDefault { return lhs.isDefault }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+    }
+
+    /// Calendars that should feed Day Brief, daily plans, and schedule analysis.
+    /// Returns `nil` when every calendar should be included (EventKit default).
+    func calendarsForAnalysis() -> [EKCalendar]? {
+        guard let included = CalendarSelectionPreferences.includedCalendarIDs else {
+            return nil
+        }
+        let match = store.calendars(for: .event).filter { included.contains($0.calendarIdentifier) }
+        return match
+    }
+
+    static func displayName(for sourceType: EKSourceType) -> String {
+        switch sourceType {
+        case .local: return "On My iPhone"
+        case .exchange: return "Exchange / Outlook"
+        case .calDAV: return "CalDAV / Google"
+        case .mobileMe: return "iCloud"
+        case .subscribed: return "Subscribed"
+        case .birthdays: return "Birthdays"
+        @unknown default: return "Other"
+        }
+    }
+
+    private static func rgbaComponents(from color: CGColor?) -> [CGFloat] {
+        guard let color, let comps = color.components, !comps.isEmpty else {
+            return [0.2, 0.5, 0.9, 1.0]
+        }
+        if comps.count >= 4 { return Array(comps.prefix(4)) }
+        if comps.count == 2 { return [comps[0], comps[0], comps[0], comps[1]] }
+        return [0.2, 0.5, 0.9, 1.0]
+    }
+
+    private func mapEvent(_ event: EKEvent) -> CalendarEvent {
+        let cal = event.calendar
+        return CalendarEvent(
+            id: event.calendarItemIdentifier,
+            title: event.title ?? "Untitled",
+            startDate: event.startDate,
+            endDate: event.endDate,
+            location: event.location,
+            calendarColor: cal?.cgColor?.components?.description ?? "blue",
+            isAllDay: event.isAllDay,
+            calendarIdentifier: cal?.calendarIdentifier ?? "",
+            calendarTitle: cal?.title ?? "Calendar",
+            sourceTitle: cal?.source.title ?? "",
+            sourceType: cal.map { Self.displayName(for: $0.source.sourceType) } ?? ""
+        )
     }
 
     func upcomingEvent() -> CalendarEvent? {
@@ -583,23 +674,12 @@ final class CalendarService {
 
     func fetchEvents(start: Date, end: Date) -> [CalendarEvent] {
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        let calendars = calendarsForAnalysis()
+        // Explicit empty selection → no events (user turned every calendar off).
+        if let calendars, calendars.isEmpty { return [] }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         let ekEvents = store.events(matching: predicate)
-        return ekEvents.map { event in
-            CalendarEvent(
-                // calendarItemIdentifier is stable across recurring-event occurrences
-                // and works reliably with EKEventStore.calendarItem(withIdentifier:)
-                // when looking up the source EKEvent later (e.g., from the planner
-                // detail sheet when surfacing notes / Zoom links from Outlook).
-                id: event.calendarItemIdentifier,
-                title: event.title ?? "Untitled",
-                startDate: event.startDate,
-                endDate: event.endDate,
-                location: event.location,
-                calendarColor: event.calendar?.cgColor?.components?.description ?? "blue",
-                isAllDay: event.isAllDay
-            )
-        }.sorted { $0.startDate < $1.startDate }
+        return ekEvents.map(mapEvent).sorted { $0.startDate < $1.startDate }
     }
 }
 

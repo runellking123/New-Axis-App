@@ -64,6 +64,7 @@ struct AxisCalendarClient {
     var completeReminder: @Sendable (String) -> Bool
     var createTimeBlock: @Sendable (String, Date, Date, String?) -> String?
     var fetchEvents: @Sendable (Date, Date) -> [CalendarService.CalendarEvent]
+    var availableCalendars: @Sendable () -> [CalendarService.CalendarInfo]
 }
 
 struct AxisAIClient {
@@ -192,7 +193,8 @@ private enum AxisCalendarKey: DependencyKey {
         fetchIncompleteReminders: { await CalendarService.shared.fetchIncompleteReminders() },
         completeReminder: { id in CalendarService.shared.completeReminder(id: id) },
         createTimeBlock: { title, start, end, notes in CalendarService.shared.createTimeBlock(title: title, start: start, end: end, notes: notes) },
-        fetchEvents: { start, end in CalendarService.shared.fetchEvents(start: start, end: end) }
+        fetchEvents: { start, end in CalendarService.shared.fetchEvents(start: start, end: end) },
+        availableCalendars: { CalendarService.shared.availableCalendars() }
     )
 }
 
