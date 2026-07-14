@@ -15,9 +15,5 @@
 		<string>CloudDocuments</string>
 		<string>CloudKit</string>
 	</array>
-	<key>com.apple.security.application-groups</key>
-	<array>
-		<string>group.com.runellking.axis</string>
-	</array>
 </dict>
 </plist>
