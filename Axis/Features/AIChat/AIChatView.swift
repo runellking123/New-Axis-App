@@ -930,19 +930,9 @@ struct AIChatView: View {
                     )
                     .animation(.easeOut(duration: 0.15), value: isInputFocused)
                     .submitLabel(.done)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button {
-                                isInputFocused = false
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "keyboard.chevron.compact.down")
-                                    Text("Dismiss")
-                                }
-                                .font(.subheadline.weight(.medium))
-                            }
-                        }
+                    .onSubmit {
+                        // Keyboard "Done" dismisses focus — do not compete with Send.
+                        isInputFocused = false
                     }
 
                 Button {
@@ -984,9 +974,13 @@ struct AIChatView: View {
                                 : Color.axisInkFaint
                         )
                         .shadow(color: (canSend || store.isStreaming) ? Color.axisGold.opacity(0.3) : .clear, radius: 6, y: 2)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
                 }
                 .disabled(!canSend && !store.isStreaming)
                 .buttonStyle(.plain)
+                .accessibilityLabel(store.isStreaming ? "Stop" : "Send")
+                .layoutPriority(1)
             }
             .padding(.horizontal, AxisSpacing.md)
             .padding(.vertical, AxisSpacing.sm + 2)
