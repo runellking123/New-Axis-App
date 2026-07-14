@@ -930,19 +930,9 @@ struct AIChatView: View {
                     )
                     .animation(.easeOut(duration: 0.15), value: isInputFocused)
                     .submitLabel(.done)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button {
-                                isInputFocused = false
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "keyboard.chevron.compact.down")
-                                    Text("Dismiss")
-                                }
-                                .font(.subheadline.weight(.medium))
-                            }
-                        }
+                    .onSubmit {
+                        // Keyboard "Done" dismisses focus — do not compete with Send.
+                        isInputFocused = false
                     }
 
                 Button {
