@@ -211,7 +211,7 @@ struct CalendarTabView: View {
                                 .foregroundStyle(.tertiary)
                         }
                         .padding(12)
-                        .background(Color(.secondarySystemGroupedBackground))
+                        .background(Color.axisSurface)
                         .clipShape(.rect(cornerRadius: 12))
                     }
                     .buttonStyle(.plain)
